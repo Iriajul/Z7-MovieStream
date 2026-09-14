@@ -1,0 +1,27 @@
+@namespace K7.Clients.Shared.UI.Components
+
+@if (Icon == K7Brand.Symbol)
+{
+    <svg class="@CssClass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" aria-hidden="true" @attributes="AdditionalAttributes">
+        <g fill="currentColor" transform="translate(3.65,8.8) scale(0.65)">
+            <path d="m 0,0 7.5,10 h 27.5 l 1.49,-2 c 2.474,-3.297 0.132,-8.002 -3.99,-8 z"/>
+            <path d="m 34.251,11 h -12.5 l -6.75,9 6.26,8.32 z"/>
+        </g>
+    </svg>
+}
+else if (Icon == K7Brand.Logo)
+{
+    <svg class="@CssClass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 70" aria-hidden="true" @attributes="AdditionalAttributes">
+        <g fill="currentColor" transform="translate(-255,-309)">
+            <path d="M 255,309 H 315 V 323 L 273,365 H 315 V 379 H 255 V 365 L 297,323 H 255 Z"/>
+            <path d="m 351.751,319 -7.5,-10 h -21.25 l -7.5,10 z"/>
+            <path d="m 366.134,338.156 -6.253,-8.325 -36.88,49.17 h 12.5 z"/>
+            <path d="m 345.501,309 7.5,10 h 27.5 l 1.49,-2 c 2.474,-3.297 0.132,-8.002 -3.99,-8 z"/>
+            <path d="m 379.751,320 h -12.5 l -6.75,9 6.26,8.32 z"/>
+        </g>
+    </svg>
+}
+else
+{
+    <i class="@CssClass" aria-hidden="true" @attributes="AdditionalAttributes"></i>
+}

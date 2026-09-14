@@ -1,0 +1,157 @@
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Authorization
+
+<div class="app-nav-backdrop @(IsAnyMenuOpen ? "open" : "")"
+     @onpointerdown:preventDefault="true"
+     @onpointerdown:stopPropagation="true"
+     @onclick="CloseAllAsync"
+     @onclick:preventDefault="true"
+     @onclick:stopPropagation="true"></div>
+
+<header class="app-nav">
+    <div class="app-nav-bar" data-sn-section="app-navbar" data-sn-enter="last-focused">
+        <span class="app-nav-logo" title="Z7" aria-hidden="true">
+            <K7Icon Icon="@K7Brand.Logo" Class="app-nav-wordmark" />
+        </span>
+
+        <div class="app-nav-main">
+            <a href="/" class="k7-btn k7-btn--text app-nav-item--home focusable @(_activeNav == "/" ? "active" : "")"
+               @onclick="@(() => Navigate("/"))" @onclick:preventDefault>
+                <span class="app-nav-icon"><K7Icon Icon="@Phosphor.House" /></span>
+                <span class="app-nav-label">@L["Home"]</span>
+            </a>
+
+            <a href="/explore" class="k7-btn k7-btn--text app-nav-item--explore focusable @(_activeNav == "/explore" ? "active" : "")"
+               @onclick="@(() => Navigate("/explore"))" @onclick:preventDefault>
+                <span class="app-nav-icon"><K7Icon Icon="@Phosphor.Compass" /></span>
+                <span class="app-nav-label">@L["Explore"]</span>
+            </a>
+
+            <K7IconButton Href="/search" AriaLabel="@L["Search"]" Class="app-nav-item--search app-nav-item--search-mobile">
+                <K7Icon Icon="@Phosphor.MagnifyingGlass" />
+                <span class="app-nav-label">@L["Search"]</span>
+            </K7IconButton>
+
+            <a href="/my-space" class="k7-btn k7-btn--text app-nav-item--myspace focusable @(_activeNav == "/my-space" ? "active" : "")"
+               @onclick="@(() => Navigate("/my-space"))" @onclick:preventDefault>
+                <span class="app-nav-icon"><K7Icon Icon="@Phosphor.FolderUser" /></span>
+                <span class="app-nav-label">@L["MySpace"]</span>
+            </a>
+        </div>
+
+        <div class="app-nav-player">
+            <MiniMusicPlayer />
+        </div>
+
+        <div class="app-nav-spacer"></div>
+
+        <K7IconButton Icon="@Phosphor.MagnifyingGlass" Href="/search" AriaLabel="@L["Search"]" Class="app-nav-item--search app-nav-item--search-desktop" />
+
+        <div class="app-nav-item-slot app-nav-item-slot--profile">
+            <AuthorizeView>
+                <Authorized>
+                    <button class="app-nav-avatar-btn focusable @(_profileMenuOpen ? "active" : "")"
+                            type="button" @ref="_profileButtonRef" @onclick="async () => await ToggleProfile()">
+                        @if (!string.IsNullOrEmpty(_sharedAvatarUrl))
+                        {
+                            <K7Avatar Size="sm" Image="@_sharedAvatarUrl" Letter="@_sharedAvatarLetter">
+                                <span class="connection-badge connection-badge--@_badgeClass" title="@_badgeTitle"></span>
+                            </K7Avatar>
+                        }
+                        else if (_sharedAvatarMembers is { Count: > 0 })
+                        {
+                            <K7AvatarGroup Size="sm" Members="_sharedAvatarMembers">
+                                <span class="connection-badge connection-badge--@_badgeClass" title="@_badgeTitle"></span>
+                            </K7AvatarGroup>
+                        }
+                        else
+                        {
+                            <K7Avatar Size="sm" Image="@_avatarUrl" Letter="@_avatarInitial" UserId="@_userId">
+                                <span class="connection-badge connection-badge--@_badgeClass" title="@_badgeTitle"></span>
+                            </K7Avatar>
+                        }
+                    </button>
+                </Authorized>
+                <NotAuthorized>
+                    <button class="app-nav-link app-nav-link--btn app-nav-item--profile focusable" type="button" @onclick="Login">
+                        <span class="app-nav-icon"><K7Icon Icon="@Phosphor.UserCircle" /></span>
+                        <span class="app-nav-label">@L["Login"]</span>
+                    </button>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </div>
+</header>
+
+<!-- Profile popover -->
+<AuthorizeView>
+    <Authorized>
+        <div class="app-nav-popover app-nav-popover--profile @(_profileMenuOpen ? "open" : "")"
+             @ref="_profilePopoverRef"
+             data-sn-layer="@(_profileMenuOpen ? "popover" : null)"
+             data-sn-layer-close=".app-nav-backdrop">
+            <div class="app-nav-popover-inner">
+                <div class="app-nav-popover-user">
+                    @if (!string.IsNullOrEmpty(_sharedAvatarUrl))
+                    {
+                        <K7Avatar Image="@_sharedAvatarUrl" Letter="@_sharedAvatarLetter">
+                            <span class="connection-badge connection-badge--@_badgeClass"></span>
+                        </K7Avatar>
+                    }
+                    else if (_sharedAvatarMembers is { Count: > 0 })
+                    {
+                        <K7AvatarGroup Members="_sharedAvatarMembers">
+                            <span class="connection-badge connection-badge--@_badgeClass"></span>
+                        </K7AvatarGroup>
+                    }
+                    else
+                    {
+                        <K7Avatar Image="@_avatarUrl" Letter="@_avatarInitial" UserId="@_userId">
+                            <span class="connection-badge connection-badge--@_badgeClass"></span>
+                        </K7Avatar>
+                    }
+                    <div class="app-nav-popover-user-info">
+                        <span class="app-nav-popover-username">@context.User.Identity?.Name</span>
+                        @if (!string.IsNullOrEmpty(_viewingGroupLabel))
+                        {
+                            <span class="app-nav-popover-viewing-group text-muted text-sm">
+                                <span class="app-nav-popover-viewing-group-inner">@string.Format(L["ViewingAsGroup"], _viewingGroupLabel)</span>
+                            </span>
+                        }
+                        <span class="app-nav-popover-status">@_badgeTitle</span>
+                    </div>
+                </div>
+                <hr class="k7-menu-divider" />
+                <button class="k7-menu-item focusable" type="button" @onclick="OpenSyncPlayDialog">
+                    <span class="k7-menu-item-icon"><K7Icon Icon="@Phosphor.UsersThree" /></span>
+                    <span class="k7-menu-item-text">SyncPlay</span>
+                    @if (SyncPlay.IsInGroup)
+                    {
+                        <span class="k7-menu-item-badge"></span>
+                    }
+                </button>
+                <NavLink class="k7-menu-item focusable" href="/settings" @onclick="CloseAll">
+                    <span class="k7-menu-item-icon"><K7Icon Icon="@Phosphor.Gear" /></span>
+                    <span class="k7-menu-item-text">@L["Settings"]</span>
+                </NavLink>
+                <AuthorizeView Roles="Administrator" Context="adminCtx">
+                    <NavLink class="k7-menu-item focusable" href="/admin" @onclick="CloseAll">
+                        <span class="k7-menu-item-icon"><K7Icon Icon="@Phosphor.ShieldCheck" /></span>
+                        <span class="k7-menu-item-text">@L["Admin"]</span>
+                    </NavLink>
+                </AuthorizeView>
+                @if (DeviceService.GetClientType() != ClientType.Web)
+                {
+                    <button class="k7-menu-item focusable" type="button" @onclick="SwitchUser">
+                        <span class="k7-menu-item-icon"><K7Icon Icon="@Phosphor.UserSwitch" /></span>
+                        <span class="k7-menu-item-text">@L["SwitchUser"]</span>
+                    </button>
+                }
+                <button class="k7-menu-item focusable" type="button" @onclick="Logout">
+                    <span class="k7-menu-item-icon"><K7Icon Icon="@Phosphor.SignOut" /></span>
+                    <span class="k7-menu-item-text">@L["Logout"]</span>
+                </button>
+            </div>
+        </div>
+    </Authorized>
+</AuthorizeView>

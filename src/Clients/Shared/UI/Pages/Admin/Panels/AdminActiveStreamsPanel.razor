@@ -1,0 +1,9 @@
+@page "/admin/streams"
+@inject NavigationManager NavigationManager
+
+@code {
+    protected override void OnInitialized()
+    {
+        NavigationManager.NavigateTo("/admin/dashboard#streams", replace: true);
+    }
+}

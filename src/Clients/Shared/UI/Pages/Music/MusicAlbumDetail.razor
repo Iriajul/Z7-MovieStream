@@ -1,0 +1,274 @@
+@page "/music/albums/{Id}"
+@using K7.Shared.Dtos.Entities.Medias
+@using K7.Shared.Dtos.Entities.PersonRoles
+@using Microsoft.AspNetCore.Components.Authorization
+@using K7.Clients.Shared.UI.Components.Dialogs
+@inject IMediaService k7ServerService
+@inject IK7ServerService apiClient
+@inject IStringLocalizer<MusicAlbumDetail> L
+@inject IStringLocalizer<SharedResource> S
+@inject IStringLocalizer<MediaReviewDialog> ReviewDialogL
+<PageTitle>@_album?.Title</PageTitle>
+
+@if (_loading)
+{
+    <div class="album-detail-page album-detail-page--skeleton" aria-busy="true">
+        <div class="album-header">
+            <div class="album-header-cover">
+                <K7Skeleton Class="album-skeleton-cover" />
+            </div>
+            <div class="album-header-info">
+                <K7Skeleton Class="album-skeleton-overline" />
+                <K7Skeleton Class="album-skeleton-title" />
+                <K7Skeleton Class="album-skeleton-artist" />
+                <div class="album-actions">
+                    <K7Skeleton Class="album-skeleton-play" />
+                    <K7Skeleton Class="album-skeleton-play album-skeleton-play--outline" />
+                </div>
+            </div>
+        </div>
+        <div class="album-tracklist">
+            @for (var i = 0; i < 8; i++)
+            {
+                <div class="album-skeleton-track">
+                    <K7Skeleton Shape="text" Width="24px" Height="14px" />
+                    <K7Skeleton Shape="text" Width="40%" Height="16px" />
+                    <K7Skeleton Shape="text" Width="48px" Height="14px" />
+                </div>
+            }
+        </div>
+    </div>
+}
+else if (_album is not null)
+{
+    <MediaPageContent Class="album-detail-wash"
+                      FullWash="true"
+                      DominantColor="@_coverDominantColor"
+                      Tinted="@(_coverDominantColor is not null)">
+        <div class="album-detail-page">
+        <K7BackButton />
+
+        <div class="album-header">
+            <div class="album-header-cover">
+                @if (_coverUrl is not null)
+                {
+                    <K7Image @key="_coverUrl"
+                              Src="@_coverUrl"
+                              Alt="@_album.Title"
+                              Class="album-detail-cover"
+                              ObjectFit="cover" />
+                }
+                else
+                {
+                    <div class="album-detail-cover-placeholder">
+                        <K7Icon Name="vinyl-record"
+                                 Style="font-size: 64px; opacity: 0.3;" />
+                    </div>
+                }
+            </div>
+
+            <div class="album-header-info">
+                <p class="text-overline album-type-label">@L["AlbumType"]</p>
+                <div class="album-title-row">
+                    <h3 class="album-detail-title">
+                        @_album.Title
+                        @if (_album.ReleaseDate.HasValue)
+                        {
+                            <span class="album-title-year"> (@_album.ReleaseDate.Value.Year)</span>
+                        }
+                    </h3>
+                </div>
+
+                <div class="album-artists">
+                    @foreach (var artist in _artists)
+                    {
+                        <a href="@($"/music/artists/{artist.Id}")" class="album-artist-link focusable">
+                            @artist.Name
+                        </a>
+                    }
+                </div>
+
+                <div class="album-meta">
+                    @if (_album.ReleaseDate.HasValue)
+                    {
+                        <span>@_album.ReleaseDate.Value.Year</span>
+                    }
+                    @if (_trackCount > 0)
+                    {
+                        <span>&bull;</span>
+                        <span>@string.Format(L["TrackCount"], _trackCount)</span>
+                    }
+                    @if (_totalDuration > 0)
+                    {
+                        <span>&bull;</span>
+                        <span>@FormatTotalDuration(_totalDuration)</span>
+                    }
+                </div>
+
+                @if (_canRate)
+                {
+                    <div class="album-user-rating" @onclick:stopPropagation="true">
+                        <RatingStars MediaId="_album.Id" Value="_albumUserRating" Size="md" />
+                    </div>
+                }
+
+                @if (_album.Genres?.Any() == true)
+                {
+                    <div class="album-genres">
+                        @foreach (var genre in _album.Genres.Take(2))
+                        {
+                            var g = genre;
+                            <K7Chip Variant="text" Size="sm" OnClick="() => NavigateToGenre(g)">@genre</K7Chip>
+                        }
+                    </div>
+                }
+
+                <div class="album-actions">
+                    <div class="album-actions-primary">
+                        <K7Button Variant="filled"
+                                   Color="primary"
+                                   StartIcon="@Phosphor.Play"
+                                   Size="lg"
+                                   OnClick="PlayAll" data-initial-focus>
+                            @S["PlayAll"]
+                        </K7Button>
+                        <K7Button Variant="outlined"
+                                   Color="primary"
+                                   StartIcon="@Phosphor.Shuffle"
+                                   OnClick="ShuffleAll">
+                            @S["Shuffle"]
+                        </K7Button>
+                        <DownloadAllButton Items="GetDownloadRequests()" Label="@_album.Title" />
+                        @if (_canRate)
+                        {
+                            <K7IconButton Icon="@Phosphor.ChatCircleText" OnClick="OpenReviewDialogAsync" AriaLabel="@ReviewDialogL["Title"]" />
+                        }
+                        @if (_artists.Count > 0 || _isAdmin)
+                        {
+                            <K7Menu Title="@L["MoreActions"]">
+                                <ActivatorContent>
+                                    <K7IconButton Icon="@Phosphor.DotsThreeVertical" AriaLabel="@L["MoreActions"]" />
+                                </ActivatorContent>
+                                <ChildContent>
+                                    @if (_artists.Count > 0)
+                                    {
+                                        <K7MenuItem Icon="user" OnClick="NavigateToPrimaryArtist">@L["GoToArtist"]</K7MenuItem>
+                                    }
+                                    <AuthorizeView Roles="Administrator">
+                                        <K7MenuItem Icon="magnifying-glass" OnClick="OpenMediaReIdentifyDialogAsync">@L["ReIdentify"]</K7MenuItem>
+                                        <K7MenuItem Icon="arrow-clockwise" OnClick="RefreshMetadataAsync">@L["RefreshMetadata"]</K7MenuItem>
+                                        <K7MenuItem Icon="pencil-simple" OnClick="OpenEditMetadataDialogAsync">@L["EditMetadata"]</K7MenuItem>
+                                    </AuthorizeView>
+                                </ChildContent>
+                            </K7Menu>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="album-tracklist">
+            @if (_trackCount > 0 || _totalDuration > 0)
+            {
+                <div class="album-tracklist-meta">
+                    @if (_trackCount > 0)
+                    {
+                        <span>@string.Format(L["TrackCount"], _trackCount)</span>
+                    }
+                    @if (_trackCount > 0 && _totalDuration > 0)
+                    {
+                        <span>&bull;</span>
+                    }
+                    @if (_totalDuration > 0)
+                    {
+                        <span>@FormatTotalDuration(_totalDuration)</span>
+                    }
+                </div>
+            }
+            @foreach (var discGroup in _tracksByDisc)
+            {
+                @if (_tracksByDisc.Count > 1)
+                {
+                    <p class="text-subtitle1 disc-header">@string.Format(L["DiscHeader"], discGroup.Key)</p>
+                }
+
+                <K7Table Items="discGroup.Value"
+                          TItem="TrackViewModel"
+                          OnRowClick="@(args => OnTrackClick(args))"
+                          RowClass="cursor-pointer"
+                          RowId="@(t => $"track-{t.Id}")">
+                    <HeaderContent>
+                        <th class="col-track-number">#</th>
+                        <th>@S["Title"]</th>
+                        <th class="col-duration">
+                            <K7Icon Name="clock"  IconSize="@K7IconSize.Sm" />
+                        </th>
+                        <th class="col-rating"></th>
+                        <th class="col-actions"></th>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <td>
+                            @if (context.IsPlaying)
+                            {
+                                <K7Icon Name="equalizer"
+                                          IconSize="@K7IconSize.Sm"
+                                         Color="primary" />
+                            }
+                            else
+                            {
+                                <span class="track-number">@context.TrackNumber</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="track-title-cell">
+                                <span class="@(context.IsPlaying ? "track-playing" : "")">
+                                    @context.Title
+                                </span>
+                                @if (context.FeaturedArtists is { Count: > 0 })
+                                {
+                                    <span class="text-caption track-artist">
+                                        feat.
+                                        @foreach (var (artist, index) in context.FeaturedArtists.Select((a, i) => (a, i)))
+                                        {
+                                            @if (index > 0)
+                                            {
+                                                <text>, </text>
+                                            }
+                                            <a href="@($"/music/artists/{artist.Id}")" class="track-artist-link" @onclick:stopPropagation="true">@artist.Name</a>
+                                        }
+                                    </span>
+                                }
+                                else if (!string.IsNullOrEmpty(context.ArtistName))
+                                {
+                                    <span class="text-caption track-artist">@context.ArtistName</span>
+                                }
+                            </div>
+                        </td>
+                        <td class="col-duration">
+                            <span class="track-duration">@FormatTime(context.Duration)</span>
+                        </td>
+                        <td class="col-rating">
+                            <RatingStars MediaId="context.Id" Value="context.UserRating" Size="sm" />
+                        </td>
+                        <td>
+                            <TrackContextMenu Track="BuildQueueItem(context)" UserRating="context.UserRating" OnMetadataChanged="ReloadTracksAfterEditAsync" />
+                        </td>
+                    </RowTemplate>
+                </K7Table>
+            }
+
+            @if (!string.IsNullOrEmpty(_album.Overview))
+            {
+                <div class="album-overview">
+                    <p class="text-subtitle1 mb-2">@S["About"]</p>
+                    <p class="text-sm album-overview-text">@_album.Overview</p>
+                </div>
+            }
+
+            <div class="album-reviews">
+                <MediaReviewsSection @ref="_reviewsSection" MediaId="_album.Id" />
+            </div>
+        </div>
+        </div>
+    </MediaPageContent>
+}

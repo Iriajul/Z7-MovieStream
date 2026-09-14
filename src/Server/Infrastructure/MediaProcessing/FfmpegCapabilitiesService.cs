@@ -1,0 +1,340 @@
+using System.Text.RegularExpressions;
+using FFMpegCore;
+using K7.Server.Application.Common.Interfaces;
+using K7.Shared.Dtos;
+using Microsoft.Extensions.Logging;
+
+namespace K7.Server.Infrastructure.MediaProcessing;
+
+public partial class FfmpegCapabilitiesService(
+    ITranscodeSettingsProvider transcodeSettingsProvider,
+    ILogger<FfmpegCapabilitiesService> logger) : IFfmpegCapabilitiesService
+{
+    private static readonly string[] PreferredHardwareEncoders =
+    [
+        "h264_nvenc", "hevc_nvenc",
+        "h264_qsv", "hevc_qsv",
+        "h264_vaapi", "hevc_vaapi",
+        "h264_videotoolbox", "hevc_videotoolbox",
+        "h264_amf", "hevc_amf"
+    ];
+
+    // Process-lifetime cache: probe once, reuse for GetStreamUri / Admin / transcoder.
+    private FfmpegCapabilitiesDto? _cachedCapabilities;
+    private readonly SemaphoreSlim _probeLock = new(1, 1);
+
+    public async Task<FfmpegCapabilitiesDto> GetCapabilitiesAsync(CancellationToken cancellationToken = default)
+    {
+        if (_cachedCapabilities is not null)
+            return _cachedCapabilities;
+
+        await _probeLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_cachedCapabilities is not null)
+                return _cachedCapabilities;
+
+            // Finish the probe even if the requesting HTTP call is cancelled. Otherwise a
+            // cancelled GetStreamUri would discard results and re-run noisy encoder tests
+            // on the next stream.
+            _cachedCapabilities = await ProbeCapabilitiesAsync(CancellationToken.None);
+            return _cachedCapabilities;
+        }
+        finally
+        {
+            _probeLock.Release();
+        }
+    }
+
+    public async Task<VideoEncoderInfoDto?> ResolveVideoEncoderAsync(
+        string logicalCodec,
+        bool forceSoftware = false,
+        CancellationToken cancellationToken = default)
+    {
+        var capabilities = await GetCapabilitiesAsync(cancellationToken);
+        var settings = await transcodeSettingsProvider.GetSettingsAsync(cancellationToken);
+        var selection = FfmpegVideoEncoderBuilder.Resolve(logicalCodec, settings, capabilities, forceSoftware);
+        return selection is null
+            ? null
+            : new VideoEncoderInfoDto
+            {
+                EncoderName = selection.EncoderName,
+                IsHardwareAccelerated = selection.IsHardwareAccelerated
+            };
+    }
+
+    private static async Task<(int ExitCode, string Stdout, string Stderr)> RunCaptureAsync(
+        string fileName,
+        string arguments,
+        CancellationToken cancellationToken,
+        TimeSpan? timeout = null)
+    {
+        var stdout = new List<string>();
+        var stderr = new List<string>();
+        var exitCode = await SafeProcessRunner.RunAsync(
+            fileName,
+            arguments,
+            line => stdout.Add(line),
+            line => stderr.Add(line),
+            timeout: timeout,
+            cancellationToken: cancellationToken);
+
+        return (exitCode, string.Join('\n', stdout), string.Join('\n', stderr));
+    }
+
+    private const int TestFrameWidth = 320;
+    private const int TestFrameHeight = 240;
+    private const string ProbeClipDuration = "0.1";
+    // NVENC production args can fail LockBitstream on a 2-frame flush. Admin
+    // Test encoder uses 1s. Capability probes stay at 0.1s plus -frames:v 5.
+    private const string TestClipDuration = "1";
+    private static readonly TimeSpan ProbeEncodeTimeout = TimeSpan.FromSeconds(5);
+
+    public async Task<FfmpegTranscodeTestResultDto> TestEncoderAsync(CancellationToken cancellationToken = default)
+    {
+        var capabilities = await GetCapabilitiesAsync(cancellationToken);
+        var settings = await transcodeSettingsProvider.GetSettingsAsync(cancellationToken);
+        var selection = FfmpegVideoEncoderBuilder.Resolve("h264", settings, capabilities);
+
+        if (selection is null)
+        {
+            return new FfmpegTranscodeTestResultDto
+            {
+                Success = false,
+                Error = "No suitable H.264 encoder found.",
+                Capabilities = capabilities
+            };
+        }
+
+        var ffmpegPath = GlobalFFOptions.GetFFMpegBinaryPath();
+        var result = await TryEncodeAsync(
+            ffmpegPath,
+            selection,
+            TestClipDuration,
+            cancellationToken,
+            TimeSpan.FromSeconds(15));
+        if (!result.Success)
+        {
+            return new FfmpegTranscodeTestResultDto
+            {
+                Success = false,
+                SelectedEncoder = selection.EncoderName,
+                IsHardwareAccelerated = selection.IsHardwareAccelerated,
+                Error = result.Stderr,
+                Capabilities = capabilities
+            };
+        }
+
+        return new FfmpegTranscodeTestResultDto
+        {
+            Success = true,
+            SelectedEncoder = selection.EncoderName,
+            IsHardwareAccelerated = selection.IsHardwareAccelerated,
+            Capabilities = capabilities
+        };
+    }
+
+    private async Task<FfmpegCapabilitiesDto> ProbeCapabilitiesAsync(CancellationToken cancellationToken)
+    {
+        var ffmpegPath = GlobalFFOptions.GetFFMpegBinaryPath();
+        var versionResult = await RunCaptureAsync(ffmpegPath, "-hide_banner -version", cancellationToken);
+        var versionLine = versionResult.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim();
+
+        var hwaccelResult = await RunCaptureAsync(ffmpegPath, "-hide_banner -hwaccels", cancellationToken);
+        var hwaccels = ParseLines(hwaccelResult.Stdout, skipHeader: true);
+
+        var encodersResult = await RunCaptureAsync(ffmpegPath, "-hide_banner -encoders", cancellationToken);
+        var encoders = ParseEncoderNames(encodersResult.Stdout);
+        var candidateHardwareEncoders = encoders
+            .Where(e => PreferredHardwareEncoders.Contains(e, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        var filtersResult = await RunCaptureAsync(ffmpegPath, "-hide_banner -filters", cancellationToken);
+        var cudaScaleFilterAvailable = HasFilter(filtersResult.Stdout, "scale_cuda");
+        if (cudaScaleFilterAvailable)
+            logger.LogDebug("ffmpeg scale_cuda filter is available");
+        else
+            logger.LogDebug("ffmpeg scale_cuda filter is not available (NVENC will encode from system memory)");
+
+        var vaapiDevice = FfmpegVideoEncoderBuilder.FindVaapiRenderNode();
+        if (vaapiDevice is not null)
+            logger.LogInformation("VAAPI render node detected: {Device}", vaapiDevice);
+        else
+            logger.LogDebug("No /dev/dri/renderD* node found (VAAPI unavailable in this environment)");
+
+        var verifiedHardwareEncoders = new List<string>();
+        var failedHardwareEncoders = new List<string>();
+        foreach (var encoderName in candidateHardwareEncoders)
+        {
+            if (!FfmpegVideoEncoderBuilder.CanProbeHardwareEncoder(encoderName))
+            {
+                logger.LogDebug("Skipping hardware encoder {Encoder} (not usable on this OS/device)", encoderName);
+                continue;
+            }
+
+            var selection = FfmpegVideoEncoderBuilder.CreateHardwareProbeSelection(encoderName);
+            if (selection is null)
+                continue;
+
+            var probe = await TryEncodeAsync(
+                ffmpegPath,
+                selection,
+                ProbeClipDuration,
+                cancellationToken,
+                ProbeEncodeTimeout);
+            if (probe.Success)
+            {
+                verifiedHardwareEncoders.Add(encoderName);
+                logger.LogInformation("Hardware encoder {Encoder} verified", encoderName);
+            }
+            else
+            {
+                failedHardwareEncoders.Add(encoderName);
+                var summary = SummarizeProbeError(probe.Stderr);
+                logger.LogDebug(
+                    "Hardware encoder {Encoder} is built into ffmpeg but failed verification: {Error}",
+                    encoderName,
+                    summary);
+                logger.LogDebug(
+                    "Hardware encoder {Encoder} verification stderr: {Stderr}",
+                    encoderName,
+                    TruncateForLog(probe.Stderr, 2000));
+            }
+        }
+
+        if (failedHardwareEncoders.Count > 0)
+        {
+            logger.LogInformation(
+                "Hardware encoder probe skipped {Count} built-in encoder(s) (not usable here): {Encoders}",
+                failedHardwareEncoders.Count,
+                string.Join(", ", failedHardwareEncoders));
+        }
+
+        logger.LogInformation(
+            "Hardware encoder probe complete: {VerifiedCount} available ({Encoders})",
+            verifiedHardwareEncoders.Count,
+            verifiedHardwareEncoders.Count == 0 ? "none" : string.Join(", ", verifiedHardwareEncoders));
+
+        return new FfmpegCapabilitiesDto
+        {
+            FfmpegVersion = versionLine,
+            HardwareAccelerators = hwaccels,
+            VideoEncoders = encoders,
+            AvailableHardwareEncoders = verifiedHardwareEncoders,
+            CudaScaleFilterAvailable = cudaScaleFilterAvailable
+        };
+    }
+
+    private static async Task<(bool Success, string Stderr)> TryEncodeAsync(
+        string ffmpegPath,
+        VideoEncoderSelection selection,
+        string clipDuration,
+        CancellationToken cancellationToken,
+        TimeSpan? timeout = null)
+    {
+        // ffmpeg requires -init_hw_device (and friends) before -i.
+        var global = string.IsNullOrWhiteSpace(selection.GlobalArguments)
+            ? string.Empty
+            : $"{selection.GlobalArguments} ";
+        var filter = string.IsNullOrWhiteSpace(selection.VideoFilter)
+            ? string.Empty
+            : $"-vf \"{selection.VideoFilter}\" ";
+        var args =
+            $"-hide_banner {global}-f lavfi -i color=c=black:s={TestFrameWidth}x{TestFrameHeight}:d={clipDuration} {filter}{selection.EncoderArguments} -f null -";
+
+        try
+        {
+            var result = await RunCaptureAsync(ffmpegPath, args, cancellationToken, timeout);
+            return (result.ExitCode == 0, result.Stderr);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
+    private static string SummarizeProbeError(string stderr)
+    {
+        if (string.IsNullOrWhiteSpace(stderr))
+            return "unknown error";
+
+        foreach (var line in stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (line.StartsWith("Press [", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("frame=", StringComparison.OrdinalIgnoreCase)
+                || line.Equals("Conversion failed!", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (line.Contains("Cannot load", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("Error creating", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("Error while opening encoder", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("No device", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("does not support", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("Permission denied", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("Operation not permitted", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("Failed to", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("Unknown error", StringComparison.OrdinalIgnoreCase))
+            {
+                return TruncateForLog(line, 200);
+            }
+        }
+
+        var fallback = stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault(l => !l.StartsWith("Press [", StringComparison.OrdinalIgnoreCase));
+        return TruncateForLog(fallback ?? "encode probe failed", 200);
+    }
+
+    private static string TruncateForLog(string value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+            return value;
+
+        return value[..maxLength] + "...";
+    }
+
+    private static List<string> ParseLines(string output, bool skipHeader)
+    {
+        var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (skipHeader && lines.Length > 0)
+            lines = [.. lines.Skip(1)];
+
+        return [.. lines.Where(l => !string.IsNullOrWhiteSpace(l))];
+    }
+
+    internal static bool HasFilter(string filtersOutput, string filterName)
+    {
+        foreach (var line in filtersOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var match = FilterLineRegex().Match(line);
+            if (match.Success
+                && match.Groups[1].Value.Equals(filterName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static List<string> ParseEncoderNames(string output)
+    {
+        var encoders = new List<string>();
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var match = EncoderLineRegex().Match(line);
+            if (match.Success)
+                encoders.Add(match.Groups[1].Value);
+        }
+
+        return encoders;
+    }
+
+    [GeneratedRegex(@"^\s*[AVSFDK][\w\.]+\s+([\w\-]+)\s+", RegexOptions.CultureInvariant)]
+    private static partial Regex EncoderLineRegex();
+
+    [GeneratedRegex(@"^\s*[A-Za-z.]+\s+([\w\-]+)\s+", RegexOptions.CultureInvariant)]
+    private static partial Regex FilterLineRegex();
+}

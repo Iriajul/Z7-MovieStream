@@ -1,0 +1,85 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:4beef5b8919dcaa2dc924233bd069257e883cc7a061e09088a97d152d6a48510 AS build
+WORKDIR /src
+
+RUN dotnet tool install --global Microsoft.Web.LibraryManager.Cli
+ENV PATH="$PATH:/root/.dotnet/tools"
+
+COPY Directory.Build.props Directory.Packages.props global.json ./
+COPY src/Server/Web/K7.Server.Web.csproj                                    src/Server/Web/
+COPY src/Server/Application/K7.Server.Application.csproj                     src/Server/Application/
+COPY src/Server/Domain/K7.Server.Domain.csproj                               src/Server/Domain/
+COPY src/Server/Infrastructure/Database/Context/*.csproj                     src/Server/Infrastructure/Database/Context/
+COPY src/Server/Infrastructure/Database/Providers/Postgres/*.csproj          src/Server/Infrastructure/Database/Providers/Postgres/
+COPY src/Server/Infrastructure/Database/Providers/Sqlite/*.csproj            src/Server/Infrastructure/Database/Providers/Sqlite/
+COPY src/Server/Infrastructure/Configuration/*.csproj                        src/Server/Infrastructure/Configuration/
+COPY src/Server/Infrastructure/ExternalServices/*.csproj                     src/Server/Infrastructure/ExternalServices/
+COPY src/Server/Infrastructure/FileSystem/*.csproj                           src/Server/Infrastructure/FileSystem/
+COPY src/Server/Infrastructure/MediaProcessing/*.csproj                      src/Server/Infrastructure/MediaProcessing/
+COPY src/Shared/Aspire/ServiceDefaults/*.csproj                              src/Shared/Aspire/ServiceDefaults/
+COPY src/Shared/K7.Shared/*.csproj                                           src/Shared/K7.Shared/
+COPY src/Clients/Shared/K7.Clients.Shared.csproj                             src/Clients/Shared/
+COPY src/Clients/Shared/UI/K7.Clients.Shared.UI.csproj                       src/Clients/Shared/UI/
+COPY src/Clients/Web/*.csproj                                                src/Clients/Web/
+RUN dotnet restore "src/Server/Web/K7.Server.Web.csproj"
+
+COPY src/Clients/Shared/UI/libman.json src/Clients/Shared/UI/
+COPY src/Clients/Web/libman.json       src/Clients/Web/
+RUN set -e; \
+    for manifest in $(find . -name "libman.json"); do \
+      (cd "$(dirname "$manifest")" && libman restore); \
+    done
+
+COPY . .
+
+ARG BUILD_CONFIGURATION=Release
+ARG APP_VERSION=0.0.0
+RUN dotnet publish "src/Server/Web/K7.Server.Web.csproj" \
+    -c $BUILD_CONFIGURATION -o /publish --no-restore \
+    -p:Version=${APP_VERSION}
+
+
+# VS Fast Mode debug stage (F5 in Visual Studio with Docker profile)
+FROM build AS dev
+# va-driver-all pulls arch-appropriate VAAPI drivers (Intel packages are amd64/i386 only).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        vainfo \
+        va-driver-all \
+    && (apt-get install -y --no-install-recommends intel-media-va-driver-non-free || true) \
+    && rm -rf /var/lib/apt/lists/*
+EXPOSE 7080 7443
+
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble@sha256:011bb5f30180717b1c8b65822ff2c99bcb96bc65af0164589751b83c7b4949f7 AS runtime
+# va-driver-all pulls arch-appropriate VAAPI drivers (Intel packages are amd64/i386 only).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        gosu \
+        ffmpeg \
+        curl \
+        vainfo \
+        va-driver-all \
+    && (apt-get install -y --no-install-recommends intel-media-va-driver-non-free || true) \
+    && rm -rf /var/lib/apt/lists/*
+
+
+
+FROM runtime AS final
+RUN groupadd -g 911 appgroup && useradd -u 911 -g appgroup -m appuser
+WORKDIR /k7
+COPY --from=build /publish .
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENV ASPNETCORE_HTTP_PORTS=7080
+# Return native heap (Skia/glibc) more eagerly.
+ENV MALLOC_TRIM_THRESHOLD_=131072
+# Quieter default logs in containers; keep K7 + host lifetime at Information for startup/setup.
+ENV Serilog__MinimumLevel__Default=Warning
+ENV Serilog__MinimumLevel__Override__K7=Information
+ENV Serilog__MinimumLevel__Override__Microsoft.Hosting.Lifetime=Information
+EXPOSE 7080
+HEALTHCHECK --interval=5s --timeout=3s --start-period=60s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:7080/alive || exit 1
+LABEL org.opencontainers.image.source="https://github.com/Iriajul/Z7-MovieStream"
+ENTRYPOINT ["/entrypoint.sh"]

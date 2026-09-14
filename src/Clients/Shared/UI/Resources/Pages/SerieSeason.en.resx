@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="SeasonNumber" xml:space="preserve"><value>Season {0}</value></data>
+  <data name="SeasonNumber_Label" xml:space="preserve"><value>Season</value></data>
+  <data name="Specials" xml:space="preserve"><value>Specials</value></data>
+  <data name="PreviousSeason" xml:space="preserve"><value>Previous season</value></data>
+  <data name="NextSeason" xml:space="preserve"><value>Next season</value></data>
+  <data name="BackToSerie" xml:space="preserve"><value>Back to series</value></data>
+  <data name="EpisodeLabel" xml:space="preserve"><value>Season {0} - Episode {1}</value></data>
+  <data name="EpisodeList" xml:space="preserve"><value>Episodes</value></data>
+  <data name="EpisodeNumber" xml:space="preserve"><value>Episode {0}</value></data>
+  <data name="Overview" xml:space="preserve"><value>Overview</value></data>
+  <data name="DetectIntrosOutros" xml:space="preserve"><value>Detect intros/outros</value></data>
+  <data name="EditMetadata" xml:space="preserve"><value>Edit metadata</value></data>
+  <data name="ChooseSeason" xml:space="preserve"><value>Choose season</value></data>
+  <data name="MarkSeasonWatched" xml:space="preserve"><value>Mark season as watched</value></data>
+  <data name="MarkSeasonUnwatched" xml:space="preserve"><value>Mark season as unwatched</value></data>
+  <data name="CastingAndCrew" xml:space="preserve"><value>Cast and crew</value></data>
+</root>

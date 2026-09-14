@@ -1,0 +1,90 @@
+.k7-rule-editor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.k7-rule-editor ::deep .k7-rule-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+}
+
+.k7-rule-editor ::deep .k7-rule-group--nested {
+    background: var(--color-surface-hover);
+}
+
+.k7-rule-group-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.k7-rule-group-title,
+.k7-rule-item-title {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--color-text-secondary);
+}
+
+.k7-rule-group-remove {
+    margin-left: auto;
+}
+
+.k7-rule-group-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.k7-rule-editor ::deep .k7-rule-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-surface);
+}
+
+.k7-rule-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.k7-rule-item-body {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+}
+
+.k7-rule-item-body ::deep .k7-field,
+.k7-rule-item-body ::deep .k7-search-select {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+}
+
+.k7-rule-field-picker {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+}
+
+.k7-rule-group-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+@media (max-width: 599.98px) {
+    .k7-rule-item-body ::deep .k7-field,
+    .k7-rule-item-body ::deep .k7-search-select {
+        width: 100%;
+        min-width: 0;
+    }
+}

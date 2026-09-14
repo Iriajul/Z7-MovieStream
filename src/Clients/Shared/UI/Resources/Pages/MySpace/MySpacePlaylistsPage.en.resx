@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="PageTitle" xml:space="preserve"><value>My playlists</value></data>
+  <data name="All" xml:space="preserve"><value>All</value></data>
+  <data name="Music" xml:space="preserve"><value>Music</value></data>
+  <data name="FilterMovies" xml:space="preserve"><value>Movies</value></data>
+  <data name="TVShows" xml:space="preserve"><value>TV Shows</value></data>
+  <data name="New" xml:space="preserve"><value>New playlist</value></data>
+  <data name="DynamicPlaylist" xml:space="preserve"><value>Dynamic playlist</value></data>
+  <data name="None" xml:space="preserve"><value>No playlists</value></data>
+  <data name="EmptyHint" xml:space="preserve"><value>Create your first playlist to organize your media.</value></data>
+  <data name="Tracks" xml:space="preserve"><value>tracks</value></data>
+  <data name="Movies" xml:space="preserve"><value>movies</value></data>
+  <data name="Episodes" xml:space="preserve"><value>episodes</value></data>
+  <data name="Items" xml:space="preserve"><value>items</value></data>
+  <data name="ItemsColumn" xml:space="preserve"><value>Items</value></data>
+  <data name="SmartPlaylist" xml:space="preserve"><value>Smart playlist</value></data>
+  <data name="LastListenedJustNow" xml:space="preserve"><value>Played just now</value></data>
+  <data name="LastListenedMinutes" xml:space="preserve"><value>Played {0} min ago</value></data>
+  <data name="LastListenedHours" xml:space="preserve"><value>Played {0} h ago</value></data>
+  <data name="LastListenedDays" xml:space="preserve"><value>Played {0} d ago</value></data>
+  <data name="ShowShared" xml:space="preserve"><value>Shared with me</value></data>
+  <data name="Owner" xml:space="preserve"><value>Owner</value></data>
+  <data name="SharedTitle" xml:space="preserve"><value>Shared playlists</value></data>
+  <data name="SharedEmpty" xml:space="preserve"><value>No playlists have been shared with you.</value></data>
+  <data name="Select" xml:space="preserve"><value>Select</value></data>
+  <data name="SelectAll" xml:space="preserve"><value>Select all</value></data>
+  <data name="DeselectAll" xml:space="preserve"><value>Deselect all</value></data>
+  <data name="SelectedCount" xml:space="preserve"><value>{0} selected</value></data>
+  <data name="DeleteSelected" xml:space="preserve"><value>Delete</value></data>
+  <data name="DeleteSelectedTitle" xml:space="preserve"><value>Delete playlists</value></data>
+  <data name="DeleteSelectedMessage" xml:space="preserve"><value>Delete {0} playlist(s)? This cannot be undone.</value></data>
+  <data name="DeleteSelectedSuccess" xml:space="preserve"><value>{0} playlist(s) deleted</value></data>
+  <data name="DeleteSelectedError" xml:space="preserve"><value>Could not delete the selected playlists</value></data>
+  <data name="DeleteSelectedPartial" xml:space="preserve"><value>{0} deleted, {1} failed</value></data>
+</root>

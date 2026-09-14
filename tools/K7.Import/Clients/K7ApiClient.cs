@@ -1,0 +1,290 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using K7.Server.Domain.Enums;
+using K7.Shared.Dtos.Requests;
+using K7.Shared.Dtos.Responses;
+using K7.Shared.Dtos.Users;
+
+namespace K7.Import.Clients;
+
+public sealed class K7ApiClient
+{
+    private readonly HttpClient _httpClient;
+
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    public K7ApiClient(string serverUrl, string accessToken)
+    {
+        _httpClient = new HttpClient
+        {
+            BaseAddress = new Uri(serverUrl.TrimEnd('/')),
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+    }
+
+    public async Task<List<UserDto>> GetUsersAsync(CancellationToken cancellationToken = default)
+    {
+        var users = await _httpClient.GetFromJsonAsync<List<UserDto>>("api/users", JsonOptions, cancellationToken);
+        return users ?? [];
+    }
+
+    public async Task<UserDto> CreateUserAsync(string username, string role = "User", CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/users", new CreateUserRequest
+        {
+            Username = username,
+            Role = role
+        }, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<UserDto>(JsonOptions, cancellationToken))!;
+    }
+
+    public async Task<List<ExternalIdMatchResult>> LookupMediasByExternalIdsAsync(
+        IReadOnlyList<LookupMediasByExternalIdsRequest.ExternalIdItem> items,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/medias/by-external-ids",
+            new LookupMediasByExternalIdsRequest { Items = items }, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<List<ExternalIdMatchResult>>(JsonOptions, cancellationToken)) ?? [];
+    }
+
+    public async Task<List<PathMatchResult>> LookupMediasByPathsAsync(
+        IReadOnlyList<string> paths,
+        CancellationToken cancellationToken = default)
+    {
+        const int chunkSize = 500;
+        var all = new List<PathMatchResult>();
+        foreach (var chunk in paths.Chunk(chunkSize))
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/medias/by-paths",
+                new LookupMediasByPathsRequest { Paths = chunk.ToList() }, JsonOptions, cancellationToken);
+            await EnsureSuccessAsync(response, cancellationToken);
+            var result = await response.Content.ReadFromJsonAsync<List<PathMatchResult>>(JsonOptions, cancellationToken);
+            if (result is not null)
+                all.AddRange(result);
+        }
+
+        return all;
+    }
+
+    public async Task<Dictionary<string, List<string>>> LookupIndexedPathsByFileNamesAsync(
+        IReadOnlyList<string> fileNames,
+        CancellationToken cancellationToken = default)
+    {
+        const int chunkSize = 200;
+        var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var chunk in fileNames.Chunk(chunkSize))
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/medias/by-file-names",
+                new LookupIndexedPathsByFileNamesRequest { FileNames = chunk.ToList() }, JsonOptions, cancellationToken);
+            await EnsureSuccessAsync(response, cancellationToken);
+            var result = await response.Content.ReadFromJsonAsync<List<IndexedPathByFileNameResult>>(JsonOptions, cancellationToken);
+            if (result is null)
+                continue;
+
+            foreach (var item in result)
+            {
+                if (item.Paths.Count == 0)
+                    continue;
+
+                if (!map.TryGetValue(item.FileName, out var list))
+                {
+                    list = [];
+                    map[item.FileName] = list;
+                }
+
+                list.AddRange(item.Paths);
+            }
+        }
+
+        return map;
+    }
+
+    public async Task<BulkCreateMediasResponse> BulkCreateMediasAsync(
+        IReadOnlyList<BulkCreateMediasRequest.BulkCreateMediaItem> items,
+        bool fetchMetadata = false,
+        bool createMissing = true,
+        CancellationToken cancellationToken = default)
+    {
+        const int chunkSize = 200;
+        var allResults = new List<BulkCreateMediasResponse.BulkCreateMediaResult>();
+
+        foreach (var chunk in items.Chunk(chunkSize))
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/medias/bulk-create",
+                new BulkCreateMediasRequest { Items = chunk, FetchMetadata = fetchMetadata, CreateMissing = createMissing },
+                JsonOptions, cancellationToken);
+            await EnsureSuccessAsync(response, cancellationToken);
+            var result = await response.Content.ReadFromJsonAsync<BulkCreateMediasResponse>(JsonOptions, cancellationToken);
+            if (result?.Results is not null)
+                allResults.AddRange(result.Results);
+        }
+
+        return new BulkCreateMediasResponse { Results = allResults };
+    }
+
+    public async Task<int> BulkLinkArtistsAsync(
+        IReadOnlyList<BulkLinkArtistsRequest.ArtistLinkItem> items,
+        CancellationToken cancellationToken = default)
+    {
+        const int chunkSize = 500;
+        var total = 0;
+
+        foreach (var chunk in items.Chunk(chunkSize))
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/medias/bulk-link-artists",
+                new BulkLinkArtistsRequest { Items = chunk }, JsonOptions, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var result = await response.Content.ReadFromJsonAsync<LinkResult>(JsonOptions, cancellationToken);
+            total += result?.LinkedCount ?? 0;
+        }
+
+        return total;
+    }
+
+    public async Task<int> BulkUpsertMediaStatesAsync(Guid userId,
+        IReadOnlyList<BulkUpsertMediaStatesRequest.MediaStateItem> items,
+        MergeStrategy? strategy = null,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/users/{userId}/media-states/bulk",
+            new BulkUpsertMediaStatesRequest { Items = items, Strategy = strategy }, JsonOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<UpsertResult>(JsonOptions, cancellationToken);
+        return result?.UpsertedCount ?? 0;
+    }
+
+    public async Task<int> BulkUpsertRatingsAsync(Guid userId,
+        IReadOnlyList<BulkUpsertRatingsRequest.RatingItem> items,
+        MergeStrategy? strategy = null,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/users/{userId}/ratings/bulk",
+            new BulkUpsertRatingsRequest { Items = items, Strategy = strategy }, JsonOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<UpsertResult>(JsonOptions, cancellationToken);
+        return result?.UpsertedCount ?? 0;
+    }
+
+    public async Task<int> BulkCreatePlaybackSessionsAsync(Guid userId,
+        IReadOnlyList<BulkCreatePlaybackSessionsRequest.PlaybackSessionItem> items,
+        CancellationToken cancellationToken = default)
+    {
+        const int chunkSize = 500;
+        var total = 0;
+
+        foreach (var chunk in items.Chunk(chunkSize))
+        {
+            var response = await _httpClient.PostAsJsonAsync($"api/users/{userId}/playback-sessions/bulk",
+                new BulkCreatePlaybackSessionsRequest { Items = chunk }, JsonOptions, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var result = await response.Content.ReadFromJsonAsync<CreateResult>(JsonOptions, cancellationToken);
+            total += result?.CreatedCount ?? 0;
+        }
+
+        return total;
+    }
+
+    public async Task<IReadOnlyList<BulkResolveImportDevicesResponse.DeviceMatchResult>> BulkResolveImportDevicesAsync(
+        IReadOnlyList<BulkResolveImportDevicesRequest.ImportDeviceDescriptor> items,
+        CancellationToken cancellationToken = default)
+    {
+        const int chunkSize = 200;
+        var allResults = new List<BulkResolveImportDevicesResponse.DeviceMatchResult>();
+
+        foreach (var chunk in items.Chunk(chunkSize))
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/devices/bulk-resolve-import",
+                new BulkResolveImportDevicesRequest { Items = chunk }, JsonOptions, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var result = await response.Content.ReadFromJsonAsync<BulkResolveImportDevicesResponse>(JsonOptions, cancellationToken);
+            if (result?.Results is not null)
+                allResults.AddRange(result.Results);
+        }
+
+        return allResults;
+    }
+
+    public async Task<ImportUserPlaylistResponse> ImportUserPlaylistAsync(
+        Guid userId,
+        string title,
+        MediaType mediaType,
+        IReadOnlyList<Guid> mediaIds,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/users/{userId}/playlists/import",
+            new ImportUserPlaylistRequest
+            {
+                Title = title,
+                MediaType = mediaType,
+                MediaIds = mediaIds
+            }, JsonOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ImportUserPlaylistResponse>(JsonOptions, cancellationToken))!;
+    }
+
+    public async Task<Guid> CreatePlaylistAsync(string title, MediaType mediaType = MediaType.MusicTrack, CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/playlists",
+            new CreatePlaylistRequest { Title = title, MediaType = mediaType }, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(JsonOptions, cancellationToken);
+    }
+
+    public async Task<MediaType> GetMediaTypeAsync(Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.GetFromJsonAsync<JsonElement>($"api/medias/{mediaId}", JsonOptions, cancellationToken);
+        var typeString = response.GetProperty("$type").GetString();
+        return typeString switch
+        {
+            "Movie" => MediaType.Movie,
+            "SerieEpisode" => MediaType.SerieEpisode,
+            "MusicTrack" => MediaType.MusicTrack,
+            "MusicAlbum" => MediaType.MusicAlbum,
+            "MusicArtist" => MediaType.MusicArtist,
+            _ => MediaType.Movie
+        };
+    }
+
+    public async Task AddPlaylistItemAsync(Guid playlistId, Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/playlists/{playlistId}/items",
+            new AddPlaylistItemRequest(mediaId), cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        if (response.IsSuccessStatusCode)
+            return;
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        var detail = string.IsNullOrWhiteSpace(body) ? response.ReasonPhrase : body;
+        throw new HttpRequestException(
+            $"K7 API {(int)response.StatusCode} {response.ReasonPhrase} for {response.RequestMessage?.RequestUri}: {detail}");
+    }
+
+    private sealed record AddPlaylistItemRequest(Guid MediaId);
+
+    private sealed record UpsertResult
+    {
+        public int UpsertedCount { get; init; }
+    }
+
+    private sealed record CreateResult
+    {
+        public int CreatedCount { get; init; }
+    }
+
+    private sealed record LinkResult
+    {
+        public int LinkedCount { get; init; }
+    }
+}

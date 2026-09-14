@@ -1,0 +1,193 @@
+@if (Skeleton)
+{
+    <div class="media-card @VariantClass">
+        <div class="media-card-container">
+            <K7Skeleton />
+        </div>
+
+        @if (FooterVisible)
+        {
+            <div class="media-card-footer mt-1">
+                <div class="media-card-footer-skeleton">
+                    <K7Skeleton Shape="text" Width="78%" Class="media-card-skeleton-title" />
+                    <K7Skeleton Shape="text" Width="44%" Class="media-card-skeleton-subtitle" />
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div id="@ElementId" class="media-card @VariantClass @GetRootClass()" @onfocusin="OnFocusInAsync">
+        <div class="media-card-container"
+             @ref="_longPressContainerRef"
+             data-longpress="@(LongPressEnabled ? "true" : null)"
+             @ontouchstart="OnTouchStart"
+             @ontouchmove="OnTouchMove"
+             @ontouchend="OnTouchEnd"
+             @ontouchend:preventDefault="@_longPressTriggered"
+             @ontouchcancel="OnTouchCancel"
+             @oncontextmenu="OnContextMenu"
+             @oncontextmenu:preventDefault="@LongPressEnabled">
+            @if (!string.IsNullOrEmpty(Href))
+            {
+            <a class="media-card-link focusable"
+               href="@Href"
+               @onpointerdown="OnLinkPointerDown"
+               @onpointermove="OnLinkPointerMove"
+               @onclick="OnLinkClick"
+               @onclick:preventDefault="@ShouldPreventLinkActivation"
+               @onkeydown="OnKeyDown"
+               @onkeyup="OnKeyUp">
+                @CoverVisual
+
+                @if (!string.IsNullOrEmpty(TypeBadgeIcon))
+                {
+                    <div class="media-card-type-badge" aria-hidden="true">
+                        <K7Icon Icon="@TypeBadgeIcon" IconSize="@K7IconSize.Sm" />
+                    </div>
+                }
+
+                @if (WatchedStatusEnabled && Model.Watched && Variant != MediaCardVariant.Cover)
+                {
+                    <div class="media-card-watched">
+                        <K7Icon  IconSize="@K7IconSize.Lg" Color="success" Icon="@Phosphor.Fill.CheckCircle" />
+                    </div>
+                }
+
+                @if (Model.GroupCount > 1)
+                {
+                    <div class="media-card-group-count">
+                        <K7Chip Style="padding: 0; justify-content: space-around; width: 32px; height: 32px" Size="sm" Color="dark" Variant="filled">@Model.GroupCount</K7Chip>
+                    </div>
+                }
+
+                @if (ProgressEnabled && !ProgressBarIsHidden())
+                {
+                    <div class="media-card-progress-bar">
+                        <K7ProgressBar Value="@Model.Progress" />
+                    </div>
+                }
+
+                @if (OverlayEnabled)
+                {
+                    <div class="media-card-overlay">
+                        <K7FabButton AriaLabel="Play" Icon="@Phosphor.Fill.Play" Focusable="false" />
+                        @OverlayProgress
+                    </div>
+                }
+                else if (HoverOverlayEnabled)
+                {
+                    <div class="media-card-overlay media-card-overlay--nav" aria-hidden="true">
+                        @OverlayProgress
+                    </div>
+                }
+            </a>
+            }
+            else if (OverlayEnabled)
+            {
+            <div class="media-card-link focusable"
+                 tabindex="0"
+                 role="button"
+                 aria-label="@Model.Title"
+                 @onclick="OnActivateClick"
+                 @onkeydown="OnKeyDown"
+                 @onkeyup="OnKeyUp">
+                @CoverVisual
+
+                @if (!string.IsNullOrEmpty(TypeBadgeIcon))
+                {
+                    <div class="media-card-type-badge" aria-hidden="true">
+                        <K7Icon Icon="@TypeBadgeIcon" IconSize="@K7IconSize.Sm" />
+                    </div>
+                }
+
+                @if (WatchedStatusEnabled && Model.Watched && Variant != MediaCardVariant.Cover)
+                {
+                    <div class="media-card-watched">
+                        <K7Icon  IconSize="@K7IconSize.Lg" Color="success" Icon="@Phosphor.Fill.CheckCircle" />
+                    </div>
+                }
+
+                @if (Model.GroupCount > 1)
+                {
+                    <div class="media-card-group-count">
+                        <K7Chip Style="padding: 0; justify-content: space-around; width: 32px; height: 32px" Size="sm" Color="dark" Variant="filled">@Model.GroupCount</K7Chip>
+                    </div>
+                }
+
+                @if (ProgressEnabled && !ProgressBarIsHidden())
+                {
+                    <div class="media-card-progress-bar">
+                        <K7ProgressBar Value="@Model.Progress" />
+                    </div>
+                }
+
+                <div class="media-card-overlay">
+                    <K7FabButton AriaLabel="Play" Icon="@Phosphor.Fill.Play" Focusable="false" />
+                    @OverlayProgress
+                </div>
+            </div>
+            }
+            else
+            {
+            <div class="media-card-link">
+                @CoverVisual
+
+                @if (!string.IsNullOrEmpty(TypeBadgeIcon))
+                {
+                    <div class="media-card-type-badge" aria-hidden="true">
+                        <K7Icon Icon="@TypeBadgeIcon" IconSize="@K7IconSize.Sm" />
+                    </div>
+                }
+
+                @if (HoverOverlayEnabled || Selected)
+                {
+                    <div class="media-card-overlay media-card-overlay--nav" aria-hidden="true">
+                        @OverlayProgress
+                    </div>
+                }
+            </div>
+            }
+
+            @if (LongPressEnabled)
+            {
+                <div class="media-card-menu @(_menuOpen ? "media-card-menu--open" : "")" data-longpress-target @onclick:stopPropagation="true">
+                    <K7IconButton Icon="@Phosphor.DotsThreeVertical"
+                                  Class="media-card-menu-trigger"
+                                  AriaLabel="Menu"
+                                  Focusable="false"
+                                  OnClick="OpenSharedMenuAsync" />
+                </div>
+            }
+
+        </div>
+
+        @if (FooterVisible)
+        {
+            <div class="media-card-footer mt-1">
+                <div class="d-flex flex-col">
+                    <span class="media-card-title"><span class="media-card-title-inner">@Model.Title</span></span>
+                    <span class="media-card-subtitle"><span class="media-card-subtitle-inner">@Model.AdditionalInformations</span></span>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private RenderFragment CardPlaceholder => @<div class="media-card-placeholder rounded-lg">
+        <K7Icon Icon="@ResolvedPlaceholderIcon" Class="media-card-placeholder-icon" />
+    </div>;
+
+    private RenderFragment OverlayProgress => @<text>
+        @if (ProgressEnabled && !ProgressBarIsHidden())
+        {
+            <div class="media-card-overlay-progress">
+                <span class="media-card-overlay-progress-label">@GetOverlayProgressLabel()</span>
+                <K7ProgressBar Value="@Model.Progress" />
+            </div>
+        }
+    </text>;
+}
+

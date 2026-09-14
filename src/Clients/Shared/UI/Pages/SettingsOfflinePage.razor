@@ -1,0 +1,82 @@
+@page "/settings/offline"
+@layout SettingsLayout
+@using K7.Clients.Shared.UI.Helpers
+@inject IStringLocalizer<SettingsOfflinePage> L
+@inject IDeviceStorageService DeviceStorageService
+@inject IMusicCacheService MusicCacheService
+@inject IOfflineMediaStore OfflineStore
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<div class="d-flex pa-4" style="width: 100%">
+    <h5>@L["Title"]</h5>
+</div>
+
+<div class="pa-4 d-flex flex-col gap-4">
+    @if (_storageInfo is not null)
+    {
+        <div class="storage-overview">
+            <div class="storage-overview-row">
+                <div class="d-flex justify-space-between align-center">
+                    <span class="text-sm text-secondary">@L["Downloads"]</span>
+                    <span class="text-sm">@FormatBytes(_storageInfo.UsedBytes - _storageInfo.CacheBytes) / @FormatBytes(_maxDownloadBytes)</span>
+                </div>
+                <K7ProgressBar Value="@GetDownloadStoragePercent()" Class="mt-1" />
+            </div>
+            <div class="storage-overview-row mt-3">
+                <div class="d-flex justify-space-between align-center">
+                    <span class="text-sm text-secondary">@L["Cache"]</span>
+                    <span class="text-sm">@FormatBytes(_storageInfo.CacheBytes) / @FormatBytes(_maxCacheBytes)</span>
+                </div>
+                <K7ProgressBar Value="@GetCacheStoragePercent()" Class="mt-1" />
+            </div>
+        </div>
+
+        @if (_storageInfo.DeviceTotalBytes is { } deviceTotal)
+        {
+            <p class="text-caption text-secondary mt-2">
+                @string.Format(L["DeviceStorageCapacity"], FormatBytes(deviceTotal))
+            </p>
+        }
+    }
+
+    <h6>@L["StorageLimits"]</h6>
+
+    <K7ByteSizeSelect Label="@L["MaxDownloadStorage"]"
+                      Value="_maxDownloadBytes"
+                      ValueChanged="OnMaxDownloadChanged"
+                      Presets="OfflineStoragePresets.DownloadLimits"
+                      DeviceTotalBytes="_storageInfo?.DeviceTotalBytes"
+                      SiblingBytes="_maxCacheBytes" />
+
+    <K7ByteSizeSelect Label="@L["MaxCacheStorage"]"
+                      Value="_maxCacheBytes"
+                      ValueChanged="OnMaxCacheChanged"
+                      Presets="OfflineStoragePresets.CacheLimits"
+                      MaxBytes="@(50L * 1024 * 1024 * 1024)"
+                      DeviceTotalBytes="_storageInfo?.DeviceTotalBytes"
+                      SiblingBytes="_maxDownloadBytes" />
+
+    <hr class="k7-divider my-2" />
+    <h6>@L["Network"]</h6>
+
+    <K7Switch Label="@L["AllowWifi"]" Value="_allowWifi" ValueChanged="OnAllowWifiChanged" />
+    <K7Switch Label="@L["AllowMobileData"]" Value="_allowMobileData" ValueChanged="OnAllowMobileDataChanged" />
+
+    <hr class="k7-divider my-2" />
+    <h6>@L["MusicCache"]</h6>
+
+    <K7PresetIntSelect Label="@L["LookaheadWifi"]"
+                       Value="_lookaheadWifi"
+                       ValueChanged="OnLookaheadWifiChanged"
+                       Presets="OfflineStoragePresets.LookaheadWifi"
+                       DisabledLabel="@L["Disabled"]"
+                       Max="200" />
+
+    <K7PresetIntSelect Label="@L["LookaheadMobile"]"
+                       Value="_lookaheadMobile"
+                       ValueChanged="OnLookaheadMobileChanged"
+                       Presets="OfflineStoragePresets.LookaheadMobile"
+                       DisabledLabel="@L["Disabled"]"
+                       Max="100" />
+</div>

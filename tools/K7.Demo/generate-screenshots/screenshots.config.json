@@ -1,0 +1,145 @@
+{
+  "baseUrl": "https://k7.kaybi.dev",
+  "outputDir": "../../../screenshots",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "colorScheme": "dark",
+  "guestLogin": true,
+  "settleMs": 4000,
+  "defaultProfile": "desktop",
+  "profiles": {
+    "desktop": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    "tv": {
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "platform": "tv"
+    },
+    "mobile": {
+      "viewport": {
+        "width": 412,
+        "height": 915
+      },
+      "deviceScaleFactor": 2,
+      "isMobile": true,
+      "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+    }
+  },
+  "captures": [
+    {
+      "file": "home-desktop.png",
+      "path": "/",
+      "profile": "desktop",
+      "waitFor": "a[href='/explore']"
+    },
+    {
+      "file": "home-tv.png",
+      "path": "/",
+      "profile": "tv",
+      "waitFor": ".home-tv-hero, .home-page--tv"
+    },
+    {
+      "file": "home-mobile.png",
+      "path": "/",
+      "profile": "mobile",
+      "waitFor": "a[href='/explore']"
+    },
+    {
+      "file": "explore-desktop.png",
+      "path": "/explore",
+      "profile": "desktop",
+      "waitFor": "text=MOVIES"
+    },
+    {
+      "file": "explore-mobile.png",
+      "path": "/explore",
+      "profile": "mobile",
+      "waitFor": "text=MOVIES"
+    },
+    {
+      "file": "movies-desktop.png",
+      "resolve": { "category": "MOVIES" },
+      "profile": "desktop",
+      "optional": true,
+      "waitFor": "a[href*=\"/movies/\"]"
+    },
+    {
+      "file": "movies-mobile.png",
+      "resolve": { "category": "MOVIES" },
+      "profile": "mobile",
+      "optional": true,
+      "waitFor": "a[href*=\"/movies/\"]"
+    },
+    {
+      "file": "movie-detail-desktop.png",
+      "resolve": { "search": "Big Buck Bunny", "kind": "movie" },
+      "profile": "desktop",
+      "optional": true,
+      "waitFor": "button:has-text(\"Play\"), button:has-text(\"Lecture\"), h1"
+    },
+    {
+      "file": "movie-detail-tv.png",
+      "resolve": { "search": "Big Buck Bunny", "kind": "movie" },
+      "profile": "tv",
+      "optional": true,
+      "waitFor": "button:has-text(\"Play\"), button:has-text(\"Lecture\"), h1"
+    },
+    {
+      "file": "movie-detail-mobile.png",
+      "resolve": { "search": "Big Buck Bunny", "kind": "movie" },
+      "profile": "mobile",
+      "optional": true,
+      "waitFor": "button:has-text(\"Play\"), button:has-text(\"Lecture\"), h1"
+    },
+    {
+      "file": "movie-detail-sintel-desktop.png",
+      "resolve": { "search": "Sintel", "kind": "movie" },
+      "profile": "desktop",
+      "optional": true,
+      "waitFor": "button:has-text(\"Play\"), button:has-text(\"Lecture\"), h1"
+    },
+    {
+      "file": "movie-detail-sintel-mobile.png",
+      "resolve": { "search": "Sintel", "kind": "movie" },
+      "profile": "mobile",
+      "optional": true,
+      "waitFor": "button:has-text(\"Play\"), button:has-text(\"Lecture\"), h1"
+    },
+    {
+      "file": "music-album-desktop.png",
+      "resolve": { "search": "Goldberg", "kind": "album" },
+      "profile": "desktop",
+      "optional": true,
+      "waitFor": "h1, table, button:has-text(\"Play\"), button:has-text(\"Lecture\")"
+    },
+    {
+      "file": "music-album-mobile.png",
+      "resolve": { "search": "Goldberg", "kind": "album" },
+      "profile": "mobile",
+      "optional": true,
+      "waitFor": "h1, table, button:has-text(\"Play\"), button:has-text(\"Lecture\")"
+    },
+    {
+      "file": "series-desktop.png",
+      "resolve": { "search": "Superman", "kind": "series" },
+      "profile": "desktop",
+      "optional": true,
+      "waitFor": "button:has-text(\"Play\"), button:has-text(\"Lecture\"), h1"
+    },
+    {
+      "file": "series-mobile.png",
+      "resolve": { "search": "Superman", "kind": "series" },
+      "profile": "mobile",
+      "optional": true,
+      "waitFor": "button:has-text(\"Play\"), button:has-text(\"Lecture\"), h1"
+    }
+  ]
+}

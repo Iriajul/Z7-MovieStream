@@ -1,0 +1,123 @@
+namespace K7.Shared;
+
+public sealed class PreferenceKey<T>(string name)
+{
+    public string Name { get; } = name;
+}
+
+public static class PreferenceKeys
+{
+    public static readonly PreferenceKey<string> K7_SERVER_URL = new("BackendUrl");
+    public static readonly PreferenceKey<string> DEVICE_ID = new("DeviceId");
+    public static readonly PreferenceKey<string> DEVICE_NAME = new("DeviceName");
+    public static readonly PreferenceKey<string> DEVICE_ATTACHED_USER_ID = new("DeviceAttachedUserId");
+    public static readonly PreferenceKey<double> PLAYER_VOLUME = new("PlayerVolume");
+    public static readonly PreferenceKey<double> PLAYER_PLAYBACK_RATE = new("PlayerPlaybackRate");
+    public static readonly PreferenceKey<bool> PLAYER_IS_MUTED = new("PlayerIsMuted");
+    public static readonly PreferenceKey<bool> PLAYER_ADAPTIVE_CROSSFADE = new("PlayerAdaptiveCrossfade");
+    public static readonly PreferenceKey<double> PLAYER_CROSSFADE_DURATION = new("PlayerCrossfadeDuration");
+    public static readonly PreferenceKey<string> ACCESS_TOKEN = new("AccessToken");
+    public static readonly PreferenceKey<string> REFRESH_TOKEN = new("RefreshToken");
+    public static readonly PreferenceKey<string> SERVER_INFO = new("ServerInfo");
+    public static readonly PreferenceKey<string> LOCAL_USERS = new("LocalUsers");
+    public static readonly PreferenceKey<bool> SINGLE_USER_MODE = new("SingleUserMode");
+    /// <summary>
+    /// Identity user id unlocked for solo-device auto-login (PIN entered or no PIN).
+    /// Solo mode must not restore a PIN-protected profile until this matches.
+    /// </summary>
+    public static readonly PreferenceKey<string> SINGLE_USER_UNLOCKED_USER_ID = new("SingleUserUnlockedUserId");
+    public static readonly PreferenceKey<string> LAST_ACTIVE_USER_ID = new("LastActiveUserId");
+    public static readonly PreferenceKey<string> ACTIVE_SHARED_PROFILE_ID = new("ActiveSharedProfileId");
+    public static readonly PreferenceKey<string> LAST_ACTIVE_SHARED_PROFILE_ID = new("LastActiveSharedProfileId");
+    public static readonly PreferenceKey<string> LAST_PROFILE_SELECT_KIND = new("LastProfileSelectKind");
+    public static readonly PreferenceKey<string> LAST_PROFILE_SELECT_ID = new("LastProfileSelectId");
+    public static readonly PreferenceKey<long> LAST_PROFILE_SELECT_AT = new("LastProfileSelectAt");
+    public static readonly PreferenceKey<string> SHARED_PROFILES_CACHE = new("SharedProfilesCache");
+    public static readonly PreferenceKey<string> PINNED_SHARED_PROFILE_IDS = new("PinnedSharedProfileIds");
+    public static readonly PreferenceKey<string> NEXT_EPISODE_BEHAVIOR = new("NextEpisodeBehavior");
+    public static readonly PreferenceKey<long> MAX_DOWNLOAD_STORAGE_BYTES = new("MaxDownloadStorageBytes");
+    public static readonly PreferenceKey<long> MAX_CACHE_STORAGE_BYTES = new("MaxCacheStorageBytes");
+    public static readonly PreferenceKey<bool> DOWNLOAD_ALLOW_MOBILE_DATA = new("DownloadAllowMobileData");
+    public static readonly PreferenceKey<bool> DOWNLOAD_ALLOW_WIFI = new("DownloadAllowWifi");
+    public static readonly PreferenceKey<int> CACHE_LOOKAHEAD_WIFI = new("CacheLookaheadWifi");
+    public static readonly PreferenceKey<int> CACHE_LOOKAHEAD_MOBILE = new("CacheLookaheadMobile");
+
+    // Loudness normalization
+    public static readonly PreferenceKey<bool> LOUDNESS_ENABLED = new("LoudnessEnabled");
+    public static readonly PreferenceKey<double> LOUDNESS_TARGET_LUFS = new("LoudnessTargetLufs");
+    public static readonly PreferenceKey<double> LOUDNESS_PREAMP_DB = new("LoudnessPreampDb");
+    public static readonly PreferenceKey<bool> LOUDNESS_LIMITER_ENABLED = new("LoudnessLimiterEnabled");
+
+    // Equalizer
+    public static readonly PreferenceKey<bool> EQ_ENABLED = new("EqEnabled");
+    public static readonly PreferenceKey<string> EQ_BANDS_JSON = new("EqBandsJson");
+    public static readonly PreferenceKey<string> EQ_PRESET_NAME = new("EqPresetName");
+
+    // Streaming quality
+    public static readonly PreferenceKey<int> STREAMING_QUALITY_WIFI = new("StreamingQualityWifi");
+    public static readonly PreferenceKey<int> STREAMING_QUALITY_MOBILE = new("StreamingQualityMobile");
+    /// <summary>
+    /// When false, this play sends AudioPassthrough=false so Dolby/DTS is remuxed
+    /// instead of HDMI bitstream. Local device preference; not stored on the user
+    /// or device record.
+    /// </summary>
+    public static readonly PreferenceKey<bool> VIDEO_AUDIO_PASSTHROUGH = new("VideoAudioPassthrough");
+    /// <summary>
+    /// ExoPlayer LoadControl size: auto (Exo default), default, large, extralarge.
+    /// Local device preference.
+    /// </summary>
+    public static readonly PreferenceKey<string> VIDEO_EXO_BUFFER = new("VideoExoBuffer");
+    /// <summary>
+    /// HDMI auto frame rate on Android TV: disabled / device / tv.
+    /// Local device preference. Empty means the device default (Amlogic=off, other TV=device).
+    /// </summary>
+    public static readonly PreferenceKey<string> VIDEO_HDMI_AFR = new("VideoHdmiAfr");
+    /// <summary>
+    /// Android TV Dolby Vision decode: native / hevc (HDR10 base layer). Local device
+    /// preference. Empty means the device default (TV=hevc, phone=native).
+    /// </summary>
+    public static readonly PreferenceKey<string> VIDEO_DV_DECODE = new("VideoDvDecode");
+    /// <summary>
+    /// Windows: launch MPC-HC / MPC-BE instead of the built-in player. Device-local.
+    /// </summary>
+    public static readonly PreferenceKey<bool> VIDEO_MPC_ENABLED = new("VideoMpcEnabled");
+    public static readonly PreferenceKey<string> VIDEO_MPC_EXE_PATH = new("VideoMpcExePath");
+    public static readonly PreferenceKey<string> VIDEO_MPC_WEB_HOST = new("VideoMpcWebHost");
+    public static readonly PreferenceKey<int> VIDEO_MPC_WEB_PORT = new("VideoMpcWebPort");
+    public static readonly PreferenceKey<string> VIDEO_MPC_EXTRA_ARGS = new("VideoMpcExtraArgs");
+
+    // Player UX
+    public static readonly PreferenceKey<bool> SHOW_FULLSCREEN_ON_PLAY = new("ShowFullscreenOnPlay");
+    public static readonly PreferenceKey<bool> KEEP_SCREEN_ON = new("KeepScreenOn");
+    public static readonly PreferenceKey<int> SKIP_BACK_SECONDS = new("SkipBackSeconds");
+    public static readonly PreferenceKey<int> SKIP_FORWARD_SECONDS = new("SkipForwardSeconds");
+    public static readonly PreferenceKey<int> VIDEO_SKIP_BACK_SECONDS = new("VideoSkipBackSeconds");
+    public static readonly PreferenceKey<int> VIDEO_SKIP_FORWARD_SECONDS = new("VideoSkipForwardSeconds");
+    /// <summary>
+    /// Admin-only native player HUD (dropped frames, HDMI Hz, decoders). Device-local.
+    /// </summary>
+    public static readonly PreferenceKey<bool> VIDEO_PLAYBACK_NERD_STATS = new("VideoPlaybackNerdStats");
+
+    // Sleep timer
+    public static readonly PreferenceKey<string> SLEEP_TIMER_MODE = new("SleepTimerMode");
+
+    // Autoplay / Radio
+    public static readonly PreferenceKey<bool> AUTOPLAY_ENABLED = new("AutoplayEnabled");
+    public static readonly PreferenceKey<int> RADIO_DEVIATION_DEGREE = new("RadioDeviationDegree");
+
+    // SyncPlay
+    public static readonly PreferenceKey<bool> SYNCPLAY_ENABLED = new("SyncPlayEnabled");
+
+    // Ambient media theme on serie/movie detail pages
+    public static readonly PreferenceKey<bool> THEME_SONGS_DISABLED_ON_DEVICE = new("ThemeSongsDisabledOnDevice");
+
+    // Page sidebar (admin / settings)
+    public static readonly PreferenceKey<bool> PAGE_SIDEBAR_COLLAPSED = new("PageSidebarCollapsed");
+
+    // Desktop window chrome (MAUI Windows)
+    public static readonly PreferenceKey<int> WINDOW_X = new("WindowX");
+    public static readonly PreferenceKey<int> WINDOW_Y = new("WindowY");
+    public static readonly PreferenceKey<int> WINDOW_WIDTH = new("WindowWidth");
+    public static readonly PreferenceKey<int> WINDOW_HEIGHT = new("WindowHeight");
+    public static readonly PreferenceKey<bool> WINDOW_MAXIMIZED = new("WindowMaximized");
+}

@@ -1,0 +1,47 @@
+<CascadingValue Value="_slideWindow" IsFixed="true">
+<div class="d-flex flex-col carousel-wrapper" style="@Style">
+    <div data-carousel @ref="_root">
+        @if (Skeleton || !string.IsNullOrEmpty(Title))
+        {
+            <div class="carousel-header">
+                @if (Skeleton)
+                {
+                    <K7Skeleton Shape="text" Width="160px" Class="carousel-skeleton-title" />
+                }
+                else
+                {
+                    <h6>@Title</h6>
+                }
+            </div>
+        }
+        <div class="carousel-viewport" data-carousel-viewport tabindex="-1">
+            <div class="carousel-container">
+                @ChildContent
+                @if (ShowLoopBack)
+                {
+                    <div class="carousel-item carousel-loop-back"
+                         data-carousel-item
+                         data-carousel-loop-back>
+                        <div class="carousel-loop-back-card">
+                            <div class="carousel-loop-back__visual">
+                                <div class="carousel-loop-back__image focusable"
+                                     tabindex="-1"
+                                     role="button"
+                                     aria-label="@S["BackToStart"]">
+                                    <K7Icon Icon="@Phosphor.ArrowCounterClockwise"  IconSize="@K7IconSize.Lg" />
+                                </div>
+                            </div>
+                            <div class="media-card-footer mt-1">
+                                <div class="d-flex flex-col">
+                                    <span class="media-card-title"><span class="media-card-title-inner">@S["BackToStart"]</span></span>
+                                    <span class="media-card-subtitle" aria-hidden="true"><span class="media-card-subtitle-inner">&nbsp;</span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+</CascadingValue>

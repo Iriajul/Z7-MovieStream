@@ -1,0 +1,233 @@
+@page "/admin/federation"
+@layout AdminLayout
+@using K7.Server.Domain.Enums
+@using K7.Shared.Dtos.Entities
+@using K7.Shared.Dtos.Federation.Social
+@inject IStringLocalizer<AdminFederationPanel> L
+@inject IStringLocalizer<SharedResource> S
+
+<div class="federation-panel">
+    <div class="federation-panel__header">
+        <h6>@L["Title"]</h6>
+        @if (_federationEnabled)
+        {
+            <K7Button Variant="filled" Color="primary" StartIcon="@Phosphor.Plus" OnClick="OpenRequestDialog" Disabled="!_invitationsEnabled">
+                @L["AddPeer"]
+            </K7Button>
+        }
+    </div>
+
+    <K7Paper Outlined="true" Style="padding: var(--space-4); margin-bottom: var(--space-4);">
+        <div class="d-flex flex-col gap-3">
+            <K7Switch Label="@L["FederationToggle"]" Value="_federationEnabled" ValueChanged="OnFederationEnabledChanged" />
+            <span class="text-caption" style="color: var(--color-text-muted);">@L["FederationToggleDescription"]</span>
+
+            @if (_federationEnabled)
+            {
+                <K7Switch Label="@L["InvitationsToggle"]" Value="_invitationsEnabled" ValueChanged="OnInvitationsEnabledChanged" />
+                <span class="text-caption" style="color: var(--color-text-muted);">@L["InvitationsToggleDescription"]</span>
+            }
+            else
+            {
+                <span class="text-caption" style="color: var(--color-warning);">@L["FederationDisabledWarning"]</span>
+            }
+        </div>
+    </K7Paper>
+
+    @if (_federationEnabled)
+    {
+        <K7Paper Outlined="true" Style="padding: var(--space-4); margin-bottom: var(--space-4);">
+            <div class="d-flex flex-col gap-3">
+                <h6>@L["SocialPolicyTitle"]</h6>
+                <span class="text-caption" style="color: var(--color-text-muted);">@L["SocialPolicyDescription"]</span>
+                <K7Switch Label="@L["SocialPolicyEnabled"]" @bind-Value="_socialPolicy.Enabled" />
+                @if (_socialPolicy.Enabled)
+                {
+                    <div class="federation-social-policy">
+                        <div class="federation-social-policy__header">
+                            <span class="federation-social-policy__label-col"></span>
+                            <span class="federation-social-policy__check-col">@L["SocialOutbound"]</span>
+                            <span class="federation-social-policy__check-col">@L["SocialInbound"]</span>
+                        </div>
+                        @foreach (var contentType in _socialContentTypes)
+                        {
+                            var policy = GetContentPolicy(contentType);
+                            <div class="federation-social-policy__row">
+                                <span class="federation-social-policy__label-col">@GetSocialContentLabel(contentType)</span>
+                                <div class="federation-social-policy__check">
+                                    <K7Switch Value="policy.Outbound" ValueChanged="_ => ToggleOutbound(contentType)" />
+                                </div>
+                                <div class="federation-social-policy__check">
+                                    <K7Switch Value="policy.Inbound" ValueChanged="_ => ToggleInbound(contentType)" />
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                <K7Button Variant="outlined" Color="primary" Size="sm" OnClick="SaveSocialPolicyAsync">@L["SaveSocialPolicy"]</K7Button>
+            </div>
+        </K7Paper>
+    }
+
+    @if (!_federationEnabled)
+    {
+        <K7Paper Outlined="true" Style="padding:24px;text-align:center">
+            <K7EmptyState Icon="@Phosphor.Globe" Title="@L["FederationDisabled"]" Subtitle="@L["FederationDisabledHint"]" />
+        </K7Paper>
+    }
+    else if (_isLoading)
+    {
+        <K7Paper Outlined="true" Style="padding:24px;text-align:center">
+            <span>@S["Loading"]</span>
+        </K7Paper>
+    }
+    else
+    {
+        @* Incoming requests (provider side) *@
+        @if (_requests is not null && _requests.Count > 0)
+        {
+            <div class="federation-panel__section">
+                <span class="federation-panel__section-title">@L["IncomingRequests"]</span>
+                @foreach (var req in _requests)
+                {
+                    <K7Paper @key="req.Id" Outlined="true" class="peer-card">
+                        <div class="peer-card__header">
+                            <K7Icon Icon="@Phosphor.EnvelopeSimple"  IconSize="@K7IconSize.Lg" Color="warning" />
+                            <div class="peer-card__info">
+                                <span class="peer-card__url">@req.RequesterUrl</span>
+                                <span class="peer-card__name">@req.RequesterName</span>
+                            </div>
+                            <K7Chip Size="sm" Color="warning">@L["StatusPending"]</K7Chip>
+                        </div>
+                        <div class="peer-card__details">
+                            <span class="peer-card__detail">@L["ReceivedAt"]: @req.Created.LocalDateTime.ToString("g")</span>
+                        </div>
+                        <div class="peer-card__actions">
+                            <K7Button Variant="filled" Color="success" Size="sm" OnClick="() => AcceptRequest(req)">
+                                @L["Accept"]
+                            </K7Button>
+                            <K7Button Variant="outlined" Color="danger" Size="sm" OnClick="() => RejectRequest(req)">
+                                @L["Reject"]
+                            </K7Button>
+                        </div>
+                    </K7Paper>
+                }
+            </div>
+        }
+
+        @* Outbound peers (requester side - we initiated) *@
+        @if (_outboundPeers.Count > 0)
+        {
+            <div class="federation-panel__section">
+                <span class="federation-panel__section-title">@L["OutboundPeers"]</span>
+                @foreach (var peer in _outboundPeers)
+                {
+                    <K7Paper @key="peer.Id" Outlined="true" class="peer-card">
+                        <div class="peer-card__header">
+                            <K7Icon Icon="@Phosphor.ArrowSquareOut"  IconSize="@K7IconSize.Lg" Color="@GetStatusColor(peer.Status)" />
+                            <div class="peer-card__info">
+                                <span class="peer-card__url">@peer.BaseUrl</span>
+                            </div>
+                            @if (peer.LastTestSucceeded == false && peer.Status == PeerStatus.Active)
+                            {
+                                <K7Chip Size="sm" Color="warning">@L["StatusUnreachable"]</K7Chip>
+                            }
+                            <K7Chip Size="sm" Color="@GetStatusColor(peer.Status)">@GetStatusLabel(peer.Status)</K7Chip>
+                        </div>
+                        <div class="peer-card__details">
+                            @if (peer.LastSeen is not null)
+                            {
+                                <span class="peer-card__detail">@L["LastSeen"]: @peer.LastSeen.Value.LocalDateTime.ToString("g")</span>
+                            }
+                        </div>
+                        <div class="peer-card__actions">
+                            @if (peer.Status == PeerStatus.Active)
+                            {
+                                <K7Button Variant="outlined" Color="default" Size="sm" OnClick="() => TestPeer(peer)" Loading="_testingPeerId == peer.Id">
+                                    @L["Test"]
+                                </K7Button>
+                                <K7Button Variant="outlined" Color="default" Size="sm" OnClick="() => SyncPeer(peer)">
+                                    @L["Sync"]
+                                </K7Button>
+                                <K7Button Variant="outlined" Color="default" Size="sm" OnClick="() => EditPeer(peer)">
+                                    @L["Settings"]
+                                </K7Button>
+                            }
+                            @if (peer.Status is PeerStatus.Rejected or PeerStatus.Revoked)
+                            {
+                                <K7Button Variant="outlined" Color="danger" Size="sm" OnClick="() => DeletePeer(peer)">
+                                    @L["Delete"]
+                                </K7Button>
+                            }
+                            else
+                            {
+                                <K7Button Variant="outlined" Color="danger" Size="sm" OnClick="() => RevokePeer(peer)">
+                                    @(peer.Status == PeerStatus.Pending ? L["Cancel"] : L["Revoke"])
+                                </K7Button>
+                            }
+                        </div>
+                    </K7Paper>
+                }
+            </div>
+        }
+
+        @* Inbound peers (provider side - we accepted) *@
+        @if (_inboundPeers.Count > 0)
+        {
+            <div class="federation-panel__section">
+                <span class="federation-panel__section-title">@L["InboundPeers"]</span>
+                @foreach (var peer in _inboundPeers)
+                {
+                    <K7Paper @key="peer.Id" Outlined="true" class="peer-card">
+                        <div class="peer-card__header">
+                            <K7Icon Icon="@Phosphor.ArrowSquareIn"  IconSize="@K7IconSize.Lg" Color="@GetStatusColor(peer.Status)" />
+                            <div class="peer-card__info">
+                                <span class="peer-card__url">@peer.BaseUrl</span>
+                            </div>
+                            @if (peer.LastTestSucceeded == false && peer.Status == PeerStatus.Active)
+                            {
+                                <K7Chip Size="sm" Color="warning">@L["StatusUnreachable"]</K7Chip>
+                            }
+                            <K7Chip Size="sm" Color="@GetStatusColor(peer.Status)">@GetStatusLabel(peer.Status)</K7Chip>
+                        </div>
+                        <div class="peer-card__details">
+                            @if (peer.LastSeen is not null)
+                            {
+                                <span class="peer-card__detail">@L["LastSeen"]: @peer.LastSeen.Value.LocalDateTime.ToString("g")</span>
+                            }
+                            <span class="peer-card__detail">@L["SharedLibraries"]: @peer.ShareAgreements.Count(a => a.Direction == ShareDirection.Outbound)</span>
+                        </div>
+                        <div class="peer-card__actions">
+                            @if (peer.Status == PeerStatus.Active)
+                            {
+                                <K7Button Variant="outlined" Color="default" Size="sm" OnClick="() => TestPeer(peer)" Loading="_testingPeerId == peer.Id">
+                                    @L["Test"]
+                                </K7Button>
+                                <K7Button Variant="outlined" Color="default" Size="sm" OnClick="() => EditPeer(peer)">
+                                    @L["Settings"]
+                                </K7Button>
+                            }
+                            @if (peer.Status == PeerStatus.Revoked)
+                            {
+                                <K7Button Variant="outlined" Color="danger" Size="sm" OnClick="() => DeletePeer(peer)">
+                                    @L["Delete"]
+                                </K7Button>
+                            }
+                            else
+                            {
+                                <K7Button Variant="outlined" Color="danger" Size="sm" OnClick="() => RevokePeer(peer)">
+                                    @L["Revoke"]
+                                </K7Button>
+                            }
+                        </div>
+                    </K7Paper>
+                }
+            </div>
+        }
+
+        @if ((_peers is null || _peers.Count == 0) && (_requests is null || _requests.Count == 0))
+        {
+            <K7EmptyState Icon="@Phosphor.Globe" Title="@L["NoPeers"]" Subtitle="@L["NoPeersHint"]" />
+        }
+    }
+</div>

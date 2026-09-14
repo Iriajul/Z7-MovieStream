@@ -1,0 +1,186 @@
+#if ANDROID
+using AndroidX.Core.View;
+using K7.Clients.Shared.Helpers;
+using Microsoft.AspNetCore.Components.WebView.Maui;
+
+namespace K7.Clients.MAUI.Platforms.Android;
+
+public class TransparentBlazorWebViewHandler : BlazorWebViewHandler
+{
+    protected override global::Android.Webkit.WebView CreatePlatformView()
+    {
+        var platformView = base.CreatePlatformView();
+        // UA must be tagged before the first document load so tv-layout.js sees K7TV/.
+        ApplyTvScalingIfNeeded(platformView);
+        return platformView;
+    }
+
+    protected override void ConnectHandler(global::Android.Webkit.WebView platformView)
+    {
+        ApplyTvScalingIfNeeded(platformView);
+        base.ConnectHandler(platformView);
+
+        AndroidWebViewAccessor.Current = platformView;
+        // Brand dark default (not WebView white). Video open paints an opaque black ColorDrawable
+        // (BlazorPage.ApplyAndroidWebViewShell), then clears it to TRANSPARENT once Playing.
+        var shell = global::Android.Graphics.Color.Rgb(13, 9, 7);
+        platformView.SetBackgroundColor(shell);
+        platformView.SetBackgroundResource(0);
+        platformView.Background = null;
+
+        // Allow ambient theme songs (HTML5 Audio) without a fresh user gesture.
+        // Navigation into a media page already counts as intentional interaction.
+        platformView.Settings.MediaPlaybackRequiresUserGesture = false;
+        // Restored WebView snapshots after process death leave a painted page
+        // with no Blazor circuit (TV sleep/wake freeze on select-profile).
+        platformView.SaveEnabled = false;
+
+        if (platformView.Parent is global::Android.Views.View parentView)
+        {
+            parentView.SetBackgroundColor(shell);
+            parentView.SetBackgroundResource(0);
+        }
+
+        SetupSafeAreaInsets(platformView);
+        AttachTvVideoBridges(platformView);
+    }
+
+    private static void AttachTvVideoBridges(global::Android.Webkit.WebView webView)
+    {
+        try
+        {
+#pragma warning disable CA1416 // JavascriptInterface is API 17+; min SDK is 26
+            webView.AddJavascriptInterface(new TvVideoControlJsBridge(), TvVideoControlJsBridge.InterfaceName);
+#pragma warning restore CA1416
+
+            webView.EvaluateJavascript(
+                "(function(){window.K7=window.K7||{};"
+                + "window.K7.tvNativeSeek=function(t){try{"
+                + "if(window.K7TvVideo&&K7TvVideo.seek)K7TvVideo.seek(+t);"
+                + "}catch(e){}};"
+                + "window.K7.tvNativeSeekBy=function(d){try{"
+                + "if(window.K7TvVideo&&K7TvVideo.seekBy)K7TvVideo.seekBy(+d);"
+                + "}catch(e){}};"
+                + "window.K7.tvNativeSkip=function(dir){try{"
+                + "if(window.K7TvVideo&&K7TvVideo.skip)K7TvVideo.skip(+dir);"
+                + "}catch(e){}};"
+                + "window.K7.tvNativeClosePlayer=function(){try{"
+                + "if(window.K7TvVideo&&K7TvVideo.closePlayer)K7TvVideo.closePlayer();"
+                + "}catch(e){}};})();",
+                null);
+        }
+        catch (Exception)
+        {
+            // Control bridge - never block WebView connect.
+        }
+    }
+
+    protected override void DisconnectHandler(global::Android.Webkit.WebView platformView)
+    {
+        if (AndroidWebViewAccessor.Current == platformView)
+            AndroidWebViewAccessor.Current = null;
+
+        base.DisconnectHandler(platformView);
+    }
+
+    private static void SetupSafeAreaInsets(global::Android.Webkit.WebView webView)
+    {
+        if (DeviceInfo.Idiom == DeviceIdiom.TV)
+            return;
+
+        ViewCompat.SetOnApplyWindowInsetsListener(webView, new SafeAreaInsetsListener(webView));
+    }
+
+    private sealed class SafeAreaInsetsListener(global::Android.Webkit.WebView webView)
+        : Java.Lang.Object, IOnApplyWindowInsetsListener
+    {
+        public WindowInsetsCompat? OnApplyWindowInsets(global::Android.Views.View? v, WindowInsetsCompat? insets)
+        {
+            if (v is null || insets is null)
+                return insets;
+
+            var bars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars());
+            if (bars is null)
+                return insets;
+
+            var density = v.Resources?.DisplayMetrics?.Density ?? 1f;
+            var top = (bars.Top / density).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var bottom = (bars.Bottom / density).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var left = (bars.Left / density).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var right = (bars.Right / density).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            var js = $"(function(){{var s=document.documentElement.style;" +
+                     $"s.setProperty('--k7-safe-top','{top}px');" +
+                     $"s.setProperty('--k7-safe-bottom','{bottom}px');" +
+                     $"s.setProperty('--k7-safe-left','{left}px');" +
+                     $"s.setProperty('--k7-safe-right','{right}px')}})()";
+            webView.EvaluateJavascript(js, null);
+
+            return ViewCompat.OnApplyWindowInsets(v, insets);
+        }
+    }
+
+    private static bool ShouldUseTvMode(global::Android.Webkit.WebView webView) =>
+        DeviceInfo.Idiom == DeviceIdiom.TV || AndroidTelevision.IsDeviceTelevision(webView.Context);
+
+    private static void ApplyTvScalingIfNeeded(global::Android.Webkit.WebView webView)
+    {
+        if (!ShouldUseTvMode(webView))
+        {
+            return;
+        }
+
+        var settings = webView.Settings;
+        settings.UseWideViewPort = true;
+        settings.LoadWithOverviewMode = true;
+        ConfigureWebViewImeOnFocus(settings);
+
+        webView.Focusable = true;
+        webView.FocusableInTouchMode = true;
+
+        // Tag the User-Agent so the page can detect TV mode synchronously in <head>
+        // and rewrite its <meta viewport> to compensate for the high pixel density.
+        // We can't rely on WebView.SetInitialScale here: Android ignores it whenever
+        // the page declares its own viewport meta tag, which K7's index.html does.
+        var currentUa = settings.UserAgentString ?? string.Empty;
+        if (!currentUa.Contains(TelevisionLayout.UserAgentMarker, System.StringComparison.Ordinal))
+        {
+            settings.UserAgentString = string.IsNullOrWhiteSpace(currentUa)
+                ? TelevisionLayout.UserAgentMarker
+                : $"{currentUa} {TelevisionLayout.UserAgentMarker}";
+        }
+    }
+
+    private static void ConfigureWebViewImeOnFocus(global::Android.Webkit.WebSettings settings)
+    {
+        // WebSettings.ShowSoftInputOnFocus is not bound in current Android SDK bindings.
+        // Class.GetMethod throws NoSuchMethodException when the primitive/boxed signature
+        // does not match; some TV WebView builds also reject Invoke. Best effort only.
+        try
+        {
+            var settingsClass = settings.Class;
+            if (settingsClass is null)
+                return;
+
+            foreach (var method in settingsClass.GetMethods())
+            {
+                if (method.Name != "setShowSoftInputOnFocus")
+                    continue;
+
+                var parameters = method.GetParameterTypes();
+                if (parameters is null || parameters.Length != 1)
+                    continue;
+
+                method.Invoke(settings, [Java.Lang.Boolean.True!]);
+                return;
+            }
+        }
+        catch (Exception)
+        {
+            // SoftKeyboardService still shows IME explicitly when entering edit mode.
+        }
+    }
+}
+#endif
+
+

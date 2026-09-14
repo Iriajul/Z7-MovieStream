@@ -1,0 +1,225 @@
+@page "/series/{SerieId}/seasons/{SeasonNumber:int}"
+@using K7.Shared.Dtos.Entities.Medias
+@using K7.Shared.Dtos.Entities.PersonRoles
+@inject IMediaService k7ServerService
+@inject IK7ServerService apiClient
+@inject IFederationService FederationService
+@inject NavigationManager NavigationManager
+@inject IPlayerService PlayerService
+@inject PlaybackProgressTracker PlaybackProgressTracker
+@inject IFeatureAccessService FeatureAccess
+@inject IDeviceService DeviceService
+@inject IStringLocalizer<SerieSeason> L
+@inject IStringLocalizer<SharedResource> S
+@inject IJSRuntime JSRuntime
+@inject IK7DialogService DialogService
+@inject MediaCacheStore CacheStore
+@inject IK7Snackbar Snackbar
+@inject IUserPreferencesService UserPreferencesService
+@inject IAmbientThemeService AmbientThemeService
+@inject IAudioPlayerService AudioPlayerService
+@inject IDeviceStorageService DeviceStorageService
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>@_pageTitle</PageTitle>
+
+@if (_loading)
+{
+    @if (_isTv)
+    {
+        <div class="season-tv" aria-busy="true">
+            <MediaHeroSkeleton ShowCast="false" />
+            <Carousel Skeleton="true">
+                @for (var j = 0; j < 8; j++)
+                {
+                    <CarouselItem>
+                        <MediaCard Skeleton="true" Variant="MediaCardVariant.Backdrop" FooterVisible="true" />
+                    </CarouselItem>
+                }
+            </Carousel>
+        </div>
+    }
+    else
+    {
+        <div class="season-detail-page" aria-busy="true">
+            <MediaHeroSkeleton SeasonLayout="true" ShowCast="false" />
+        </div>
+    }
+}
+else if (_season is not null && _isTv)
+{
+    <div class="season-tv"
+         style="@DominantColorCss.ToVariableStyle("--media-dominant-color", _dominantColor)">
+        <MediaPageBackdrop @ref="_tvBackdrop"
+                           ImageUrl="@_backdropUrl"
+                           HighResImageUrl="@_backdropHighResUrl"
+                           DominantColor="@_dominantColor"
+                           ScrollTarget="@_seasonTvRoot" />
+
+        <div @ref="_seasonTvRoot"
+             class="season-tv-scroll media-page-scroll"
+             data-tv-scroll>
+        <div class="season-tv-main" data-tv-scroll-zone="main">
+            <SerieSeasonTvHero @ref="_tvHero"
+                               SerieId="@SerieId"
+                               SerieTitle="@_season.SerieTitle"
+                               LogoUrl="@_logoUrl"
+                               Episode="_focusedEpisode"
+                               CanResumePlayback="_canResumePlayback"
+                               OnPlay="e => PlayEpisodeAsync(e)"
+                               OnPlayFromBeginning="e => PlayEpisodeAsync(e, fromBeginning: true)"
+                               OnOpenSynopsis="OpenSynopsisDialogAsync" />
+
+            <div class="tv-carousel-area" data-tv-scroll-zone="episodes">
+                <h2 class="tv-season-title">@(_season.SeasonNumber == 0 ? L["Specials"] : string.Format(L["SeasonNumber"], _season.SeasonNumber))</h2>
+                <Carousel @ref="_tvCarousel" Title="@L["EpisodeList"]" ContentKey="@_episodeCarouselKey">
+                    @foreach (var episode in _episodes)
+                    {
+                        var ep = episode;
+                        <div class="carousel-item"
+                             data-carousel-item
+                             @key="ep.Id"
+                             @attributes="GetEpisodeInitialFocusAttributes(ep)"
+                             id="ep-@ep.EpisodeNumber">
+                            <MediaCard Model="@GetEpisodeCardModel(ep)"
+                                       Variant="MediaCardVariant.Backdrop"
+                                       FooterVisible="true"
+                                       ProgressEnabled="true"
+                                       OverlayEnabled="true"
+                                       WatchedStatusEnabled="true"
+                                       WatchStateMenuEnabled="_canSetWatchState"
+                                       OnActivated="() => PlayEpisodeAsync(ep)"
+                                       OnFocused="() => OnTvEpisodeFocus(ep)"
+                                       OnWatchStateChanged="() => OnEpisodeWatchStateChangedAsync(ep)" />
+                        </div>
+                    }
+                </Carousel>
+            </div>
+
+            @if (HasDisplayableCast)
+            {
+                <div class="season-tv-scroll-hint">
+                    <K7Icon Icon="@Phosphor.CaretDown" />
+                </div>
+            }
+        </div>
+
+        <SerieSeasonTvCast @ref="_tvCast" Items="_focusedEpisodeDisplayableCast" />
+        </div>
+    </div>
+}
+else if (_season is not null)
+{
+    <MediaPageContent Class="season-detail-wash"
+                      FullWash="true"
+                      DominantColor="@_dominantColor"
+                      Tinted="@(_dominantColor is not null)">
+        <div class="season-detail-page">
+            <K7BackButton />
+
+            <div class="season-header">
+                <div class="season-header-info">
+                    <K7Image Class="season-logo"
+                             ObjectFit="scale-down"
+                             Src="@_logoUrl"
+                             Alt="">
+                        <FallbackContent>
+                            <h3 class="media-logo-title">@_season.SerieTitle</h3>
+                        </FallbackContent>
+                    </K7Image>
+
+                    <div class="season-title-row">
+                        <div class="season-title-group">
+                            <h4 class="season-title">
+                                @(_season.SeasonNumber == 0 ? L["Specials"] : string.Format(L["SeasonNumber"], _season.SeasonNumber))
+                            </h4>
+
+                            @if (_allSeasonNumbers.Count > 1)
+                            {
+                                <K7Menu Title="@L["ChooseSeason"]">
+                                    <ActivatorContent>
+                                        <K7IconButton Icon="@Phosphor.CaretDown" AriaLabel="@L["ChooseSeason"]" Size="sm" />
+                                    </ActivatorContent>
+                                    <ChildContent>
+                                        @foreach (var sn in _allSeasonNumbers)
+                                        {
+                                            var seasonNum = sn;
+                                            <K7MenuItem Icon="@(seasonNum == SeasonNumber ? "check" : "")"
+                                                        OnClick="() => GoToSeason(seasonNum)">
+                                                @(seasonNum == 0 ? L["Specials"] : string.Format(L["SeasonNumber"], seasonNum))
+                                            </K7MenuItem>
+                                        }
+                                    </ChildContent>
+                                </K7Menu>
+                            }
+                        </div>
+
+                        @if (_canRate)
+                        {
+                            <div class="season-user-rating" @onclick:stopPropagation="true">
+                                <RatingStars MediaId="_season.Id" Value="_seasonUserRating" Size="md" />
+                            </div>
+                        }
+
+                        <div class="season-actions">
+                        <DownloadAllButton Items="GetDownloadRequests()"
+                                           Label="@($"{_season.SerieTitle} - {(_season.SeasonNumber == 0 ? L["Specials"] : string.Format(L["SeasonNumber"], _season.SeasonNumber))}")" />
+
+                        <AuthorizeView Roles="User,Administrator">
+                            <K7Menu>
+                                <ActivatorContent>
+                                    <K7IconButton Icon="@Phosphor.CheckCircle" AriaLabel="mark-season-watched" Size="sm" />
+                                </ActivatorContent>
+                                <ChildContent>
+                                    <K7MenuItem Icon="check-circle" OnClick="MarkSeasonWatchedAsync">@L["MarkSeasonWatched"]</K7MenuItem>
+                                    <K7MenuItem Icon="circle" OnClick="MarkSeasonUnwatchedAsync">@L["MarkSeasonUnwatched"]</K7MenuItem>
+                                </ChildContent>
+                            </K7Menu>
+                        </AuthorizeView>
+
+                        <AuthorizeView Roles="Administrator">
+                            <K7Menu>
+                                <ActivatorContent>
+                                    <K7IconButton Icon="@Phosphor.DotsThreeVertical" AriaLabel="more-actions" />
+                                </ActivatorContent>
+                                <ChildContent>
+                                    <K7MenuItem Icon="television" OnClick="NavigateToSerie">@L["BackToSerie"]</K7MenuItem>
+                                    <K7MenuItem Icon="pencil-simple" OnClick="OpenEditMetadataDialogAsync">@L["EditMetadata"]</K7MenuItem>
+                                    @if (!_isFederated)
+                                    {
+                                        <K7MenuItem Icon="waveform" OnClick="DetectIntrosOutrosAsync">@L["DetectIntrosOutros"]</K7MenuItem>
+                                    }
+                                </ChildContent>
+                            </K7Menu>
+                        </AuthorizeView>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_season.Overview))
+                    {
+                        <div class="season-overview-wrap overview-clickable focusable"
+                             tabindex="0"
+                             role="button"
+                             @onclick="OpenSeasonOverviewDialogAsync">
+                            <p class="season-overview">@_season.Overview</p>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="season-episodes">
+                @foreach (var episode in _episodes)
+                {
+                    <div id="ep-@episode.EpisodeNumber">
+                        <EpisodeListItem @key="episode.Id"
+                                         Episode="episode"
+                                         StillUrl="@GetEpisodeStillUrl(episode)"
+                                         Href="@($"/series/{SerieId}/seasons/{SeasonNumber}/episodes/{episode.EpisodeNumber}")"
+                                         OnPlay="e => PlayEpisodeAsync(e)"
+                                         OnWatchStateChanged="OnEpisodeWatchStateChangedAsync" />
+                    </div>
+                }
+            </div>
+        </div>
+    </MediaPageContent>
+}

@@ -1,0 +1,89 @@
+@page "/setup/external-login"
+@attribute [ExcludeFromInteractiveRouting]
+@layout SetupLayout
+@using System.Security.Claims
+@using K7.Server.Application.Common.Interfaces
+@using K7.Server.Infrastructure.Database.Context.Identity
+@using Microsoft.AspNetCore.Identity
+@inject ISetupService SetupService
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+@inject K7.Server.Web.Components.Account.IdentityRedirectManager RedirectManager
+@inject ILogger<SetupExternalLogin> Logger
+
+<PageTitle>Setup - Z7</PageTitle>
+
+<div class="auth-card">
+    <div class="auth-card-header">
+        <h1 class="auth-title">Setting up admin account...</h1>
+    </div>
+    <div class="auth-card-body">
+        @if (!string.IsNullOrEmpty(_statusMessage))
+        {
+            <div class="auth-alert auth-alert--error" style="margin-bottom:1rem;">@_statusMessage</div>
+            <a href="/setup" class="k7-btn k7-btn--outlined focusable" style="width:100%;">Back to setup</a>
+        }
+    </div>
+</div>
+
+@code {
+    private string? _statusMessage;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? Action { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (await SetupService.IsSetupCompletedAsync())
+        {
+            RedirectManager.RedirectTo("/");
+            return;
+        }
+
+        if (Action != "SetupCallback")
+        {
+            RedirectManager.RedirectTo("/setup");
+            return;
+        }
+
+        var info = await SignInManager.GetExternalLoginInfoAsync();
+        if (info is null)
+        {
+            _statusMessage = "Error loading external login information.";
+            return;
+        }
+
+        var email = info.Principal.FindFirstValue(ClaimTypes.Email);
+        var userName = info.Principal.FindFirstValue("preferred_username")
+            ?? info.Principal.FindFirstValue(ClaimTypes.Name)
+            ?? email
+            ?? info.ProviderKey;
+
+        var result = await SetupService.CompleteSetupWithExternalLoginAsync(
+            userName,
+            email,
+            info.LoginProvider,
+            info.ProviderKey);
+
+        if (!result.Succeeded)
+        {
+            _statusMessage = string.Join(" ", result.Errors);
+            return;
+        }
+
+        Logger.LogInformation("Admin account created via external login provider {Provider} for {UserName}", info.LoginProvider, userName);
+
+        var user = await UserManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey)
+            ?? await UserManager.FindByNameAsync(userName);
+        if (user is not null)
+        {
+            await SignInManager.SignInAsync(user, isPersistent: false);
+        }
+
+        RedirectManager.RedirectTo("/");
+    }
+}

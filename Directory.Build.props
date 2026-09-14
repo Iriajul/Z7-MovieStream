@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>1.11.1</Version>
+    <StaticWebAssetMakeReferencedAssetOriginalItemSpecAbsolute Condition="'$(StaticWebAssetMakeReferencedAssetOriginalItemSpecAbsolute)' == ''">true</StaticWebAssetMakeReferencedAssetOriginalItemSpecAbsolute>
+  </PropertyGroup>
+  <ItemGroup>
+    <_StaticWebAssetCanonicalMetadata Include="FileLength" />
+    <_StaticWebAssetCanonicalMetadata Include="LastWriteTime" />
+  </ItemGroup>
+</Project>

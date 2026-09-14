@@ -1,0 +1,103 @@
+@page "/settings/shared-profiles"
+@page "/settings/viewing-groups"
+@layout SettingsLayout
+
+@using K7.Server.Domain.Enums
+@inject IDeviceService DeviceService
+
+<PageTitle>@L["SharedProfilesTitle"]</PageTitle>
+
+<h4 class="mb-2">@L["SharedProfilesTitle"]</h4>
+<p class="text-secondary mb-4">@(DeviceService.GetClientType() == ClientType.Web ? L["SharedProfilesPageDescriptionWeb"] : L["SharedProfilesPageDescription"])</p>
+
+<div class="pa-4 d-flex flex-col gap-4">
+    <K7Paper Outlined="true" Class="watch-together-panel">
+        <p class="text-secondary mb-3">@L["PrivacyDescription"]</p>
+        <K7Switch Label="@L["BlockNewMembership"]"
+                  Value="_preferences.BlockNewMembership"
+                  ValueChanged="OnBlockNewMembershipChanged"
+                  Disabled="_savingPreference" />
+    </K7Paper>
+
+    <K7Paper Outlined="true" Class="watch-together-panel">
+        <div class="shared-profiles-section-header mb-3">
+            <h6 class="mb-0">@L["GroupsTitle"]</h6>
+            <K7Button Variant="outlined" StartIcon="@Phosphor.Plus" OnClick="CreateGroupAsync" Disabled="_loading || _dialogOpen">
+                @L["CreateGroup"]
+            </K7Button>
+        </div>
+        <p class="text-secondary mb-3">@(DeviceService.GetClientType() == ClientType.Web ? L["GroupsDescriptionWeb"] : L["GroupsDescription"])</p>
+
+        @if (_loading)
+        {
+            <K7Spinner />
+        }
+        else if (_groups.Count == 0)
+        {
+            <p class="text-secondary mb-3">@L["Empty"]</p>
+        }
+        else
+        {
+            <div class="shared-profiles-list">
+                @foreach (var group in _groups)
+                {
+                    var isHost = group.HostUserId == _currentUserId;
+                    var isPinned = SharedProfileDevicePin.IsPinned(group.Id);
+                    <div class="shared-profiles-list__item shared-profiles-list__item--stacked">
+                        <div class="shared-profiles-list__row">
+                            <div class="shared-profiles-list__identity">
+                                @if (!string.IsNullOrEmpty(group.AvatarUrl))
+                                {
+                                    <K7Avatar Size="md"
+                                              Image="@group.AvatarUrl"
+                                              Letter="@(string.IsNullOrEmpty(group.Name) ? "?" : group.Name[..1].ToUpperInvariant())"
+                                              Alt="@group.Name" />
+                                }
+                                else
+                                {
+                                    <K7AvatarGroup Size="md"
+                                                   Members="@(group.Members.Select(ToAvatarGroupItem).ToList())" />
+                                }
+                                <div class="shared-profiles-list__info">
+                                    <span class="shared-profiles-list__name">@group.Name</span>
+                                    <span class="shared-profiles-list__meta">
+                                        @string.Format(L["MemberCount"], group.Members.Count)
+                                        @if (isHost)
+                                        {
+                                            <span class="shared-profiles-list__badge">@L["HostBadge"]</span>
+                                        }
+                                        @if (group.HasPin)
+                                        {
+                                            <span class="shared-profiles-list__badge">@L["PinBadge"]</span>
+                                        }
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="shared-profiles-list__actions">
+                                <K7Button Variant="text" StartIcon="@Phosphor.PencilSimple"
+                                          OnClick="() => EditGroupAsync(group)" Disabled="_processing.Contains(group.Id) || _dialogOpen">
+                                    @L["EditGroup"]
+                                </K7Button>
+                                @if (isHost)
+                                {
+                                    <K7Button Variant="text" StartIcon="@Phosphor.Sliders"
+                                              OnClick="() => EditProfileSettingsAsync(group)" Disabled="_processing.Contains(group.Id) || _dialogOpen">
+                                        @L["ProfileSettings"]
+                                    </K7Button>
+                                }
+                                <K7Button Variant="text" Color="error" StartIcon="@Phosphor.SignOut"
+                                          OnClick="() => LeaveAsync(group)" Disabled="_processing.Contains(group.Id)">
+                                    @L["Leave"]
+                                </K7Button>
+                            </div>
+                        </div>
+                        @if (DeviceService.GetClientType() != ClientType.Web)
+                        {
+                            <K7Switch Label="@L["ShowOnDevice"]" Value="isPinned" ValueChanged="(v) => OnShowOnDeviceChanged(group, v)" />
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </K7Paper>
+</div>

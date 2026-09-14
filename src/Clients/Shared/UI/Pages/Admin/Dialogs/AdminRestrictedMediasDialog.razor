@@ -1,0 +1,41 @@
+@inject IStringLocalizer<AdminRestrictedMediasDialog> L
+@inject IStringLocalizer<SharedResource> S
+
+<div class="k7-dialog-content">
+        @if (_loading)
+        {
+            <K7ProgressBar Indeterminate="true" />
+        }
+        else if (_medias.Count == 0)
+        {
+            <p Color="secondary">@L["Empty"]</p>
+        }
+        else
+        {
+            <p class="text-sm mb-3" Color="secondary">
+                @string.Format(L["Summary"], _medias.Count, _medias.Count >= 200 ? L["SummaryLimited"] : string.Empty)
+            </p>
+            <table class="k7-table k7-table--dense">
+                <thead>
+                    <tr>
+                        <th>@L["ColumnTitle"]</th>
+                        <th class="admin-restricted-medias__type-col">@L["ColumnType"]</th>
+                        <th class="admin-restricted-medias__year-col">@L["ColumnYear"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var media in _medias)
+                    {
+                        <tr>
+                            <td>@(media.Title ?? "-")</td>
+                            <td><K7Chip Size="sm" Color="default">@FormatType(media.Type)</K7Chip></td>
+                            <td>@(media.ReleaseYear?.ToString() ?? "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+    <div class="k7-dialog-actions">
+        <K7Button OnClick="Close">@S["Close"]</K7Button>
+    </div>

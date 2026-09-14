@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="AlbumType" xml:space="preserve"><value>Album</value></data>
+  <data name="TrackCount" xml:space="preserve"><value>· {0} morceaux</value></data>
+  <data name="DiscHeader" xml:space="preserve"><value>Disque {0}</value></data>
+  <data name="GoToArtist" xml:space="preserve"><value>Aller a l'artiste</value></data>
+  <data name="ReIdentify" xml:space="preserve"><value>Ré-identifier</value></data>
+  <data name="ReIdentifyMediaDialogTitle" xml:space="preserve"><value>Ré-identifier le média</value></data>
+  <data name="ReIdentifyMediaSent" xml:space="preserve"><value>Ré-identification du média envoyée et en cours de traitement par le serveur en tâche de fond.</value></data>
+  <data name="RefreshMetadata" xml:space="preserve"><value>Rafraîchir les métadonnées</value></data>
+  <data name="RefreshMetadataSent" xml:space="preserve"><value>Rafraîchissement des métadonnées lancé en tâche de fond.</value></data>
+  <data name="EditMetadata" xml:space="preserve"><value>Modifier les métadonnées</value></data>
+  <data name="MoreActions" xml:space="preserve"><value>Plus d'actions</value></data>
+</root>
+

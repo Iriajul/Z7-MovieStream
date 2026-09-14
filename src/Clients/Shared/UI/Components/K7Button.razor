@@ -1,0 +1,42 @@
+@namespace K7.Clients.Shared.UI.Components
+
+@if (!string.IsNullOrEmpty(Href))
+{
+    <a class="@CssClass"
+       style="@Style"
+       href="@(Disabled ? null : Href)"
+       aria-label="@ResolvedAriaLabel"
+       aria-disabled="@(Disabled ? "true" : null)"
+       tabindex="@(Disabled ? -1 : null)"
+       @attributes="AdditionalAttributes">
+        @if (!string.IsNullOrEmpty(StartIcon))
+        {
+            <K7Icon Icon="@StartIcon" />
+        }
+        @ChildContent
+        @if (!string.IsNullOrEmpty(EndIcon))
+        {
+            <K7Icon Icon="@EndIcon" />
+        }
+    </a>
+}
+else
+{
+    <button class="@CssClass"
+            style="@Style"
+            type="@Type"
+            disabled="@Disabled"
+            aria-label="@ResolvedAriaLabel"
+            @onclick="OnClick"
+            @attributes="AdditionalAttributes">
+        @if (!string.IsNullOrEmpty(StartIcon))
+        {
+            <K7Icon Icon="@StartIcon" />
+        }
+        @ChildContent
+        @if (!string.IsNullOrEmpty(EndIcon))
+        {
+            <K7Icon Icon="@EndIcon" />
+        }
+    </button>
+}

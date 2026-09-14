@@ -1,0 +1,45 @@
+@using K7.Shared.Dtos.Users
+@inject IStringLocalizer<AdminLibraryUsersDialog> L
+@inject IStringLocalizer<SharedResource> S
+
+<div class="k7-dialog-content">
+        @if (_loading)
+        {
+            <K7ProgressBar Indeterminate="true" />
+        }
+        else if (_users.Count == 0)
+        {
+            <p class="library-users__empty">@L["Empty"]</p>
+        }
+        else
+        {
+            <p class="library-users__hint">
+                @L["Hint"]
+            </p>
+            <K7CheckboxList TItem="UserDto"
+                            Items="_users"
+                            IsChecked="@(u => !_excludedUserIds.Contains(u.Id))"
+                            CheckedChanged="@(e => ToggleAccess(e.Item.Id, e.Checked))">
+                <ItemTemplate Context="user">
+                    <K7Avatar Size="sm" Image="@user.AvatarUrl" Letter="@GetInitial(user)" />
+                    <div class="library-users__info">
+                        <span class="library-users__name">
+                            @(user.UserName ?? user.Email ?? "-")
+                            @if (IsSelfExcluded(user))
+                            {
+                                <K7Chip Size="sm" Color="secondary" Variant="outlined">@L["AutoExcluded"]</K7Chip>
+                            }
+                        </span>
+                        <span class="library-users__role">@user.Role</span>
+                    </div>
+                </ItemTemplate>
+            </K7CheckboxList>
+        }
+    </div>
+    <div class="k7-dialog-actions">
+        <K7Button OnClick="Cancel">@S["Cancel"]</K7Button>
+        <K7Button Color="primary" Variant="filled" OnClick="Submit" Disabled="_saving">
+            @if (_saving) { <K7Spinner Size="sm" /> }
+            @S["Save"]
+        </K7Button>
+    </div>

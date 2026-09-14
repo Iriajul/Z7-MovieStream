@@ -1,0 +1,9 @@
+@page "/my-space/stats"
+@layout MySpaceLayout
+@using K7.Clients.Shared.UI.Pages.Stats
+@inject IStringLocalizer<MySpaceStatsPage> L
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+<div class="page-scrollable my-space-stats-page">
+    <WatchStats />
+</div>

@@ -1,0 +1,340 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, 'renovate/**' ]
+    paths-ignore:
+      - '**.md'
+      - branding/**
+      - screenshots/**
+      - LICENSE
+      - .github/FUNDING.yml
+
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - branding/**
+      - screenshots/**
+      - LICENSE
+      - .github/FUNDING.yml
+
+  # pull_request / push from GITHUB_TOKEN (Renovate) do not start workflows.
+  # renovate.yml dispatches this workflow on renovate/* branches instead.
+  # pull_request_target remains as a fallback for Dependabot.
+  pull_request_target:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - branding/**
+      - screenshots/**
+      - LICENSE
+      - .github/FUNDING.yml
+
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_target' || startsWith(github.ref, 'refs/heads/renovate/') }}
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/kaybi-gh/k7
+
+jobs:
+  # build-and-test is the gate. Heavier jobs start only if it succeeds.
+  build-and-test:
+    if: |
+      github.event_name != 'pull_request_target' ||
+      contains(fromJson('["github-actions[bot]","dependabot[bot]"]'), github.event.pull_request.user.login)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        name: Checkout code
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore K7.CI.slnf
+
+      # wwwroot/dist is gitignored; must exist before build so static web assets pick them up.
+      - name: Restore LibMan libraries
+        run: |
+          dotnet tool restore
+          (cd src/Clients/Shared/UI && dotnet tool run libman -- restore)
+          (cd src/Clients/Web && dotnet tool run libman -- restore)
+
+      - name: Check vulnerable NuGet packages
+        run: |
+          set -euo pipefail
+          dotnet list K7.CI.slnf package --vulnerable --include-transitive 2>&1 | tee vulnerable-packages.txt
+          if grep -q "has the following vulnerable packages" vulnerable-packages.txt; then
+            echo "::error::Vulnerable NuGet packages detected"
+            exit 1
+          fi
+
+      - name: Build
+        run: dotnet build K7.CI.slnf --configuration Release --no-restore
+
+      # Full `dotnet format --verify-no-changes` is deferred: large IDE/style debt
+      # (auto-properties, readonly fields, charset). Re-enable after a dedicated cleanup.
+
+      - name: Test (fast)
+        run: |
+          dotnet test tests/Domain.UnitTests/Domain.UnitTests.csproj --configuration Release --no-build --verbosity normal
+          dotnet test tests/Application.UnitTests/Application.UnitTests.csproj --configuration Release --no-build --verbosity normal
+          dotnet test tests/Import.UnitTests/Import.UnitTests.csproj --configuration Release --no-build --verbosity normal
+          dotnet test tests/Clients.ComponentTests/Clients.ComponentTests.csproj --configuration Release --no-build --verbosity normal
+          dotnet test tests/Web.SmokeTests/Web.SmokeTests.csproj --configuration Release --no-build --verbosity normal
+          dotnet test tests/Clients.DesignSystem.SmokeTests/Clients.DesignSystem.SmokeTests.csproj --configuration Release --no-build --verbosity normal
+
+  maui-smoke:
+    needs: build-and-test
+    if: |
+      github.event_name != 'pull_request_target' ||
+      contains(fromJson('["github-actions[bot]","dependabot[bot]"]'), github.event.pull_request.user.login)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        name: Checkout code
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Install MAUI workload
+        run: dotnet workload install maui --skip-manifest-update
+
+      - name: Restore
+        run: dotnet restore tests/Clients.MAUI.SmokeTests/Clients.MAUI.SmokeTests.csproj
+
+      - name: Restore LibMan libraries
+        working-directory: src/Clients/Shared/UI
+        run: |
+          dotnet tool restore
+          dotnet tool run libman -- restore
+
+      - name: Build
+        run: >
+          dotnet build tests/Clients.MAUI.SmokeTests/Clients.MAUI.SmokeTests.csproj
+          --configuration Release
+          -f net10.0-windows10.0.19041.0
+
+      - name: Test (maui smoke)
+        run: >
+          dotnet test tests/Clients.MAUI.SmokeTests/Clients.MAUI.SmokeTests.csproj
+          --configuration Release
+          -f net10.0-windows10.0.19041.0
+          --no-build
+          --verbosity normal
+
+  # macOS: compile the iOS client with the same sideload-shaped flags as publish-ios.
+  # Does not package the IPA. Catches Xcode / workload / csproj breakage on PRs.
+  maui-ios-smoke:
+    needs: build-and-test
+    if: |
+      github.event_name != 'pull_request_target' ||
+      contains(fromJson('["github-actions[bot]","dependabot[bot]"]'), github.event.pull_request.user.login)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        name: Checkout code
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Select matching Xcode
+        run: |
+          set -euo pipefail
+          echo "Installed Xcodes:"
+          ls -d /Applications/Xcode*.app
+          if ls -d /Applications/Xcode_26.0*.app >/dev/null 2>&1; then
+            target=$(ls -d /Applications/Xcode_26.0*.app | sort -V | tail -n 1)
+          else
+            echo "::warning::Xcode 26.0 not installed, using newest and updating workload"
+            target=$(ls -d /Applications/Xcode*.app | sort -V | tail -n 1)
+            echo "NEED_WORKLOAD_UPDATE=1" >> "$GITHUB_ENV"
+          fi
+          echo "Selecting ${target}"
+          sudo xcode-select -s "${target}/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install MAUI iOS workload
+        run: |
+          set -euo pipefail
+          if [ "${NEED_WORKLOAD_UPDATE:-0}" = "1" ]; then
+            dotnet workload install maui-ios
+            dotnet workload update
+          else
+            dotnet workload install maui-ios --skip-manifest-update
+          fi
+          dotnet workload list
+
+      - name: Restore LibMan libraries
+        working-directory: src/Clients/Shared/UI
+        run: |
+          dotnet tool restore
+          dotnet tool run libman -- restore
+
+      - name: Build iOS .app
+        # MtouchExtraArgs quotes are for MSBuild: `-p:` splits on commas.
+        run: |
+          set -euo pipefail
+          dotnet build src/Clients/MAUI/K7.Clients.MAUI.csproj \
+            -c Release \
+            -f net10.0-ios \
+            -p:K7PublishPlatform=ios \
+            -p:RuntimeIdentifier=ios-arm64 \
+            -p:RunAOTCompilation=false \
+            -p:UseInterpreter=true \
+            -p:MtouchLink=None \
+            -p:MtouchExtraArgs='"-gcc_flags -Wl,-no_fixup_chains"' \
+            -p:TreatWarningsAsErrors=false \
+            -p:EnableCodeSigning=false \
+            -p:_RequireCodeSigning=false \
+            -p:CodesignKey= \
+            -p:DisableCodesignVerification=true
+
+      - name: Verify .app and classic fixups
+        run: |
+          set -euo pipefail
+          app=$(find src/Clients/MAUI/bin/Release/net10.0-ios -path '*/ios-arm64/*.app' -type d -print -quit)
+          if [ -z "${app}" ]; then
+            echo "::error::No ios-arm64 .app bundle produced"
+            find src/Clients/MAUI/bin/Release/net10.0-ios -maxdepth 3 | head -n 100
+            exit 1
+          fi
+          echo "Found app bundle: ${app}"
+          bin="${app}/$(basename "${app}" .app)"
+          if otool -l "${bin}" | grep -q LC_DYLD_CHAINED_FIXUPS; then
+            echo "::error::Binary still uses LC_DYLD_CHAINED_FIXUPS, -no_fixup_chains did not take effect"
+            exit 1
+          fi
+          echo "OK: classic LC_DYLD_INFO fixups in use"
+
+  integration:
+    name: Integration tests
+    needs: build-and-test
+    if: |
+      github.event_name != 'pull_request_target' ||
+      contains(fromJson('["github-actions[bot]","dependabot[bot]"]'), github.event.pull_request.user.login)
+    permissions:
+      contents: read
+    uses: ./.github/workflows/integration-tests.yml
+
+  codeql:
+    name: CodeQL
+    needs: build-and-test
+    if: |
+      (github.event_name != 'pull_request_target' ||
+      contains(fromJson('["github-actions[bot]","dependabot[bot]"]'), github.event.pull_request.user.login))
+      && (github.event_name != 'push' || github.ref == 'refs/heads/main')
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: ./.github/workflows/codeql.yml
+
+  publish-image:
+    needs: build-and-test
+    if: |
+      github.event_name != 'pull_request_target' ||
+      contains(fromJson('["github-actions[bot]","dependabot[bot]"]'), github.event.pull_request.user.login)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+
+    concurrency:
+      group: publish-image-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        name: Checkout code
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=pr
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile
+          target: final
+          push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_CONFIGURATION=Release
+
+      - name: Scan image with Trivy
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: table
+          exit-code: '0'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          version: v0.72.0

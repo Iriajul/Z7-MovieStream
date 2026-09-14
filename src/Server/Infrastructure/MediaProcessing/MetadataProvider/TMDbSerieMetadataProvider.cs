@@ -1,0 +1,862 @@
+using System.Collections.Frozen;
+using K7.Server.Application.Common.Interfaces;
+using K7.Server.Application.Features.Medias.Services;
+using K7.Server.Application.Helpers;
+using K7.Server.Domain.Entities;
+using K7.Server.Domain.Entities.Metadatas;
+using K7.Server.Domain.Entities.Metadatas.External;
+using K7.Server.Domain.Entities.Metadatas.PersonRoles;
+using K7.Server.Domain.Entities.Ratings;
+using K7.Server.Domain.Enums;
+using K7.Server.Domain.Events;
+using K7.Server.Domain.Interfaces;
+using K7.Server.Domain.Models;
+using K7.Shared.Dtos.Entities.Metadatas;
+using Microsoft.Extensions.Logging;
+using TMDbLib.Client;
+using TMDbLib.Objects.General;
+using TMDbLib.Objects.TvShows;
+using MediaType = K7.Server.Domain.Enums.MediaType;
+
+namespace K7.Server.Infrastructure.MediaProcessing.MetadataProvider;
+
+public class TMDbSerieMetadataProvider : ISerieMetadataProvider, ISearchableMetadataProvider, IMetadataImageProvider
+{
+    private readonly TMDbClient _tmdbClient;
+    private readonly ILogger<TMDbSerieMetadataProvider> _logger;
+    private readonly Dictionary<(int TmdbId, int SeasonNumber, string Language), TvSeason> _catalogSeasonCache = new();
+
+    public string ProviderName => "tmdb";
+
+    private readonly FrozenSet<(string Department, string Job)> _wantedCrewRoles = new List<(string, string)>
+    {
+        ("Production", "Producer"),
+        ("Production", "Executive Producer"),
+        ("Directing", "Director"),
+        ("Writing", "Characters"),
+        ("Writing", "Story"),
+        ("Writing", "Screenplay")
+    }.ToFrozenSet();
+
+    public TMDbSerieMetadataProvider(TMDbClient tmdbClient, ILogger<TMDbSerieMetadataProvider> logger)
+    {
+        _tmdbClient = tmdbClient;
+        _logger = logger;
+    }
+
+    public async Task<string?> SearchSerieAsync(
+        MediaIdentification identification,
+        string? language = null,
+        string? fallbackLanguage = null,
+        CancellationToken cancellationToken = default)
+    {
+        await TmdbClientConfiguration.EnsureConfiguredAsync(_tmdbClient, cancellationToken);
+        try
+        {
+            var query = identification.SeriesTitle ?? identification.Title;
+            var year = identification.ReleaseYear.HasValue ? identification.ReleaseYear.Value.Year : 0;
+            var merged = await SearchTvMergedAsync(query, year, language, fallbackLanguage, cancellationToken);
+
+            var bestMatch = MetadataTitleMatchHelper.PickBest(
+                query,
+                year > 0 ? year : null,
+                merged,
+                result => result.Title,
+                result => result.ReleaseDate?.Year,
+                result => result.AlternateTitles,
+                result => result.Popularity);
+
+            return bestMatch?.Id.ToString();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error searching TMDb for serie {Title}", identification.SeriesTitle ?? identification.Title);
+            return null;
+        }
+    }
+
+    public async Task<IEnumerable<MetadataSearchResult>> SearchMetadataAsync(
+        string query, int? year, string? providerId, K7.Server.Domain.Enums.MediaType? mediaType, string language, string? fallbackLanguage, CancellationToken cancellationToken)
+    {
+        await TmdbClientConfiguration.EnsureConfiguredAsync(_tmdbClient, cancellationToken);
+        if (mediaType.HasValue && mediaType != K7.Server.Domain.Enums.MediaType.Serie)
+            return [];
+
+        var results = new List<MetadataSearchResult>();
+
+        try
+        {
+            var trimmedProviderId = providerId?.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmedProviderId))
+            {
+                var tmdbId = await ResolveTmdbIdAsync(trimmedProviderId, cancellationToken);
+                var show = await _tmdbClient.GetTvShowAsync(tmdbId, language: language, cancellationToken: cancellationToken);
+                if (show is not null)
+                {
+                    results.Add(MapToSearchResult(
+                        show.Id,
+                        show.Name ?? show.OriginalName ?? string.Empty,
+                        show.FirstAirDate,
+                        show.PosterPath,
+                        show.Overview));
+                }
+
+                return results;
+            }
+
+            if (!string.IsNullOrWhiteSpace(query))
+            {
+                var merged = await SearchTvMergedAsync(query, year ?? 0, language, fallbackLanguage, cancellationToken);
+                var ranked = MetadataTitleMatchHelper.OrderByBestMatch(
+                    query,
+                    year,
+                    merged,
+                    show => show.Title,
+                    show => show.ReleaseDate?.Year,
+                    show => show.AlternateTitles,
+                    show => show.Popularity);
+                results.AddRange(ranked.Select(show =>
+                    MapToSearchResult(show.Id, show.Title, show.ReleaseDate, show.PosterPath, show.Overview, show.Popularity)));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error searching TMDb series for {Query}", query);
+        }
+
+        return results;
+    }
+
+    private async Task<IReadOnlyList<TmdbMultiLanguageSearchMerger.MergedHit>> SearchTvMergedAsync(
+        string query,
+        int year,
+        string? language,
+        string? fallbackLanguage,
+        CancellationToken cancellationToken)
+    {
+        var languages = MetadataSearchLanguageHelper.ResolveSearchLanguages(language, fallbackLanguage);
+        if (languages.Count == 0)
+        {
+            var searchResult = await _tmdbClient.SearchTvShowAsync(
+                query,
+                firstAirDateYear: year,
+                cancellationToken: cancellationToken);
+            return TmdbMultiLanguageSearchMerger.MergeTv([searchResult?.Results ?? []]);
+        }
+
+        var tasks = languages
+            .Select(lang => _tmdbClient.SearchTvShowAsync(
+                query,
+                language: lang,
+                firstAirDateYear: year,
+                cancellationToken: cancellationToken))
+            .ToArray();
+        var results = await Task.WhenAll(tasks);
+        return TmdbMultiLanguageSearchMerger.MergeTv(
+            results.Select(r => (IReadOnlyList<TMDbLib.Objects.Search.SearchTv>)(r?.Results ?? [])).ToList());
+    }
+
+    public async Task<ExternalSerieMetadata> FetchSerieMetadataAsync(
+        string providerId, string language, CancellationToken cancellationToken = default, string? fallbackLanguage = null)
+    {
+        await TmdbClientConfiguration.EnsureConfiguredAsync(_tmdbClient, cancellationToken);
+        var tmdbId = await ResolveTmdbIdAsync(providerId, cancellationToken);
+        var show = await _tmdbClient.GetTvShowAsync(
+            tmdbId,
+            language: language,
+            includeImageLanguage: $"{language},en,null",
+            extraMethods: TvShowMethods.Credits | TvShowMethods.Images | TvShowMethods.ContentRatings | TvShowMethods.ExternalIds | TvShowMethods.Videos | TvShowMethods.Recommendations,
+            cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException($"No TMDb series found for id '{providerId}'");
+
+        var contentRating = ExtractContentRating(show.ContentRatings, language);
+        var (title, overview) = await ResolveLocalizedTextAsync(
+            show.Name,
+            show.Overview,
+            language,
+            fallbackLanguage,
+            async fallback =>
+            {
+                var fallbackShow = await _tmdbClient.GetTvShowAsync(
+                    tmdbId,
+                    language: fallback,
+                    cancellationToken: cancellationToken);
+                return (fallbackShow?.Name, fallbackShow?.Overview);
+            });
+
+        var resolvedTitle = title ?? show.Name ?? show.OriginalName ?? string.Empty;
+        var metadata = new ExternalSerieMetadata
+        {
+            Title = resolvedTitle,
+            SortTitle = MediaSortTitleHelper.Compute(resolvedTitle),
+            OriginalTitle = show.OriginalName,
+            ReleaseDate = show.FirstAirDate.HasValue ? DateOnly.FromDateTime(show.FirstAirDate.Value) : null,
+            Overview = overview,
+            Status = show.Status,
+            OriginalLanguage = show.OriginalLanguage,
+            ContentRating = contentRating,
+            Network = show.Networks?.FirstOrDefault()?.Name,
+            TotalSeasons = show.NumberOfSeasons,
+            Genres = [.. TmdbLibCompat.NonEmptyNames(show.Genres?.Select(g => g.Name))],
+            Studios = [.. TmdbLibCompat.NonEmptyNames(show.ProductionCompanies?.Select(c => c.Name))],
+            Trailers = TmdbLibCompat.MapYoutubeTrailers(show.Videos?.Results),
+            RecommendedExternalIds = [.. show.Recommendations?.Results?.Select(r => r.Id.ToString()) ?? []],
+            PersonRoles = await ConvertToPersonRolesAsync(show.Credits, language, cancellationToken),
+            ExternalIds = BuildExternalIds(providerId, show.ExternalIds),
+            Pictures = FetchMetadataPictures(show.Images, language),
+            Ratings = show.VoteCount > 0
+                ? [new MetadataProviderRating { MetadataProvider = Domain.Enums.MetadataProvider.TMDb, Value = show.VoteAverage, MinimumValue = 0, MaximumValue = 10, RatingCount = show.VoteCount }]
+                : []
+        };
+
+        return metadata;
+    }
+
+    public async Task<ExternalSeasonMetadata> FetchSeasonMetadataAsync(
+        string providerId, int seasonNumber, string language, CancellationToken cancellationToken = default, string? fallbackLanguage = null)
+    {
+        await TmdbClientConfiguration.EnsureConfiguredAsync(_tmdbClient, cancellationToken);
+        var tmdbId = await ResolveTmdbIdAsync(providerId, cancellationToken);
+        var season = await _tmdbClient.GetTvSeasonAsync(
+            tmdbId,
+            seasonNumber,
+            language: language,
+            includeImageLanguage: $"{language},en,null",
+            extraMethods: TvSeasonMethods.Images | TvSeasonMethods.ExternalIds,
+            cancellationToken: cancellationToken);
+
+        if (season is null)
+        {
+            throw new InvalidOperationException($"TMDb returned null for series {tmdbId} season {seasonNumber}.");
+        }
+
+        var pictures = new List<MetadataPicture>();
+        if (!string.IsNullOrEmpty(season.PosterPath))
+        {
+            var uri = _tmdbClient.GetImageUrl("original", season.PosterPath, true);
+            if (uri is not null)
+            {
+                var poster = new MetadataPicture
+                {
+                    OriginalRemoteUri = uri,
+                    Type = MetadataPictureType.Poster
+                };
+                poster.AddDomainEvent(new MetadataPictureCreatedEvent(poster));
+                pictures.Add(poster);
+            }
+        }
+
+        var (title, overview) = await ResolveLocalizedTextAsync(
+            season.Name,
+            season.Overview,
+            language,
+            fallbackLanguage,
+            async fallback =>
+            {
+                var fallbackSeason = await _tmdbClient.GetTvSeasonAsync(
+                    tmdbId,
+                    seasonNumber,
+                    language: fallback,
+                    cancellationToken: cancellationToken);
+                return (fallbackSeason?.Name, fallbackSeason?.Overview);
+            });
+
+        return new ExternalSeasonMetadata
+        {
+            SeasonNumber = season.SeasonNumber,
+            Title = title,
+            SortTitle = MediaSortTitleHelper.Compute(title),
+            Overview = overview,
+            AirDate = season.AirDate.HasValue ? DateOnly.FromDateTime(season.AirDate.Value) : null,
+            EpisodeCount = season.Episodes?.Count,
+            ExternalIds = [],
+            Pictures = pictures
+        };
+    }
+
+    public async Task<ExternalEpisodeMetadata> FetchEpisodeMetadataAsync(
+        string providerId, int seasonNumber, int episodeNumber, string language, CancellationToken cancellationToken = default, string? fallbackLanguage = null)
+    {
+        await TmdbClientConfiguration.EnsureConfiguredAsync(_tmdbClient, cancellationToken);
+        var tmdbId = await ResolveTmdbIdAsync(providerId, cancellationToken);
+        var episode = await _tmdbClient.GetTvEpisodeAsync(
+            tmdbId,
+            seasonNumber,
+            episodeNumber,
+            language: language,
+            extraMethods: TvEpisodeMethods.Images | TvEpisodeMethods.ExternalIds | TvEpisodeMethods.Credits,
+            cancellationToken: cancellationToken);
+
+        if (episode is null)
+        {
+            throw new InvalidOperationException(
+                $"TMDb returned null for series {tmdbId} season {seasonNumber} episode {episodeNumber}.");
+        }
+
+        string? stillUrl = null;
+        if (!string.IsNullOrEmpty(episode.StillPath))
+        {
+            stillUrl = _tmdbClient.GetImageUrl("original", episode.StillPath, true)?.ToString();
+        }
+
+        var externalIds = new List<ExternalId>();
+        if (episode.Id is int tmdbEpisodeId and > 0)
+            externalIds.Add(new ExternalId { ProviderName = "tmdb", Value = tmdbEpisodeId.ToString() });
+        if (episode.ExternalIds?.ImdbId is { } imdbId)
+            externalIds.Add(new ExternalId { ProviderName = "imdb", Value = imdbId });
+        if (episode.ExternalIds?.TvdbId is { } tvdbId)
+            externalIds.Add(new ExternalId { ProviderName = "tvdb", Value = tvdbId });
+
+        var (title, overview) = await ResolveLocalizedTextAsync(
+            episode.Name,
+            episode.Overview,
+            language,
+            fallbackLanguage,
+            async fallback =>
+            {
+                var fallbackEpisode = await _tmdbClient.GetTvEpisodeAsync(
+                    tmdbId,
+                    seasonNumber,
+                    episodeNumber,
+                    language: fallback,
+                    cancellationToken: cancellationToken);
+                return (fallbackEpisode?.Name, fallbackEpisode?.Overview);
+            });
+
+        return new ExternalEpisodeMetadata
+        {
+            EpisodeNumber = TmdbLibCompat.ToEpisodeNumber(episode.EpisodeNumber),
+            SeasonNumber = episode.SeasonNumber,
+            Title = title,
+            SortTitle = MediaSortTitleHelper.Compute(title),
+            Overview = overview,
+            AirDate = episode.AirDate.HasValue ? DateOnly.FromDateTime(episode.AirDate.Value) : null,
+            Runtime = episode.Runtime,
+            StillImageUrl = stillUrl,
+            ExternalIds = externalIds,
+            PersonRoles = await ConvertToPersonRolesAsync(episode.Credits, language, cancellationToken),
+            Ratings = episode.VoteCount > 0
+                ? [new MetadataProviderRating { MetadataProvider = Domain.Enums.MetadataProvider.TMDb, Value = episode.VoteAverage, MinimumValue = 0, MaximumValue = 10, RatingCount = episode.VoteCount }]
+                : []
+        };
+    }
+
+    public async Task<(int Season, int Episode)?> ResolveAbsoluteEpisodeAsync(
+        string providerId, int absoluteNumber, CancellationToken cancellationToken = default)
+    {
+        await TmdbClientConfiguration.EnsureConfiguredAsync(_tmdbClient, cancellationToken);
+        try
+        {
+            var tmdbId = await ResolveTmdbIdAsync(providerId, cancellationToken);
+            var show = await _tmdbClient.GetTvShowAsync(
+                tmdbId,
+                extraMethods: TvShowMethods.EpisodeGroups,
+                cancellationToken: cancellationToken);
+
+            if (show?.EpisodeGroups?.Results is not null)
+            {
+                var absoluteGroup = show.EpisodeGroups.Results
+                    .FirstOrDefault(g => g.Type == TvGroupType.Absolute);
+
+                if (absoluteGroup is not null && !string.IsNullOrEmpty(absoluteGroup.Id))
+                {
+                    var groupDetails = await _tmdbClient.GetTvEpisodeGroupsAsync(
+                        absoluteGroup.Id, cancellationToken: cancellationToken);
+
+                    if (groupDetails?.Groups is not null)
+                    {
+                        var counter = 0;
+                        foreach (var group in groupDetails.Groups.OrderBy(g => g.Order))
+                        {
+                            foreach (var ep in (group.Episodes ?? []).OrderBy(e => e.Order))
+                            {
+                                counter++;
+                                if (counter == absoluteNumber)
+                                {
+                                    return (ep.SeasonNumber, TmdbLibCompat.ToEpisodeNumber(ep.EpisodeNumber));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error resolving absolute episode {AbsoluteNumber} for TMDb serie {ProviderId}", absoluteNumber, providerId);
+        }
+
+        // Fallback: assume season 1
+        return (1, absoluteNumber);
+    }
+
+    public async Task<IReadOnlySet<(int Season, int Episode)>> ListEpisodeKeysAsync(
+        string providerId,
+        CancellationToken cancellationToken = default)
+    {
+        await TmdbClientConfiguration.EnsureConfiguredAsync(_tmdbClient, cancellationToken);
+        var tmdbId = await ResolveTmdbIdAsync(providerId, cancellationToken);
+        var keys = new HashSet<(int Season, int Episode)>();
+
+        var show = await _tmdbClient.GetTvShowAsync(tmdbId, cancellationToken: cancellationToken);
+        var seasonCount = show?.NumberOfSeasons ?? 0;
+        for (var season = 0; season <= seasonCount; season++)
+        {
+            try
+            {
+                var seasonData = await _tmdbClient.GetTvSeasonAsync(
+                    tmdbId,
+                    season,
+                    cancellationToken: cancellationToken);
+                if (seasonData?.Episodes is null)
+                    continue;
+
+                foreach (var episode in seasonData.Episodes)
+                    keys.Add((episode.SeasonNumber, TmdbLibCompat.ToEpisodeNumber(episode.EpisodeNumber)));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "TMDb season {Season} list failed for {ProviderId}", season, providerId);
+            }
+        }
+
+        return keys;
+    }
+
+    public async Task<ExternalEpisodeMetadata?> TryBuildEpisodeMetadataFromCatalogAsync(
+        string providerId,
+        int seasonNumber,
+        int episodeNumber,
+        string language,
+        string? fallbackLanguage = null,
+        CancellationToken cancellationToken = default)
+    {
+        await TmdbClientConfiguration.EnsureConfiguredAsync(_tmdbClient, cancellationToken);
+        var tmdbId = await ResolveTmdbIdAsync(providerId, cancellationToken);
+        var season = await GetCatalogSeasonAsync(tmdbId, seasonNumber, language, cancellationToken);
+
+        var episode = season?.Episodes?.FirstOrDefault(e => e.EpisodeNumber == episodeNumber);
+        if (episode is null)
+            return null;
+
+        string? stillUrl = null;
+        if (!string.IsNullOrEmpty(episode.StillPath))
+            stillUrl = _tmdbClient.GetImageUrl("original", episode.StillPath, true)?.ToString();
+
+        var (title, overview) = await ResolveLocalizedTextAsync(
+            episode.Name,
+            episode.Overview,
+            language,
+            fallbackLanguage,
+            async fallback =>
+            {
+                var fallbackSeason = await GetCatalogSeasonAsync(tmdbId, seasonNumber, fallback, cancellationToken);
+                var fallbackEpisode = fallbackSeason?.Episodes?.FirstOrDefault(e => e.EpisodeNumber == episodeNumber);
+                return (fallbackEpisode?.Name, fallbackEpisode?.Overview);
+            });
+
+        return new ExternalEpisodeMetadata
+        {
+            EpisodeNumber = TmdbLibCompat.ToEpisodeNumber(episode.EpisodeNumber),
+            SeasonNumber = episode.SeasonNumber,
+            Title = title,
+            SortTitle = MediaSortTitleHelper.Compute(title),
+            Overview = overview,
+            AirDate = episode.AirDate.HasValue ? DateOnly.FromDateTime(episode.AirDate.Value) : null,
+            Runtime = episode.Runtime,
+            StillImageUrl = stillUrl,
+            ExternalIds = [],
+            PersonRoles = [],
+            Ratings = episode.VoteCount > 0
+                ? [new MetadataProviderRating { MetadataProvider = Domain.Enums.MetadataProvider.TMDb, Value = episode.VoteAverage, MinimumValue = 0, MaximumValue = 10, RatingCount = episode.VoteCount }]
+                : []
+        };
+    }
+
+    private async Task<(string? Title, string? Overview)> ResolveLocalizedTextAsync(
+        string? primaryTitle,
+        string? primaryOverview,
+        string language,
+        string? fallbackLanguage,
+        Func<string, Task<(string? Title, string? Overview)>> fetchFallbackAsync)
+    {
+        if (!MetadataLocalizedText.ShouldFetchFallback(primaryTitle, primaryOverview, language, fallbackLanguage))
+            return (primaryTitle, primaryOverview);
+
+        var (fallbackTitle, fallbackOverview) = await fetchFallbackAsync(fallbackLanguage!);
+        return (
+            MetadataLocalizedText.Prefer(primaryTitle, fallbackTitle, language),
+            MetadataLocalizedText.Prefer(primaryOverview, fallbackOverview, language));
+    }
+
+    private async Task<TvSeason?> GetCatalogSeasonAsync(
+        int tmdbId,
+        int seasonNumber,
+        string language,
+        CancellationToken cancellationToken)
+    {
+        var cacheKey = (tmdbId, seasonNumber, language);
+        if (_catalogSeasonCache.TryGetValue(cacheKey, out var cached))
+            return cached;
+
+        var season = await _tmdbClient.GetTvSeasonAsync(
+            tmdbId,
+            seasonNumber,
+            language: language,
+            cancellationToken: cancellationToken);
+        if (season is not null)
+            _catalogSeasonCache[cacheKey] = season;
+
+        return season;
+    }
+
+    private MetadataSearchResult MapToSearchResult(int id, string name, DateTime? firstAirDate, string? posterPath, string? overview, double? popularity = null)
+    {
+        var posterUrl = !string.IsNullOrEmpty(posterPath)
+            ? _tmdbClient.GetImageUrl("w500", posterPath, true)?.ToString()
+            : null;
+
+        return new MetadataSearchResult
+        {
+            Provider = ProviderName,
+            ExternalId = id.ToString(),
+            Title = name,
+            Year = firstAirDate?.Year,
+            PosterUrl = posterUrl,
+            Overview = overview,
+            Popularity = popularity
+        };
+    }
+
+    private List<ExternalId> BuildExternalIds(string tmdbId, ExternalIdsTvShow? externalIds)
+    {
+        var ids = new List<ExternalId>
+        {
+            new() { ProviderName = "tmdb", Value = tmdbId }
+        };
+
+        if (!string.IsNullOrEmpty(externalIds?.ImdbId))
+        {
+            ids.Add(new ExternalId { ProviderName = "imdb", Value = externalIds.ImdbId });
+        }
+
+        if (!string.IsNullOrEmpty(externalIds?.TvdbId))
+        {
+            ids.Add(new ExternalId { ProviderName = "tvdb", Value = externalIds.TvdbId });
+        }
+
+        return ids;
+    }
+
+    private List<MetadataPicture> FetchMetadataPictures(TMDbLib.Objects.General.Images? images, string language)
+    {
+        var pictures = new List<MetadataPicture>();
+        if (images is null) return pictures;
+
+        var bestBackdrop = images.Backdrops?
+            .OrderByDescending(b => b.Iso_639_1 is null)
+            .ThenByDescending(b => b.VoteAverage)
+            .FirstOrDefault();
+
+        var bestLogo = images.Logos?
+            .OrderByDescending(b => b.Iso_639_1 == language)
+            .ThenByDescending(x => x.Iso_639_1 == "en")
+            .ThenByDescending(b => b.VoteAverage)
+            .FirstOrDefault();
+
+        var bestPoster = images.Posters?
+            .OrderByDescending(b => b.Iso_639_1 == language)
+            .ThenByDescending(x => x.Iso_639_1 == "en")
+            .ThenByDescending(b => b.VoteAverage)
+            .FirstOrDefault();
+
+        if (bestBackdrop is not null && !string.IsNullOrEmpty(bestBackdrop.FilePath))
+        {
+            var uri = _tmdbClient.GetImageUrl("original", bestBackdrop.FilePath, true);
+            if (uri is not null)
+            {
+                pictures.Add(new MetadataPicture { OriginalRemoteUri = uri, Type = MetadataPictureType.Backdrop });
+            }
+        }
+
+        if (bestLogo is not null && !string.IsNullOrEmpty(bestLogo.FilePath))
+        {
+            var uri = _tmdbClient.GetImageUrl("original", bestLogo.FilePath, true);
+            if (uri is not null)
+            {
+                pictures.Add(new MetadataPicture { OriginalRemoteUri = uri, Type = MetadataPictureType.Logo });
+            }
+        }
+
+        if (bestPoster is not null && !string.IsNullOrEmpty(bestPoster.FilePath))
+        {
+            var uri = _tmdbClient.GetImageUrl("original", bestPoster.FilePath, true);
+            if (uri is not null)
+            {
+                pictures.Add(new MetadataPicture { OriginalRemoteUri = uri, Type = MetadataPictureType.Poster });
+            }
+        }
+
+        foreach (var picture in pictures)
+        {
+            picture.AddDomainEvent(new MetadataPictureCreatedEvent(picture));
+        }
+
+        return pictures;
+    }
+
+    private Task<IList<BasePersonRole>> ConvertToPersonRolesAsync(Credits? credits, string language, CancellationToken cancellationToken)
+    {
+        var roles = new List<BasePersonRole>();
+        if (credits is null)
+            return Task.FromResult<IList<BasePersonRole>>(roles);
+
+        foreach (var role in credits.Cast ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(role.Name))
+                continue;
+
+            var actor = new Actor
+            {
+                Order = role.Order,
+                CharacterName = role.Character ?? string.Empty,
+                ExternalIds =
+                [
+                    new ExternalId { ProviderName = "tmdb", Value = role.CreditId ?? $"{role.Id}:{role.Order}:{role.Character}" }
+                ],
+                Person = new Person
+                {
+                    Name = role.Name,
+                    ExternalIds = [new ExternalId { ProviderName = "tmdb", Value = role.Id.ToString() }]
+                }
+            };
+
+            if (!string.IsNullOrEmpty(role.ProfilePath))
+            {
+                var uri = _tmdbClient.GetImageUrl("original", role.ProfilePath, true);
+                if (uri is not null)
+                {
+                    actor.PortraitPicture = new MetadataPicture { OriginalRemoteUri = uri, Type = MetadataPictureType.Portrait };
+                    actor.PortraitPicture.AddDomainEvent(new MetadataPictureCreatedEvent(actor.PortraitPicture));
+                }
+            }
+
+            roles.Add(actor);
+        }
+
+        foreach (var role in credits.Crew ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(role.Name)
+                || role.Department is null
+                || role.Job is null
+                || !_wantedCrewRoles.Contains((role.Department, role.Job)))
+                continue;
+
+            var crewMember = new CrewMember
+            {
+                Department = role.Department,
+                Job = role.Job,
+                ExternalIds =
+                [
+                    new ExternalId { ProviderName = "tmdb", Value = role.CreditId ?? role.Id.ToString() }
+                ],
+                Person = new Person
+                {
+                    Name = role.Name,
+                    ExternalIds = [new ExternalId { ProviderName = "tmdb", Value = role.Id.ToString() }]
+                }
+            };
+
+            if (!string.IsNullOrEmpty(role.ProfilePath))
+            {
+                var uri = _tmdbClient.GetImageUrl("original", role.ProfilePath, true);
+                if (uri is not null)
+                {
+                    crewMember.PortraitPicture = new MetadataPicture { OriginalRemoteUri = uri, Type = MetadataPictureType.Portrait };
+                    crewMember.PortraitPicture.AddDomainEvent(new MetadataPictureCreatedEvent(crewMember.PortraitPicture));
+                }
+            }
+
+            roles.Add(crewMember);
+        }
+
+        PersonRoleImportHelper.DedupByTmdbCreditId(roles);
+        return Task.FromResult<IList<BasePersonRole>>(roles);
+    }
+
+    private Person ConvertToPerson(TMDbLib.Objects.People.Person tmdbPerson)
+    {
+        var person = new Person
+        {
+            Biography = tmdbPerson.Biography,
+            Birthday = tmdbPerson.Birthday.HasValue ? DateOnly.FromDateTime(tmdbPerson.Birthday.Value) : null,
+            BirthPlace = tmdbPerson.PlaceOfBirth,
+            Gender = tmdbPerson.Gender switch
+            {
+                TMDbLib.Objects.People.PersonGender.Female => PersonGender.Female,
+                TMDbLib.Objects.People.PersonGender.Male => PersonGender.Male,
+                TMDbLib.Objects.People.PersonGender.NonBinary => PersonGender.NonBinary,
+                _ => PersonGender.NotSpecified,
+            },
+            Name = tmdbPerson.Name ?? string.Empty,
+            Deathday = tmdbPerson.Deathday.HasValue ? DateOnly.FromDateTime(tmdbPerson.Deathday.Value) : null,
+            ExternalIds =
+            [
+                new ExternalId { ProviderName = "tmdb", Value = tmdbPerson.Id.ToString() }
+            ]
+        };
+
+        if (!string.IsNullOrEmpty(tmdbPerson.ImdbId))
+        {
+            person.ExternalIds.Add(new ExternalId { ProviderName = "imdb", Value = tmdbPerson.ImdbId });
+        }
+
+        if (!string.IsNullOrEmpty(tmdbPerson.ProfilePath))
+        {
+            var uri = _tmdbClient.GetImageUrl("original", tmdbPerson.ProfilePath, true);
+            if (uri is not null)
+            {
+                person.PortraitPicture = new MetadataPicture { OriginalRemoteUri = uri, Type = MetadataPictureType.Portrait };
+                person.PortraitPicture.AddDomainEvent(new MetadataPictureCreatedEvent(person.PortraitPicture));
+            }
+        }
+
+        return person;
+    }
+
+    private static string? ExtractContentRating(ResultContainer<ContentRating>? contentRatings, string language)
+    {
+        if (contentRatings?.Results is null) return null;
+
+        var langUpper = language.Length >= 2 ? language[..2].ToUpperInvariant() : language.ToUpperInvariant();
+
+        var countries = new[] { langUpper, "US" };
+        foreach (var iso in countries)
+        {
+            var rating = contentRatings.Results
+                .FirstOrDefault(r => string.Equals(r.Iso_3166_1, iso, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(rating?.Rating)) return rating.Rating;
+        }
+
+        return contentRatings.Results
+            .Select(r => r.Rating)
+            .FirstOrDefault(r => !string.IsNullOrWhiteSpace(r));
+    }
+
+    public bool SupportsMediaType(MediaType mediaType) => mediaType is MediaType.Serie or MediaType.SerieSeason or MediaType.SerieEpisode;
+
+    public async Task<IReadOnlyList<ProviderImageDto>> GetImagesAsync(ImageProviderContext context, CancellationToken cancellationToken = default)
+    {
+        await TmdbClientConfiguration.EnsureConfiguredAsync(_tmdbClient, cancellationToken);
+        var results = new List<ProviderImageDto>();
+        var tmdbId = await ResolveTmdbIdAsync(context.ProviderId, cancellationToken);
+
+        try
+        {
+            switch (context.MediaType)
+            {
+                case MediaType.Serie:
+                    await FetchShowImagesAsync(tmdbId, context.Language, results, cancellationToken);
+                    break;
+                case MediaType.SerieSeason when context.SeasonNumber.HasValue:
+                    await FetchSeasonImagesAsync(tmdbId, context.SeasonNumber.Value, context.Language, results, cancellationToken);
+                    break;
+                case MediaType.SerieEpisode when context.SeasonNumber.HasValue && context.EpisodeNumber.HasValue:
+                    await FetchEpisodeImagesAsync(tmdbId, context.SeasonNumber.Value, context.EpisodeNumber.Value, context.Language, results, cancellationToken);
+                    break;
+            }
+        }
+        catch (Exception)
+        {
+            // Provider unavailable - return empty list
+        }
+
+        return results;
+    }
+
+    private async Task FetchShowImagesAsync(int tmdbId, string language, List<ProviderImageDto> results, CancellationToken cancellationToken)
+    {
+        var show = await _tmdbClient.GetTvShowAsync(tmdbId,
+            language: language,
+            includeImageLanguage: $"{language},en,null",
+            extraMethods: TvShowMethods.Images,
+            cancellationToken: cancellationToken);
+
+        if (show?.Images is null)
+            return;
+
+        AddImages(results, show.Images.Posters, MetadataPictureType.Poster, "w300");
+        AddImages(results, show.Images.Backdrops, MetadataPictureType.Backdrop, "w780");
+        AddImages(results, show.Images.Logos, MetadataPictureType.Logo, "w300");
+    }
+
+    private async Task FetchSeasonImagesAsync(int tmdbId, int seasonNumber, string language, List<ProviderImageDto> results, CancellationToken cancellationToken)
+    {
+        var season = await _tmdbClient.GetTvSeasonAsync(tmdbId, seasonNumber,
+            language: language,
+            includeImageLanguage: $"{language},en,null",
+            extraMethods: TvSeasonMethods.Images,
+            cancellationToken: cancellationToken);
+
+        if (season?.Images is null)
+            return;
+
+        AddImages(results, season.Images.Posters, MetadataPictureType.Poster, "w300");
+    }
+
+    private async Task FetchEpisodeImagesAsync(int tmdbId, int seasonNumber, int episodeNumber, string language, List<ProviderImageDto> results, CancellationToken cancellationToken)
+    {
+        var episode = await _tmdbClient.GetTvEpisodeAsync(tmdbId, seasonNumber, episodeNumber,
+            language: language,
+            includeImageLanguage: $"{language},en,null",
+            extraMethods: TvEpisodeMethods.Images,
+            cancellationToken: cancellationToken);
+
+        if (episode?.Images is null)
+            return;
+
+        AddImages(results, episode.Images.Stills, MetadataPictureType.Still, "w780");
+    }
+
+    private void AddImages(List<ProviderImageDto> results, IEnumerable<ImageData>? images, MetadataPictureType type, string thumbSize)
+    {
+        if (images is null)
+            return;
+
+        foreach (var img in images.OrderByDescending(x => x.VoteAverage))
+        {
+            if (string.IsNullOrEmpty(img.FilePath))
+                continue;
+
+            var url = _tmdbClient.GetImageUrl("original", img.FilePath, true)?.ToString();
+            var thumbUrl = _tmdbClient.GetImageUrl(thumbSize, img.FilePath, true)?.ToString();
+            if (url is null || thumbUrl is null) continue;
+
+            results.Add(new ProviderImageDto
+            {
+                Url = url,
+                ThumbnailUrl = thumbUrl,
+                Type = type,
+                Provider = ProviderName,
+                Width = img.Width,
+                Height = img.Height,
+                VoteAverage = img.VoteAverage,
+                Language = img.Iso_639_1
+            });
+        }
+    }
+
+    private async Task<int> ResolveTmdbIdAsync(string providerId, CancellationToken cancellationToken)
+    {
+        var trimmed = providerId.Trim();
+        if (int.TryParse(trimmed, out var tmdbId))
+            return tmdbId;
+
+        // Assume it's an IMDb ID (tt...) - resolve via TMDb Find API
+        var findResult = await _tmdbClient.FindAsync(TMDbLib.Objects.Find.FindExternalSource.Imdb, trimmed, cancellationToken: cancellationToken);
+        var tvResult = findResult?.TvResults?.FirstOrDefault()
+            ?? throw new InvalidOperationException($"No TMDb series found for external ID '{trimmed}'");
+
+        return tvResult.Id;
+    }
+}

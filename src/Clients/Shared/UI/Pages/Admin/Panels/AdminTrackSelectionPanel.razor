@@ -1,0 +1,9 @@
+@page "/admin/track-selection"
+@inject NavigationManager NavigationManager
+
+@code {
+    protected override void OnInitialized()
+    {
+        NavigationManager.NavigateTo("/admin/video-playback#tracks", replace: true);
+    }
+}

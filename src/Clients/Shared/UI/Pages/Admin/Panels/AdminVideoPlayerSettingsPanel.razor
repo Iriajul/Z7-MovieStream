@@ -1,0 +1,9 @@
+@page "/admin/video-player"
+@inject NavigationManager NavigationManager
+
+@code {
+    protected override void OnInitialized()
+    {
+        NavigationManager.NavigateTo("/admin/video-playback", replace: true);
+    }
+}

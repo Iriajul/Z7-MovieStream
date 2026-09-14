@@ -1,0 +1,99 @@
+@using K7.Clients.Shared.Helpers
+@using K7.Clients.Shared.Interfaces
+@inject IJSRuntime JSRuntime
+@inject IPlayerService PlayerService
+@inject IDeviceService DeviceService
+@inject IK7ServerService K7ServerService
+@inject IRemoteControlService RemoteControl
+@inject ISyncPlayService SyncPlay
+@inject IK7Snackbar Snackbar
+@inject IClientErrorReporter ClientErrorReporter
+@inject IUserPreferencesService UserPreferencesService
+@inject IStringLocalizer<SharedResource> S
+
+@if (RemoteControl.IsControlling && !RemoteControl.IsAudio)
+{
+    <div class="video-container">
+        <RemoteControlPanel OnResumeRequested="OnResumeHere" />
+    </div>
+}
+else if (PlayerService.IsVisible)
+{
+    var isNative = DeviceService.GetClientType() == Server.Domain.Enums.ClientType.Native;
+    var usesWebVideoOnNative = isNative
+        && WindowsVideoPlayback.ShouldUseWebVideoPlayer(
+            PlayerService.Source?.MimeType,
+            PlayerService.Source?.Url ?? SourceUri);
+    // Windows keeps native XAML chrome for both LibVLC and Video.js HLS.
+    var nativeChrome = MauiNativeVideoChrome.IsEnabled && isNative;
+
+    if (nativeChrome && !usesWebVideoOnNative)
+    {
+        @* LibVLC / MediaElement: native MAUI overlay owns all chrome; no Blazor video shell. *@
+    }
+    else if (nativeChrome && usesWebVideoOnNative)
+    {
+        @* Windows HLS: Video.js paints in WebView2; native XAML overlay owns chrome/input. *@
+        <div class="video-container" @ref="_videoContainer">
+            <div class="video-main">
+                @* Never embed <source> here: Video.js owns src via changeSource/changeSourceAndSeek. *@
+                <video id="video-player" class="video-js" @ref="_player" playsinline>
+                    <p class="vjs-no-js">
+                        To view this video please enable JavaScript, and consider upgrading to a
+                        web browser that
+                        <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+                    </p>
+                </video>
+            </div>
+        </div>
+    }
+    else
+    {
+        var containerClass = "video-container";
+        if (_syncPlaySidebarOpen)
+        {
+            containerClass += " syncplay-sidebar-open";
+        }
+
+        <div class="@containerClass" @ref="_videoContainer" @onkeydown="OnContainerKeyDown"
+             data-sn-layer="@(_syncPlaySidebarOpen ? "overlay" : null)"
+             data-sn-layer-close=".video-player-close-btn">
+            <div class="video-main">
+                <VideoPlayerControlsOverlay ThumbnailsSource="@ThumbnailsSource" OnSyncPlayToggle="ToggleSyncPlaySidebar" SyncPlaySidebarOpen="_syncPlaySidebarOpen" ContainerRef="_videoContainer" />
+                @if (SyncPlay.IsInGroup && SyncPlay.ShowReactions)
+                {
+                    <SyncPlayReactionOverlay />
+                }
+                @if (DeviceService.GetClientType() == Server.Domain.Enums.ClientType.Web)
+                {
+                @* Never embed <source> here: Video.js owns src via changeSource/changeSourceAndSeek.
+                   Blazor re-rendering a <source> while VHS is attached causes reload thrash / black frames. *@
+                <video id="video-player" class="video-js" @ref="_player" playsinline>
+                    <p class="vjs-no-js">
+                        To view this video please enable JavaScript, and consider upgrading to a
+                        web browser that
+                        <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+                    </p>
+                </video>
+                }
+                <NextEpisodeOverlay />
+            </div>
+            @if (_syncPlaySidebarOpen)
+            {
+                <div class="video-syncplay-sidebar">
+                    <SyncPlayOverlay />
+                </div>
+            }
+        </div>
+    }
+}
+@* 
+Sources
+- url
+- type
+
+Poster
+Title
+Thumbnails VTT
+
+Tracks? *@

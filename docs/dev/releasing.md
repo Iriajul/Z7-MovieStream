@@ -1,0 +1,115 @@
+# Releasing
+
+## Version flow
+
+1. PRs merge to `main` with Conventional Commit titles and changelog labels.
+2. **release-drafter** keeps a draft GitHub Release updated (`.github/workflows/release-drafter.yml`, `.github/release-drafter.yml`).
+3. Maintainers prepare a **draft** GitHub Release with tag name `vX.Y.Z` (target `main`). Saving a draft does **not** create the git tag yet; that is normal.
+4. **client-release** uploads native clients to the draft. If the git tag is missing, the workflow creates it from the release target commitish (usually `main`), then builds:
+   - `K7-{version}-android.apk` - sideload / Android TV
+   - `K7-{version}-win-x64.zip` - self-contained unpackaged Windows. Extract the whole folder and run `K7.exe` (needs matching `K7.pri` sidecars, not a single-file exe). Requires WebView2 Runtime and a recent Windows App Runtime on the machine.
+   - `K7-{version}-ios-sideload.ipa` - ad-hoc-signed iOS client for AltStore / SideStore / Sideloadly, plus AltStore source `apps.json`
+5. Maintainers **publish the draft** (human / non-`GITHUB_TOKEN`). That triggers **sync-version** and **docker-release**.
+6. **sync-version** rewrites `<Version>` in `Directory.Build.props` to match the tag and commits `chore: sync version to ...`.
+7. **docker-release** builds and pushes `ghcr.io/kaybi-gh/k7` with semver tags and `latest`, passing `APP_VERSION` as a Docker build-arg.
+
+Example:
+
+```bash
+# Draft from the UI (choose tag vX.Y.Z, target main, Save draft) or:
+gh release create vX.Y.Z --draft --target main --title "K7 vX.Y.Z" --notes-file notes.md
+# Editing a draft does not re-run clients. Drafter-created drafts also do not
+# auto-start other workflows (GITHUB_TOKEN). Start clients once:
+gh workflow run client-release.yml -f tag=vX.Y.Z
+# After APK, Windows zip, and iOS IPA appear on the draft:
+gh release edit vX.Y.Z --draft=false
+```
+
+Manual re-attach: Actions -> Client release -> Run workflow with the tag (creates the git tag if still missing).
+
+iOS ships as a sideload IPA on that draft. No Apple Developer certificate is required. The sideloader re-signs with the user's Apple ID at install. Users add a stable AltStore/SideStore source:
+
+`https://github.com/kaybi-gh/K7/releases/latest/download/apps.json`
+
+`apps.json` uses a fixed name so `latest/download/` tracks the newest published release. The IPA URL inside `apps.json` points at that release's versioned asset. The source icon is [`branding/icon.png`](../../branding/icon.png). Details: [`altstore/README.md`](../../altstore/README.md). Mac Catalyst packages are not published.
+
+## Release notes
+
+Draft body comes from `.github/release-drafter.yml`. Section order:
+
+1. **Breaking changes** - curated summary (edit before publish; replace the placeholder with "None" or short bullets)
+2. **Highlights** - 1-3 manual bullets (edit before publish)
+3. **Changes** - full categorized list via `$CHANGES` (Breaking Changes, Features, Bug Fixes, Documentation, Miscellaneous)
+4. **Artifacts** - Docker image and client asset names with `$RESOLVED_VERSION`
+5. **New contributors** - via `$NEW_CONTRIBUTORS` (first-time PR authors only)
+
+Edit **Highlights** and the top **Breaking changes** summary just before you publish. Release Drafter regenerates the draft on pushes to `main`, so earlier manual edits may be overwritten.
+
+Client assets land on the draft; publishing the draft triggers **docker-release**. Artifact references in the notes:
+
+| Artifact | Path / reference |
+|---|---|
+| Docker | `ghcr.io/kaybi-gh/k7:$RESOLVED_VERSION` (also `latest`) |
+| Android | Release asset `K7-{version}-android.apk` |
+| Windows | Release asset `K7-{version}-win-x64.zip` |
+| iOS | Release assets `K7-{version}-ios-sideload.ipa`, `apps.json` |
+
+### Android signing
+
+Prefer repository secrets so APK updates keep a stable signature:
+
+| Secret | Purpose |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | Base64-encoded `.keystore` / `.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Key alias |
+| `ANDROID_KEY_PASSWORD` | Key password (defaults to store password if unset) |
+| `RENOVATE_TOKEN` | Dependency update bot (see [Developing - Dependency updates](developing.md#dependency-updates)) |
+
+If secrets are missing, CI generates an ephemeral keystore (sideload only; signature changes each run).
+
+## Labels
+
+### Changelog (required on PRs)
+
+`pr-label-check.yml` requires at least one of: `breaking-change`, `enhancement`, `bug`, `chore`, `documentation`, `skip-changelog`.
+
+### Path labels (automatic)
+
+`.github/labeler.yml` via `label-pr.yml`: `server`, `clients`, `ci`, `tests`, etc. release-drafter also autolabels from Conventional Commit prefixes.
+
+## Docker image
+
+| Item | Value |
+|---|---|
+| Image | `ghcr.io/kaybi-gh/k7` |
+| Trigger | Published GitHub Release |
+| Build arg | `APP_VERSION` -> `dotnet publish -p:Version=...` |
+
+Post-push Trivy scan (`docker-release`) is best-effort: the step uses `continue-on-error` so a flaky Trivy binary install does not fail the release after the image is already on GHCR. Treat scan failures as advisory and re-run or scan locally if needed.
+
+Operator upgrade notes: [Install - Upgrades](../admin/install.md#upgrades).
+
+Contributors do not cut releases from a PR - focus on correct labels and commit titles so draft notes stay accurate.
+
+## Demo media and screenshots
+
+### Demo media
+
+[`tools/K7.Demo/download-demo-media.sh`](../../tools/K7.Demo/download-demo-media.sh) downloads sample movies, series, and music into a library root (default `MEDIA_ROOT=/k7/media`). Useful for local demos and screenshot capture. Requires a Unix-like shell (`bash`, `curl`, etc.).
+
+```bash
+MEDIA_ROOT=/path/to/media ./tools/K7.Demo/download-demo-media.sh
+```
+
+Point a K7 library at that folder and scan.
+
+### Screenshots
+
+README gallery images live in [`screenshots/`](../../screenshots/). Capture tooling:
+
+- Guide: [`tools/K7.Demo/generate-screenshots/README.md`](../../tools/K7.Demo/generate-screenshots/README.md)
+- Default target: live demo `https://k7.kaybi.dev`
+- Commands: `npm run capture`, `npm run composite:movie`
+
+Requires Node.js, Playwright browsers, and a reachable demo (or reconfigured URL in `screenshots.config.json`).

@@ -1,0 +1,42 @@
+@namespace K7.Clients.Shared.UI.Components.Music
+@using K7.Server.Domain.Enums
+@inject IStringLocalizer<MusicRadioPresets> L
+
+<div class="music-radio-presets @Class">
+    <Carousel Title="@Title" ContentKey="@string.Join(',', Presets.Select(p => p.Title))">
+        @foreach (var radio in Presets)
+        {
+            <CarouselItem @key="radio.Title">
+                <div class="music-radio-presets__item">
+                    <div class="music-radio-presets__container">
+                        <button type="button"
+                                class="music-radio-presets__visual focusable"
+                                style="@radio.BackgroundStyle"
+                                tabindex="0"
+                                aria-label="@radio.Title"
+                                disabled="@(_loadingPresetTitle == radio.Title)"
+                                @onclick="() => OnPresetClickedAsync(radio)">
+                            <span class="music-radio-presets__content">
+                                @if (_loadingPresetTitle == radio.Title)
+                                {
+                                    <K7Spinner Size="24" />
+                                }
+                                else
+                                {
+                                    <span class="music-radio-presets__icon">
+                                        <K7Icon Icon="@radio.Icon"  IconSize="@K7IconSize.Lg" />
+                                    </span>
+                                }
+                                <span class="music-radio-presets__card-title">@radio.Title</span>
+                            </span>
+                        </button>
+                        <div class="music-radio-presets__overlay" aria-hidden="true"></div>
+                    </div>
+                    <div class="music-radio-presets__footer">
+                        <span class="music-radio-presets__subtitle">@radio.Description</span>
+                    </div>
+                </div>
+            </CarouselItem>
+        }
+    </Carousel>
+</div>

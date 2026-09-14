@@ -1,0 +1,188 @@
+.select-profile-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding-block: var(--space-6);
+    padding-inline: 0;
+    width: 100%;
+    max-width: 100%;
+    align-self: stretch;
+    box-sizing: border-box;
+    margin: 0 auto;
+    gap: var(--space-6);
+    --carousel-margin-start: max(var(--space-10), calc((100% - 25rem) / 2));
+    --carousel-margin-end: var(--space-10);
+}
+
+.select-profile-section {
+    width: 100%;
+    align-self: stretch;
+    min-width: 0;
+}
+
+.select-profile-page ::deep .carousel-wrapper {
+    width: 100%;
+    max-width: 100%;
+    align-self: stretch;
+}
+
+@media (max-width: 599.98px) {
+    .select-profile-page {
+        --carousel-margin-start: var(--space-4);
+        --carousel-margin-end: var(--space-4);
+    }
+}
+
+.select-profile-page ::deep .select-profile-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-4);
+    padding: var(--spacing-4);
+    border: none;
+    border-radius: var(--radius-lg);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    min-width: 140px;
+    max-width: 160px;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.select-profile-page ::deep .select-profile-card:hover .k7-avatar:not(.k7-avatar-group > .k7-avatar),
+.select-profile-page ::deep .select-profile-card:focus .k7-avatar:not(.k7-avatar-group > .k7-avatar),
+.select-profile-page ::deep .select-profile-card:focus-within .k7-avatar:not(.k7-avatar-group > .k7-avatar),
+.select-profile-page ::deep .select-profile-card:focus-visible .k7-avatar:not(.k7-avatar-group > .k7-avatar),
+.select-profile-page ::deep .select-profile-card:hover .k7-avatar-group,
+.select-profile-page ::deep .select-profile-card:focus .k7-avatar-group,
+.select-profile-page ::deep .select-profile-card:focus-within .k7-avatar-group,
+.select-profile-page ::deep .select-profile-card:focus-visible .k7-avatar-group {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+.select-profile-page ::deep .select-profile-name {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-1);
+    width: 100%;
+    min-width: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-primary);
+}
+
+.select-profile-page ::deep .select-profile-name-text {
+    display: block;
+    min-width: 0;
+    flex: 1 1 auto;
+    height: 1lh;
+    overflow: hidden;
+    text-align: center;
+    container-type: inline-size;
+}
+
+.select-profile-page ::deep .select-profile-name-inner {
+    display: block;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    will-change: transform;
+}
+
+.select-profile-page ::deep .select-profile-card:hover .select-profile-name-text,
+.select-profile-page ::deep .select-profile-card:focus .select-profile-name-text,
+.select-profile-page ::deep .select-profile-card:focus-within .select-profile-name-text,
+.select-profile-page ::deep .select-profile-card:focus-visible .select-profile-name-text {
+    overflow: visible;
+}
+
+.select-profile-page ::deep .select-profile-card:hover .select-profile-name-inner,
+.select-profile-page ::deep .select-profile-card:focus .select-profile-name-inner,
+.select-profile-page ::deep .select-profile-card:focus-within .select-profile-name-inner,
+.select-profile-page ::deep .select-profile-card:focus-visible .select-profile-name-inner {
+    display: inline-block;
+    width: auto;
+    overflow: visible;
+    text-overflow: unset;
+    animation: select-profile-name-scroll 3s linear 0.5s infinite alternate;
+}
+
+@keyframes select-profile-name-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(min(0px, calc(100cqw - 100%))); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .select-profile-page ::deep .select-profile-card:hover .select-profile-name-inner,
+    .select-profile-page ::deep .select-profile-card:focus .select-profile-name-inner,
+    .select-profile-page ::deep .select-profile-card:focus-within .select-profile-name-inner,
+    .select-profile-page ::deep .select-profile-card:focus-visible .select-profile-name-inner {
+        display: block;
+        width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        animation: none;
+        transform: none;
+    }
+}
+
+.select-profile-switch {
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+    width: 100%;
+    box-sizing: border-box;
+    padding-inline-start: var(--carousel-margin-start);
+    padding-inline-end: var(--carousel-margin-end);
+}
+
+.select-profile-page ::deep .select-profile-group-avatars {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    margin: var(--space-2);
+}
+
+.select-profile-page ::deep .select-profile-group-avatars-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.select-profile-page ::deep .select-profile-group-avatars > .k7-avatar,
+.select-profile-page ::deep .select-profile-group-avatars > .k7-avatar-group,
+.select-profile-page ::deep .select-profile-group-avatars-wrap > .k7-avatar-group {
+    margin: 0;
+}
+
+.select-profile-page ::deep .select-profile-reconnect-badge {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: var(--color-surface-1);
+    color: var(--color-warning);
+    border: 2px solid var(--color-bg);
+    box-shadow: var(--shadow-sm);
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .select-profile-page ::deep .select-profile-card .k7-avatar,
+    .select-profile-page ::deep .select-profile-card .k7-avatar-group {
+        transition: outline-color 0.15s, outline-offset 0.15s;
+    }
+}

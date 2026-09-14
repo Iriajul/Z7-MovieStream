@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="Title" xml:space="preserve"><value>Librairies</value></data>
+  <data name="NewLibrary" xml:space="preserve"><value>Nouvelle librairie</value></data>
+  <data name="Empty" xml:space="preserve"><value>Aucune librairie</value></data>
+  <data name="EmptyDescription" xml:space="preserve"><value>Créez votre première librairie pour commencer à organiser vos médias.</value></data>
+  <data name="CreateLibrary" xml:space="preserve"><value>Créer une librairie</value></data>
+  <data name="AriaIndex" xml:space="preserve"><value>Indexer</value></data>
+  <data name="AriaRematch" xml:space="preserve"><value>Re-identifier les metadonnees</value></data>
+  <data name="AriaUserAccess" xml:space="preserve"><value>Accès utilisateurs</value></data>
+  <data name="NewLibraryTitle" xml:space="preserve"><value>Nouvelle librairie</value></data>
+  <data name="IndexStarted" xml:space="preserve"><value>Indexation de « {0} » lancée.</value></data>
+  <data name="RematchDialogTitle" xml:space="preserve"><value>Re-identifier les metadonnees</value></data>
+  <data name="RematchDialogMessage" xml:space="preserve"><value>Tous les medias de « {0} » seront re-identifies avec l'algorithme actuel. Les identifications automatiques et manuelles seront refaites. Les donnees utilisateur (lectures, statistiques, historique, playlists, collections, etc.) ne sont pas perdues : elles sont transferees vers les medias correctement identifies. Les fichiers restent sur le disque et gardent leurs probes. Le matching tourne en arriere-plan et peut prendre du temps sur une grande librairie.</value></data>
+  <data name="RematchConfirm" xml:space="preserve"><value>Re-identifier</value></data>
+  <data name="RematchStarted" xml:space="preserve"><value>Re-identification de « {0} » lancee.</value></data>
+  <data name="AccessTitle" xml:space="preserve"><value>Accès - {0}</value></data>
+  <data name="AriaEdit" xml:space="preserve"><value>Modifier</value></data>
+  <data name="AriaDelete" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="EditTitle" xml:space="preserve"><value>Modifier - {0}</value></data>
+  <data name="LibraryUpdated" xml:space="preserve"><value>Librairie mise à jour.</value></data>
+  <data name="DeleteDialogTitle" xml:space="preserve"><value>Supprimer la librairie</value></data>
+  <data name="DeleteDialogMessage" xml:space="preserve"><value>Êtes-vous sûr de vouloir supprimer la librairie « {0} » ? Cette action est irréversible.</value></data>
+  <data name="DeleteConfirm" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="DeleteSuccess" xml:space="preserve"><value>Librairie « {0} » supprimée.</value></data>
+  <data name="IssueCount" xml:space="preserve"><value>{0} probleme(s)</value></data>
+  <data name="StatFiles" xml:space="preserve"><value>fichier(s)</value></data>
+  <data name="StatMovies" xml:space="preserve"><value>film(s)</value></data>
+  <data name="StatSeries" xml:space="preserve"><value>serie(s)</value></data>
+  <data name="StatSeasons" xml:space="preserve"><value>saison(s)</value></data>
+  <data name="StatEpisodes" xml:space="preserve"><value>episode(s)</value></data>
+  <data name="StatArtists" xml:space="preserve"><value>artiste(s)</value></data>
+  <data name="StatAlbums" xml:space="preserve"><value>album(s)</value></data>
+  <data name="StatTracks" xml:space="preserve"><value>piste(s)</value></data>
+  <data name="ScanProgressFormat" xml:space="preserve"><value>Scan : {0}/{1} ({2})</value></data>
+  <data name="ScanProgressIndeterminate" xml:space="preserve"><value>Scan : {0}...</value></data>
+</root>
+

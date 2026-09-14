@@ -1,0 +1,266 @@
+# Using K7
+
+Guide for people using a K7 server that someone else (or you) already installed. Administrators: see [Install & run](../admin/install.md).
+
+## Getting started
+
+### Get an account
+
+How you sign in depends on how the administrator configured the server:
+
+| Mode | What you do |
+|---|---|
+| Admin-created local account | Username and password on the sign-in page (email optional) |
+| Self-registration | Sign-up page when the admin enabled it (**disabled by default**): username required, email optional |
+| OIDC / SSO | Provider button or automatic redirect when SSO is enabled (**disabled by default**) |
+| Guest | Welcome screen -> continue as guest when Guest is active (Admin -> Users; **inactive until enabled**). On a TV app, if Guest is off, the device-link QR opens directly instead of welcome. |
+
+Login uses your **username**. If you also set an email, you can sign in with that email as a convenience. Changing email later does not rename your username.
+
+### Link OIDC to a local account (web)
+
+If the server has OIDC enabled and your local account is not already linked:
+
+1. Sign in with username/password.
+2. Open **Settings -> Account**.
+3. Under login methods, choose **Link ...** (provider display name).
+
+Outcomes:
+
+| Result | What you see |
+|---|---|
+| Linked | Success message |
+| Already linked to this account | Info message |
+| Already linked to another account | Dialog asking you to contact an administrator (no automatic merge) |
+
+OIDC sign-in never attaches itself to an existing local account by email. Linking is always an explicit action from Settings (web client). Native apps do not offer this link button yet.
+
+### Add a local password to an OIDC account
+
+If you signed in with OIDC and the server also allows username/password sign-in, open **Settings -> Account** and choose **Set a password**. The live complexity rules are shown under the password field (defaults: at least 10 characters, uppercase, lowercase, a digit, and 4 distinct characters). If username/password sign-in is disabled (OIDC-only), the page explains that an administrator must enable it first.
+
+Guest mode is limited: many Settings sections and personal features (My Space, offline, continue watching, personal history, and similar) are hidden. Playback sessions are still recorded so administrators can see Guest consumption under Admin -> Playback history.
+
+### Two-factor authentication (2FA)
+
+For password accounts, under **Settings -> Account**: enable 2FA, scan the QR code (or enter the shared key), confirm with a code, and store the recovery codes. You can regenerate codes or disable 2FA on the same page. At sign-in you enter an authenticator code (optional "remember this machine").
+
+### After sign-in
+
+1. Choose a profile on the **profile selection** screen if prompted (your user and any shared profiles pinned on this device). On native apps, **I am the only user on this device** opens that profile on the next launch after you have unlocked it once (PIN still applies until then).
+2. Browse from Home, or open **My Space** for playlists, history, and more.
+3. Tune playback and privacy under **Settings**.
+
+## Clients
+
+Same interface in the browser and in native apps.
+
+| Platform | Notes |
+|---|---|
+| Web | Open the server URL in a browser - no separate install |
+| Android (phone) | Native app, also supports **Android Auto** (browse Home / Library / Playlists / Downloads, play radios from Home with the same names as in the app). You can open K7 from the car without launching it on the phone first. It restores the last unlocked profile. |
+| Android TV | Native app for TV remotes, including Fire TV Stick (same Android APK). Prefer the app over the Fire TV Silk browser. Admin pages use a lighter layout (numbers instead of live charts, and background tasks refresh more slowly). Active streams stay live. |
+| Windows | Native app |
+| iOS | Sideload IPA from GitHub Releases (AltStore, SideStore, or Sideloadly). A free Apple ID expires the app after 7 days and allows at most 3 sideloaded apps. This build drops CarPlay. |
+| Mac | Native app exists but is **not published** from CI |
+
+Native builds: download from GitHub Releases when published (`K7-*-android.apk`, `K7-*-win-x64.zip`, or `K7-*-ios-sideload.ipa`), or ask your admin. On iOS, add the AltStore/SideStore source `https://github.com/kaybi-gh/K7/releases/latest/download/apps.json` (see [`altstore/README.md`](../../altstore/README.md)). On Windows, extract the **whole** zip folder and run `K7.exe` from that folder (do not move the exe alone). The app needs the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (usually already installed with Microsoft Edge). On first launch, enter the server address (for example `k7.example.com`). **https** is assumed; use `http://...` only for plain HTTP on a local network. The app checks that the server responds, then saves the address.
+
+After that first setup, the app **closes** (or exits to the home screen). Open it again and sign in. This restart quirk is a **known limitation** of the native apps.
+
+Change server later: **Settings -> General** -> disconnect (trash), then enter a new address (same close-and-reopen behavior may apply). The web app always uses the server that hosts the page (address shown read-only in General).
+
+## Playback
+
+### In the player
+
+- **Quality** for this session (**Original** = remux / bitstream copy when the codec is playable, or a display-capped encode when it is not) or a ladder encode at the same or lower resolution - not saved as a lasting preference
+- **Audio** and **subtitle** tracks. Same-language tracks stay distinct: the menu shows the normalized language, then the original track name in parentheses (VFF, VFQ, France, Canadien, ...)
+- **Release** when a movie has several files: the picker shows resolution, audio languages, codec, size, and Local vs Federated instead of repeating the title. Play uses your track-selection settings. The sliders dialog preselects those same preferences; confirming it uses the tracks you picked for that launch only
+- **Intro / outro skip** when markers exist and your settings allow it
+- **Play on device** for remote control or Chromecast - see [Watching together and casting](#watching-together-and-casting)
+- When a **movie** or the **last episode** finishes, the player closes. Other series episodes can offer the next one (optional autoplay countdown)
+- On Android TV, an administrator can enable **Playback stats** in the native player menu. The HUD shows the same stream decision as Admin -> streams (Direct / Transmux / Transcode, codecs, reason) plus live HDMI Hz, dropped frames, and buffer
+
+### Trailers
+
+On a movie or series page, the clapperboard opens a trailer when metadata includes one (YouTube from TMDb / TVDB). It plays fullscreen in K7 by default. **Settings -> Video playback -> Open trailers in YouTube** (server default under Admin -> Video playback) sends YouTube to the system app on native clients and TV instead. That can leave K7, and on a TV that keeps only one app in memory the system may unload K7. The browser (except TV) always stays in K7. Sites that cannot be embedded still open externally.
+
+### Windows external player (MPC-HC / MPC-BE)
+
+On the Windows app, **Settings -> Video playback -> Advanced** can launch **MPC-HC or MPC-BE** instead of the built-in player. Use this if you already have a kaz / madVR / HDMI bitstream setup.
+
+1. Install MPC-HC (clsid2) or MPC-BE and apply your kaz (or equivalent) settings **inside MPC**.
+2. In K7, turn on the MPC switch, confirm the exe path if detection missed it, and save.
+3. Close any already-open MPC window so K7 can start a fresh process.
+
+Play then opens the original file in MPC. K7 passes `/webport` (default 13579) so the web interface starts for that session even if you never enabled it in MPC options, and `/start` uses your K7 resume point. Continue-watching is saved while that interface answers. If MPC was already running without it, close MPC and play again from K7.
+
+SyncPlay, remote control, and Chromecast on that device keep the built-in player. Next episode, intro skip, and in-app track picking do not run while MPC is playing (pick tracks in MPC). Other devices in the family keep the built-in player.
+
+### Settings
+
+The administrator can set **server-wide defaults**; yours override them (reset available on those pages). Details for video, subtitles, tracks, and audio: see [Customization](#customization).
+
+| Page | Highlights |
+|---|---|
+| Settings -> Video playback | Intro/outro skip, short skip back/forward duration, subtitle appearance, resume / continue-watching, completion threshold (marks watched; also drives home recommendations and watch stats), seekbar thumbnails, chapter markers, open trailers in YouTube (native apps and TV). On the Android/iOS/Windows apps: per-device audio passthrough (Dolby/DTS over HDMI) and, on Android TV, playback buffer size, HDMI auto frame rate (disabled / scale on TV / scale on device), and Dolby Vision (native / play as HDR10). On the Windows app: optional **MPC-HC / MPC-BE** external player (see below) |
+| Track selection | Preferred audio languages; when to show subtitles (Off, Forced only, Full, Hearing impaired) |
+| Settings -> Audio player | Music preferences: loudness normalization, equalizer, crossfade, autoplay, streaming quality, player behavior, resume / completion threshold |
+| Settings -> Scrobbling | Connect Last.fm, ListenBrainz, Trakt, or a webhook (Yamtrack, Floppy, Ryot, BetaSeries, custom). ListenBrainz tokens: listenbrainz.org/settings/. Self-hosted webhooks use URLs like `https://yamtrack.yourdomain.tld/webhook/jellyfin/{token}`. Yamtrack / Floppy / Ryot / BetaSeries are movies and episodes only. BetaSeries marks watched on completion only (needs IMDb for movies, TVDB for episodes) and does not show in-progress - API token from betaseries.com/api/. Needs the CanScrobble capability (on for User and Admin). The administrator can turn scrobbling off for the whole server under Admin -> Scrobbling. Shared profile watches scrobble to every member's own accounts |
+
+Seekbar thumbnails only appear if the server generated them. Chapter markers appear when **Settings -> Video playback -> chapter markers** is on (server default under Admin -> Video playback) and either the file has embedded chapters (for example MKV, when library chapter extraction is enabled) or the episode has intro/outro segments in the library. When both exist in the same time range, the seekbar shows the file chapter and skips a duplicate intro/outro tick. The first play can extract missing chapters automatically.
+
+Theme songs play quietly in the background when you open a series or movie page, and keep playing while you browse related pages (seasons, episodes, and cast person pages). If the theme finishes, it does not restart when you return to the same media. Opening another media with a theme starts (or crossfades to) that theme. Playback fades out when you leave that media context, and also stops (short fade) when you start watching or open a trailer - the theme does not restart when you close the player and stay on that series or movie. Theme songs pause when the app is in the background, and resume from the same position if you come back before they finish. They do not play while music is already playing, and they play once (no loop). Enable them under **Settings -> Experience -> General** (optional per-device disable).
+
+### Touch (phone / tablet)
+
+| Gesture | Action |
+|---|---|
+| Double-tap left half | Seek backward (configured skip back; default 10 s; repeats accumulate) |
+| Double-tap right half | Seek forward (configured skip forward; default 10 s) |
+| Vertical drag left half | Brightness |
+| Vertical drag right half | Volume |
+
+Single tap shows or hides controls when you are not mid-gesture.
+
+### Keyboard and TV (controls hidden)
+
+| Input | Action |
+|---|---|
+| Left / Right | Short skip (Settings -> Video playback; default 10 s). Hold to scrub on the seek bar |
+| Rewind / Fast forward | Short skip using the same rewind / fast-forward durations. Hold to scrub |
+| Up / Down | Volume (desktop). On TV, show controls and focus skip intro/outro when it is offered |
+| Enter / Select | Skip intro/outro when the skip button is on screen, otherwise show controls |
+
+When **Settings -> Video playback** is set to show the skip button, it appears on its own (controls stay
+hidden). Enter / Select skips. After a few seconds the floating button hides, but opening controls
+keeps skip available and focusable until the intro/outro chapter ends. Auto-skip jumps to the end
+of the chapter with no button. Disabled does nothing.
+
+When controls are visible, arrows / D-pad also reach the skip intro/outro button (it is focused
+first if it is on screen. Up from play/seek/settings also jumps to it). Enter / Select then skips.
+
+The rest of the app is spatially navigable (arrows / D-pad). Android TV also handles media Play/Pause/Stop, Rewind/Fast-forward, and long-press Select where relevant. When a PIN dialog opens, the number pad is focused immediately so the remote's number keys type digits without an extra Down press.
+
+## Customization
+
+Almost everything personal can be tuned under **Settings**. The administrator may set **server-wide defaults**; your choices override them, and settings pages usually offer a reset to those defaults.
+
+| Area | Where | What you can change |
+|---|---|---|
+| Profile | Settings -> Account | Avatar, display name (also password, email, PIN, 2FA for password accounts) |
+| Look and language | Settings -> General | Theme (light / dark), interface language, theme songs |
+| Device codecs | Settings -> About | Containers, video profiles (HEVC Main / Main 10), audio (including AC3/EAC3 when the browser reports them), and subtitles this device can play |
+| Home | Settings -> Home | Which rows appear on Home and in which order (with preview) |
+| Libraries | Settings -> Libraries | Hide libraries you do not want to browse (among those the admin already allows); per-group tap action on Explore (suggestions vs browse) |
+| Hidden media | Settings -> Hidden | Review and unhide titles you previously hid |
+| Video and subtitles | Settings -> Video playback / track selection | Intro skip, short skip durations, subtitle look, resume rules, preferred audio / subtitle languages, open trailers in YouTube - see [Playback](#playback). Native apps also keep per-device audio passthrough, and Android TV adds playback buffer size, HDMI auto frame rate, and Dolby Vision decode. Windows can launch MPC-HC / MPC-BE |
+| Music player | Settings -> Audio player | Music preferences: loudness normalization, equalizer, crossfade, autoplay, streaming quality, player behavior, resume |
+| Offline | Settings -> Offline | Storage and network rules on native apps - see [Offline downloads](#offline-downloads) |
+
+Session **quality** stays in the player menu only (not a saved preference).
+
+## My Space and libraries
+
+Libraries are on Home (and library browse). What you see depends on admin library / profile access, plus your own library exclusions above.
+
+Paste a movie, series, season, episode, album, or artist URL into Discord, Telegram, Slack, or iMessage. The preview shows that title, overview, and poster (unless the admin turned media previews off under Admin -> Experience -> General). Opening the link still requires signing in.
+
+**Explore** lists your library groups as category cards. Tapping a card opens that group's feed by default, or the library browse page when **Settings -> Libraries -> tap / click action** is set to Browse (admin default: Admin -> Library groups). Long-press or right-click on a card still offers both destinations.
+
+**My Space** is your personal corner:
+
+| Area | Notes |
+|---|---|
+| Playlists | Manual lists and **dynamic playlists** (rules that refresh as the library grows). With AudioMuse, you can also build a **smart playlist** from a text prompt - see [Music discovery](#music-discovery-audiomuse). |
+| Collections | Group titles your way |
+| Stats / History / Reviews | Your activity and ratings. Watch stats (and home "Recommended for you") only count plays that met your completion threshold; brief opens do not. History still lists incomplete sessions. |
+| Downloads | Native apps only - see [Offline](#offline-downloads) |
+
+**Shared with me** on playlists and collections keeps the same grid / list / table and adds items others have shared with you. The owner name is shown on those cards (and as a table column). What others see of your playlists, collections, reviews, and history is controlled under [Privacy](#privacy-and-visibility) (and per-item visibility where offered).
+
+## Privacy and visibility
+
+Social sharing is **opt-in**. By default, social content scopes are **Nobody**: nothing is shared until **you** widen a scope. The administrator **cannot force you to share** (there is no server-wide "everyone must share history/reviews" switch). They can still limit which libraries or profiles you may access - that is access control, not forced social opt-in. Admin federation social policy and per-peer social toggles only open the pipe; each user must still set **Settings -> Social** (Share and View) to Federation (or Specific people) for reviews and other social content to cross peers.
+
+Configure this under **Settings -> Social**. K7 separates **what you share** from **what you want to see**, for reviews, collections, playlists, dynamic playlists, and playback history. You can also blur reviews until you have watched the media.
+
+| Scope | Meaning |
+|---|---|
+| Nobody | Only yours (default) |
+| Local server | Same K7 instance |
+| Federation | Directly peered servers only (not friends-of-friends) |
+| Specific people | People you pick |
+
+Per-item visibility on playlists or collections can tighten or target sharing further when the UI offers it.
+
+## Offline downloads
+
+**Native apps only** (not the web app). Download from movies, episodes, albums, artists, or playlists; manage under **My Space -> Downloads**.
+
+On Android, an ongoing notification keeps transfers running when the app is in the background or swiped away. Force-stopping the app still cancels in-progress downloads.
+
+**Settings -> Offline**: storage limits, Wi-Fi vs mobile data, music cache lookahead. Progress and ratings made offline are stored on the device for that profile. They are sent to the server only after you pick a user on select-profile (or solo auto-login) and the session is online - never during splash, and never onto another profile. If the server does not answer on profile selection, you may be offered **Continue offline**.
+
+## Watching together and casting
+
+### Remote control
+
+Control playback on another logged-in device on the **same server**: open **Play on device** in the player, pick the target, use transport controls (you can resume on the controller later). Needs a live connection to the server.
+
+### Chromecast
+
+**Web and Android only.** Use the Chromecast section in Play on device. The Cast device must be on the same network as usual.
+
+### Sync Play
+
+Synchronized session with chat, reactions, and shared play/pause/seek: create from the Sync Play dialog in navigation, invite or share the link. Guests can join with a nickname when Guest is active and the invite allows it. **Settings -> Sync Play** controls invitations on the device and account.
+
+## Shared profiles
+
+Shared profiles let a couple or group watch together with a **shared continue-watching bucket** (**Settings -> Shared profiles**). Personal continue watching stays separate while the group exists: group watches do not appear in a member's personal continue watching, and activating a shared profile does not show another member's private continue watching. When the group finishes a title, every member gets it marked watched personally, and the session appears in each member's personal playback history and watch stats (not only the person who pressed play). If the shared profile is deleted (or removed because too few members remain), shared continue-watching progress is merged into each member's personal continue watching.
+
+1. Create a profile (name, at least two members, a host, optional PIN).
+2. Others cannot add you until you allow shared-profile invitations.
+3. The host can set a custom avatar for the profile; otherwise member avatars are stacked.
+4. On native apps, pin with **Show on this device**, then pick it on profile selection. Pinned shared profiles stay on that screen for every local user on the device, not only the members. The optional PIN is the only code asked for that card (the host account PIN is not required).
+5. The host can open **Preferences** for avatar, content restrictions, and playlists shared with members. Playback continue-watching thresholds are configured in **Settings** while the shared profile is active (host only).
+
+While a shared profile is active:
+
+- Home continue-watching is scoped to the profile only. Playback history and watch stats for the profile show group activity while the hat is on. Your personal history and stats include shared-profile sessions for every member of the group (via the acting player and co-viewer credits), not only the person who controlled playback.
+- If you forgot to switch profile, **My space -> History** has a reassign action on each row: move a play to a shared profile you belong to, or back to your personal history (host can also fix another member's play on a profile they host). The same page can remove a history row from **your** history: a personal play is deleted, a shared-profile play only drops you as a participant (other members and the profile history keep it). Use the checklist control to multi-select rows and reassign or remove them in bulk. Delete and reassign are off by default for User accounts (on for administrators). The administrator can enable them per account under Admin -> Users -> capabilities. A personal delete also drops that play from federated social profiles (peers query live sessions, they do not keep a copy). Opting out of a shared play as a co-viewer does not change what peers see for the person who pressed play.
+- The effective home layout is the profile's own layout if the host set one, otherwise the server default (never a member's personal layout).
+- Content restrictions come from the profile's assigned restriction profile, not the acting member's personal restrictions. Person pages also hide **Known for** (external posters) and any filmography titles the restriction would block. Age restriction on the shared profile (opt-in flag plus viewer date of birth) also applies instead of the member's personal age settings.
+- Playlists shared to the profile appear in members' navigation for the duration of the session.
+- Reviews stay personal. Leaving may transfer the host; if only one member would remain, the profile is removed.
+
+## Music discovery (AudioMuse)
+
+Optional. The admin connects a self-hosted [AudioMuse AI](https://github.com/NeptuneHub/AudioMuse-AI) under Admin -> Music intelligence (**disabled by default**). When off, AI features are hidden.
+
+When on: similar radios and sonic paths under **Music -> Radio**, intelligent search in the library, similar tracks in the music player, and smart playlists from a text prompt. **Similar discovery** starts from your favorites (and most-played tracks if you have no favorites) and queues neighbors you have not heard or rated yet. **Random discovery** also hides tracks you already rated. Basic radios (random, time capsule, recently added) work without AudioMuse.
+
+## External music clients (OpenSubsonic)
+
+K7 works with apps like Symfonium or Feishin over OpenSubsonic.
+
+1. Open **Settings -> External clients** to copy the server URL (and optional QR) and see your K7 username.
+2. Create an **app password** with a label (for example Symfonium). The generated password is shown only once, copy it now.
+3. In the client, add a Subsonic / OpenSubsonic provider with that URL.
+4. Sign in with your **K7 username** and the **app password** (not your K7 account password). Prefer HTTPS when you can.
+
+Stars in those clients use the same ratings as in K7. Listening history updates when the client reports plays. The client keeps its own play queue (K7 does not sync it yet).
+
+## When something goes wrong
+
+| Problem | What to try |
+|---|---|
+| Playback will not start or buffers a lot | Lower quality in the player; check network; on native apps, confirm the saved server address; ask the admin if the file needs transcoding |
+| "This media is still being prepared" | The file is indexed but not analyzed yet, which is normal shortly after it was added or during a first library scan. Asking to play it moves it to the front of the queue, and the page unblocks on its own once analysis finishes |
+| No subtitles | Pick a track in the player; check track-selection settings; the file may have no subtitle streams |
+| Progress missing / Keep Watching empty | Guests have no personal continue watching or history (admins still see Guest sessions). Offline sync needs a later connection. Keep Watching lists titles with a saved resume position past your threshold (Settings -> Video playback, default 5%), or the next playable episode after you finish one (even at 0% progress). Dismissing an item removes it from Keep Watching without changing your watched state. When a new episode is scanned after you were caught up, it appears once the file is available. Entries age out based on when that next episode became available, not only when you last watched |
+| 2FA code rejected | Check the phone's clock; use a recovery code |
+
+Anything else: tell your admin roughly when it happened and which client you used.

@@ -1,0 +1,201 @@
+# Developing
+
+Day-to-day development. Architecture: [architecture.md](architecture.md). Setup and PRs: [CONTRIBUTING.md](../../CONTRIBUTING.md).
+
+When you add or change a feature, also update **tests** and **documentation** (user / admin / `docs/dev` as relevant). See [CONTRIBUTING - Pull requests](../../CONTRIBUTING.md#pull-requests).
+
+## Clients (Web + MAUI)
+
+### Web (Blazor WASM)
+
+`K7.Clients.Web` is hosted by `K7.Server.Web`. The WASM `HttpClient` uses `HostEnvironment.BaseAddress` (same origin).
+
+```bash
+dotnet run --project src/Shared/Aspire/AppHost
+# or
+dotnet run --project src/Server/Web
+```
+
+Launch profiles: `src/Server/Web/Properties/launchSettings.json`. Typical HTTPS URL: `https://localhost:7443` (HTTP: `http://localhost:7080`). There is no supported standalone "WASM only against remote API" profile in-repo.
+
+### MAUI (Blazor Hybrid)
+
+Project: `src/Clients/MAUI`.
+
+```bash
+dotnet workload install maui
+```
+
+1. Start the server and note a URL reachable from the emulator/device.
+2. Launch MAUI for the desired TFM.
+3. On first launch, enter the server URL; the app probes `{url}/health` and stores preference `BackendUrl` (`K7_SERVER_URL`).
+4. After first URL setup the app **closes** (known limitation) - reopen it, then sign in.
+5. Retarget via Settings -> General -> disconnect, or clear the preference.
+
+Android emulator often needs `http://10.0.2.2:PORT` instead of `localhost`. Physical devices need the host LAN IP. Mac Catalyst builds are untested by the maintainer. iOS device builds are compiled in CI (`maui-ios-smoke`) and the sideload IPA is produced by [client-release](releasing.md).
+
+Native video chrome on Android/iOS/Windows is documented in [video-playback.md](video-playback.md). When `MauiNativeVideoChrome.IsEnabled` is true, the host shows `NativeVideoPlayerOverlay` above ExoPlayer (Android), MediaElement (iOS), LibVLC (Windows Direct Play), or Video.js in WebView2 (Windows HLS) instead of the Blazor HUD. Web WASM stays on Video.js + full Blazor controls.
+
+OIDC on MAUI uses `k7://callback/login` on all platforms (Windows included). The unpackaged Windows build registers that protocol under HKCU at startup (no admin). After Windows system-browser sign-in the server sends the tab to `/auth/complete` (close message) then that page opens `k7://`. Android/iOS keep the direct custom-scheme 302. `http://localhost/` remains accepted by the server for older clients. Register compatible URIs at your IdP when testing SSO.
+
+Android (single TFM via `K7PublishPlatform`; do not pass global `-p:TargetFrameworks=`):
+
+```bash
+dotnet publish src/Clients/MAUI/K7.Clients.MAUI.csproj \
+  -f net10.0-android \
+  -c Release \
+  -p:K7PublishPlatform=android
+```
+
+Windows unpackaged (self-contained):
+
+```bash
+dotnet publish src/Clients/MAUI/K7.Clients.MAUI.csproj \
+  -f net10.0-windows10.0.19041.0 \
+  -c Release \
+  -r win-x64 \
+  --self-contained true \
+  -p:K7PublishPlatform=windows \
+  -p:UseMonoRuntime=false \
+  -p:WindowsPackageType=None
+```
+
+Output entry point is `K7.Clients.MAUI.exe` (plus `K7.Clients.MAUI.pri`). Release CI also copies those to `K7.exe` / `K7.pri` for a shorter launcher name - WinUI requires the `.pri` basename to match the `.exe`. Do not ship a renamed exe without the matching `.pri`.
+
+iOS device (macOS host, single TFM via `K7PublishPlatform`):
+
+```bash
+dotnet build src/Clients/MAUI/K7.Clients.MAUI.csproj \
+  -c Release \
+  -f net10.0-ios \
+  -p:K7PublishPlatform=ios \
+  -p:RuntimeIdentifier=ios-arm64 \
+  -p:RunAOTCompilation=false \
+  -p:UseInterpreter=true \
+  -p:MtouchLink=None \
+  -p:EnableCodeSigning=false
+```
+
+Release CI applies extra sideload packaging (ad-hoc IPA, AltStore `apps.json`). See [releasing.md](releasing.md) and [`altstore/README.md`](../../altstore/README.md).
+
+Published Release assets (APK, Windows zip, iOS sideload IPA) are produced by [client-release](releasing.md) on each GitHub Release.
+
+Android TV: leanback launcher category is registered - use a TV emulator for D-pad testing. Fire TV Stick uses the same APK (leanback / Fire TV feature / AFT model, not UiMode alone). Couch layout stays near 1920 CSS px so a 4K framebuffer does not shrink the 10-foot UI.
+
+Shared UI placement: [architecture.md](architecture.md#ui-layout).
+
+### MAUI startup
+
+Typical sequence for a returning multi-user device: Android DecorView Lottie plays once and holds, then `BlazorPage` is constructed under the overlay, then first paint of `/select-profile` (EmptyLayout) dismisses the overlay. Solo auto-login applies `BackendUrl` first, then restores the session, starts at `/`, and dismisses on MainLayout first paint. A `BlazorPage` construction failure keeps the stored server URL (it must not dump the user onto native setup). First-run TV with Guest disabled starts at `/linkdevice`. Player scripts (`video.min.js`, audioplayer) load after first paint on Windows / Web, and are awaited if play happens before the prefetch finishes.
+
+Android `MainActivity` ignores restored instance state so a TV/process death cannot paint a frozen Blazor snapshot (visible select-profile, dead remote). `OnResume` re-enables the WebView, dismisses leftover splash overlays, re-inits spatial nav, and recreates the activity if the JS bridge is gone. `AppLifecycleGate` suppresses music UI renders while the host is paused so the mini player does not replay every track change when the screen turns back on.
+
+On Android the Lottie is attached to the activity DecorView so it stays above WebView / MediaElement and survives `BlazorPage` construction. Windows / iOS keep `SKLottieView` on the Blazor overlay. The Android 12+ system splash icon is always a circle, so `MauiSplashScreen` is brand color only (`#0d0907`). The 128x70 wordmark is the overlay (`k7_logo` then `splash.json`), not the circular tile.
+
+## DesignSystem
+
+`src/Clients/DesignSystem` is a **Blazor Server catalog** of the shared UI library (branding, tokens, components, players, dialogs, layout). It uses mock services - no K7 server required.
+
+Pre-colored logo and symbol SVGs (the Branding page variants) live in [`branding/`](../../branding/).
+
+```bash
+dotnet run --project src/Clients/DesignSystem
+# or via Aspire (service k7-design-system)
+dotnet run --project src/Shared/Aspire/AppHost
+```
+
+Standalone URL: see `src/Clients/DesignSystem/Properties/launchSettings.json` (typically `https://localhost:61567`).
+
+### Adding or changing a shared component
+
+1. Implement in `src/Clients/Shared/UI/Components/` (or `Dialogs/`, `Players/`) with the triad + localization. `K7GroupedList` is the searchable grouped catalog (notification parameters, rule fields).
+2. Add a demo section on the matching DesignSystem page (`Pages/Components.razor`, `Players.razor`, `Dialogs.razor`, ... ) with a stable `id`.
+3. If the type name starts with `K7`, add it to the `demoed` set in `Pages/Index.razor.cs` (home page lists uncatalogued `K7*` types via reflection).
+4. Add a sidebar anchor in `Layout/DesignLayout.razor`.
+5. If the component needs services, add a mock in `Mocks/MockServices.cs` and register it in `Program.cs`.
+6. Run DesignSystem and confirm the home page no longer flags the component as missing.
+7. Extend `Clients.DesignSystem.SmokeTests` only if new host DI is required for startup.
+
+Visual rules: [design.md](design.md).
+
+## Localization
+
+- Default `.resx` files are **French** (proper diacritics in values)
+- English in `*.en.resx`
+- Resource **keys** stay ASCII
+- No hardcoded user-facing strings - use `IStringLocalizer`
+
+Supported interface languages: `src/Shared/K7.Shared/SupportedLanguages.cs` (`fr`, `en`). Resources under `src/Clients/Shared/UI/Resources/...` and some under `src/Server/Web/Resources/`.
+
+**Adding a string:** French default `.resx` -> English `*.en.resx` -> inject localizer -> spot-check both cultures.
+
+**Adding a language:** extend `SupportedLanguages` and request localization registration; add `*.xx.resx` siblings.
+
+Accent / mojibake helpers may live under `scripts/` when present; otherwise edit `.resx` in the IDE.
+
+## API (OpenAPI)
+
+K7 generates an **OpenAPI 3.1** document for the server HTTP API.
+
+| Item | Detail |
+|---|---|
+| Build output | `src/Server/Web/wwwroot/openapi/specification.json` (generated into `obj/` then copied, `OpenApiGenerateDocumentsOnBuild`) |
+| Runtime static spec | `/openapi/specification.json` |
+| Scalar UI | `/scalar` - **Development only** |
+
+A normal `dotnet build` on `src/Server/Web` regenerates the document. Generation writes under `obj/` then copies into `wwwroot`. If the host still has the file mapped (Aspire debug restart) that copy is skipped and the previous spec stays until the next unlocked build. Prefer shared DTOs in `K7.Shared` for first-party clients. Automation uses API keys via `X-Api-Key` (native API) or OpenSubsonic `apiKey` on `/rest` - see [Configuration - Security](../admin/configuration.md#hardening-checklist). OpenSubsonic facade: [Architecture](architecture.md#opensubsonic-compatibility-layer).
+
+## Testing
+
+Stack: **NUnit**, **AwesomeAssertions**, **NSubstitute**. Blazor component tests use **bUnit**. Naming: `{ClassUnderTest}Tests`, `{Method}_Should{Expected}_When{Condition}`.
+
+New behavior should ship with tests in the matching project (unit, bUnit, functional, or integration). Prefer covering the happy path and important failure cases for Application handlers and critical UI.
+
+### Test projects
+
+| Project | What | CI |
+|---|---|---|
+| `Domain.UnitTests` / `Application.UnitTests` / `Import.UnitTests` | Unit | `build.yml` (fast) |
+| `Clients.ComponentTests` | bUnit | fast |
+| `Web.SmokeTests` / `Clients.DesignSystem.SmokeTests` | Smoke | fast |
+| `Clients.MAUI.SmokeTests` | MAUI smoke | `build.yml` `maui-smoke` (Windows, after `build-and-test`) |
+| MAUI iOS compile | Sideload-shaped `net10.0-ios` build | `build.yml` `maui-ios-smoke` (macOS, after `build-and-test`) |
+| `Application.FunctionalTests` / `Infrastructure.IntegrationTests` | HTTP + EF | `build.yml` `integration` (after `build-and-test`) |
+| `Tests.Helpers` | Factories, Testcontainers | referenced |
+
+[`K7.CI.slnf`](../../K7.CI.slnf) is the **fast CI** filter (excludes MAUI, Aspire AppHost, functional and integration tests).
+
+```bash
+dotnet test
+dotnet test tests/Application.UnitTests/Application.UnitTests.csproj
+dotnet test --filter "FullyQualifiedName~CreateLibrary"
+dotnet test K7.CI.slnf
+```
+
+Functional/integration tests need **Docker** (Testcontainers.PostgreSQL + Respawn). Without Docker, unit and bUnit projects still run.
+
+`build.yml` runs `build-and-test` first (restore, vulnerable-package check, Release build of `K7.CI.slnf`, fast tests). `maui-smoke`, `maui-ios-smoke`, integration tests, CodeQL, and `publish-image` start only if that job succeeds. CodeQL still has a weekly schedule (and a manual `workflow_dispatch`) in [`codeql.yml`](../../.github/workflows/codeql.yml).
+
+If branch protection requires status checks, use the names under the **Build** workflow (`build-and-test`, `maui-smoke`, `maui-ios-smoke`, `Integration tests / integration`, `CodeQL / Analyze (csharp)`, `publish-image`). The old standalone **Integration Tests** and **CodeQL** PR checks no longer run on push/PR.
+
+## Dependency updates
+
+K7 uses **[Renovate](https://docs.renovatebot.com/)** (self-hosted via GitHub Actions), not Dependabot version updates. Config: [`renovate.json`](../../renovate.json). Workflow: [`.github/workflows/renovate.yml`](../../.github/workflows/renovate.yml) (weekly Monday + `workflow_dispatch`).
+
+Renovate groups only packages that must bump together (OpenIddict, OpenTelemetry, SkiaSharp, LibVLC, SQLite natives, Google Play Services, Microsoft runtime minors). Everything else gets its own PR so one breaking bump cannot block the rest. Majors for `Microsoft.OpenApi` (incompatible with `Microsoft.AspNetCore.OpenApi` 10) are disabled.
+
+`Directory.Packages.props` also pins some transitive packages (`Azure.Identity`, `System.Drawing.Common`, `SSH.NET`) to patched versions. CI fails `dotnet list package --vulnerable` if those pins are removed.
+
+Commit messages use `chore(deps): bump <package> to vX.Y.Z`. Renovate always writes **one commit per PR** (it force-pushes that single commit when it rebases). Isolated per-package history therefore comes from ungrouped PRs, not from multiple commits inside a grouped PR.
+
+The job installs the `maui-android` workload on the runner so NuGet restore works for MAUI, including `android-arm` (Fire Stick / 32-bit). It uses the workflow `GITHUB_TOKEN` (no secret required).
+
+Repo **Settings -> Actions -> General** must allow Actions to create pull requests (write permissions). Without this, Renovate pushes branches but cannot open PRs.
+
+GitHub does not start workflows from events created by `GITHUB_TOKEN` (push, `pull_request`, or `pull_request_target`). After Renovate opens or updates PRs, the Renovate job dispatches **Build** on any `renovate/*` head that still has no check runs (integration tests and CodeQL are jobs in that workflow). `workflow_dispatch` and `repository_dispatch` are the exceptions GitHub allows with `GITHUB_TOKEN`.
+
+Run **Actions -> Renovate -> Run workflow** once to verify after changing Renovate config.
+
+You can still enable **Dependabot alerts** (security advisories) in GitHub Settings without Dependabot version-update PRs.
+
+Close or merge any leftover open Dependabot PRs so they do not compete with Renovate.

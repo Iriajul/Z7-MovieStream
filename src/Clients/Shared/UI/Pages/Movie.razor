@@ -1,0 +1,246 @@
+@page "/movies/{id}"
+@using K7.Server.Domain.Enums
+@using K7.Shared.Dtos.Entities.PersonRoles
+@using K7.Shared.Dtos.Entities.Metadatas.Files;
+@using Microsoft.AspNetCore.Components.Authorization
+@using K7.Clients.Shared.UI.Components.Dialogs
+@inject IMediaService k7ServerService
+@inject IK7ServerService apiClient
+@inject IPlayerService PlayerService
+@inject IDeviceStorageService DeviceStorageService
+@inject PlaybackProgressTracker PlaybackProgressTracker
+@inject IFeatureAccessService FeatureAccess
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<Movie> L
+@inject IStringLocalizer<SharedResource> S
+@inject IStringLocalizer<MediaReviewDialog> ReviewDialogL
+@inject IDeviceService DeviceService
+@inject IExternalLinkService ExternalLinkService
+@inject IJSRuntime JSRuntime
+@inject IUserPreferencesService UserPreferencesService
+@inject IAmbientThemeService AmbientThemeService
+@inject IAudioPlayerService AudioPlayerService
+<PageTitle>@_movie?.Title</PageTitle>
+@if (isLoading)
+{
+    <div class="movie-page">
+        <MediaHeroSkeleton DetailLayout="true" />
+    </div>
+}
+else
+{
+    @if (_movie != null)
+    {
+        <div class="movie-page"
+             style="@DominantColorCss.ToVariableStyle("--media-dominant-color", _dominantColor)">
+        <MediaPageBackdrop ImageUrl="@_backdropUrl"
+                           HighResImageUrl="@_backdropHighResUrl"
+                           DominantColor="@_dominantColor"
+                           ScrollTarget="@_tvScrollRoot" />
+        <div @ref="_tvScrollRoot"
+             class="movie-page-scroll media-page-scroll"
+             data-tv-scroll="@(HasTvBelowContent ? string.Empty : null)">
+        <div class="movie-main media-hero-main" data-tv-scroll-zone="main">
+        <K7BackButton />
+        <div class="media-hero movie-hero">
+            <div class="media-hero-backdrop-zone">
+                <K7Image Class="movie-page-logo media-hero-logo"
+                         @key="_logoUrl"
+                         ObjectFit="scale-down"
+                         Src="@GetLogoUrl()"
+                         Alt=""
+                         ShowLoadingState="false">
+                    <FallbackContent>
+                        <h2 class="media-logo-title media-hero-title">@_movie.Title?.ToUpper()</h2>
+                    </FallbackContent>
+                </K7Image>
+            </div>
+            <div class="media-hero-body">
+            <div class="d-flex flex-col" style="gap: 8px;">
+                <div class="movie-meta">
+                    <div class="movie-meta-chips">
+                        <div class="movie-ratings">
+                            @if (@_movie.Ratings?.FirstOrDefault(x => x.Source == RatingSource.MetadataProvider)?.Value is double externalRating)
+                            {
+                                <K7Chip Size="sm" Icon="star" Color="primary" Variant="filled" Style="font-weight: 700;">@externalRating.ToString("N1")</K7Chip>
+                            }
+                            @if (_canRate)
+                            {
+                                <div class="movie-user-rating" @onclick:stopPropagation="true">
+                                    <RatingStars MediaId="_movie.Id" Value="_movieUserRating" Size="md" />
+                                </div>
+                            }
+                        </div>
+                        @foreach (var genre in (_movie.Genres ?? []).Take(2))
+                        {
+                            var g = genre;
+                            <K7Chip Variant="text" Size="sm" Style="opacity: 0.9; font-weight: 600;" OnClick="() => NavigateToGenre(g)">@genre</K7Chip>
+                        }
+                        @foreach (var studio in (_movie.Studios ?? []).Take(1))
+                        {
+                            var s = studio;
+                            <K7Chip Variant="text" Size="sm" Style="opacity: 0.9; font-weight: 600;" OnClick="() => NavigateToStudio(s)">@studio</K7Chip>
+                        }
+                    </div>
+                    <div class="movie-meta-details">
+                        @if (_movie.ReleaseDate.HasValue)
+                        {
+                            <p class="text-sm" Style="opacity: 0.9; font-weight: 600;">@_movie.ReleaseDate.Value.Year</p>
+                        }
+                        @if (_movie.ReleaseDate.HasValue && _movie.IndexedFiles != null && _movie.IndexedFiles.Any() && _movie.IndexedFiles.First().FileMetadata is VideoFileMetadataDto)
+                        {
+                            <p class="text-sm" Style="opacity: 0.5;">&bull;</p>
+                        }
+                        @if (_movie.IndexedFiles != null && _movie.IndexedFiles.Any() && _movie.IndexedFiles.First().FileMetadata is VideoFileMetadataDto vMetaDuration)
+                        {
+                            <p class="text-sm" Style="opacity: 0.9; font-weight: 600;">@string.Format(S["DurationHoursMinutes"], (int)vMetaDuration.Duration.TotalHours, vMetaDuration.Duration.Minutes)</p>
+                        }
+                    </div>
+                </div>
+                
+                @if (!string.IsNullOrWhiteSpace(_movie.TagLine))
+                {
+                    <p class="text-subtitle1 mt-2 movie-tagline" Style="font-style: italic; opacity: 0.8; font-weight: 500;">
+                        "@_movie.TagLine"
+                    </p>
+                }
+
+                <div class="d-flex flex-col py-3 overview-clickable focusable" style="max-width: 800px;" tabindex="0" role="button" @onclick="OpenSynopsisDialogAsync">
+                    <p Style="opacity: 0.85; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; font-size: var(--text-base);">
+                        @_movie.Overview
+                    </p>
+                </div>
+
+                <div class="movie-actions" data-tv-scroll-zone="actions">
+                    <div class="@(CanResumePlayback ? "movie-actions-primary movie-actions-primary--split" : "movie-actions-primary")">
+                        <K7Button Disabled="@(!HasPlayableFiles())"
+                                   Variant="filled"
+                                   StartIcon="@Phosphor.Play"
+                                   Color="primary"
+                                   Size="lg"
+                                   Class="movie-actions-play"
+                                   OnClick="() => PlayAsync(fromBeginning: false)"
+                                   data-initial-focus>
+                            @PrimaryPlayLabel
+                        </K7Button>
+                        @if (CanResumePlayback)
+                        {
+                            <K7Button Disabled="@(!HasPlayableFiles())"
+                                       Variant="outlined"
+                                       StartIcon="@Phosphor.ClockCounterClockwise"
+                                       Color="primary"
+                                       Size="lg"
+                                       Class="movie-actions-replay"
+                                       AriaLabel="@S["PlayFromBeginning"]"
+                                       OnClick="() => PlayAsync(fromBeginning: true)" />
+                        }
+                    </div>
+
+                    <div class="movie-actions-secondary">
+                    @if (_canRate)
+                    {
+                        <K7IconButton Icon="@Phosphor.ChatCircleText" OnClick="OpenReviewDialogAsync" AriaLabel="@ReviewDialogL["Title"]" />
+                    }
+                    <K7IconButton Icon="@Phosphor.Sliders" OnClick="OpenPlaybackOptionsAsync" AriaLabel="playback-options" />
+                    @if (_movie.Trailers?.Count > 0)
+                    {
+                        <K7IconButton Icon="@Phosphor.FilmSlate" OnClick="OpenTrailerAsync" AriaLabel="trailer" />
+                    }
+                    
+                    @if (_selectedFile is not null)
+                    {
+                        <DownloadButton IndexedFileId="_selectedFile.Id"
+                                        MediaId="_movie!.Id"
+                                        Title="@(_movie.Title ?? string.Empty)"
+                                        MediaType="MediaType.Movie"
+                                        CoverUrl="@_posterSmallUrl"
+                                        VideoMetadata="@(_selectedFile.FileMetadata as VideoFileMetadataDto)"
+                                        AudioTrackIndex="_selectedAudioFileTrack?.Index"
+                                        SubtitleTrackIndices="@(_selectedSubtitleFileTrack is not null ? [_selectedSubtitleFileTrack.Index] : null)" />
+                    }
+
+                    <AuthorizeView Roles="User,Administrator">
+                        <K7IconButton Icon="@(_movie?.UserState?.IsCompleted == true ? Phosphor.Fill.CheckCircle : Phosphor.CheckCircle)"
+                                       AriaLabel="mark-as-watched"
+                                       OnClick="ToggleWatchStateAsync" />
+                    </AuthorizeView>
+
+                    @if (_isAdmin)
+                    {
+                        <K7Menu>
+                            <ActivatorContent>
+                                <K7IconButton Icon="@Phosphor.DotsThree" AriaLabel="more-actions" />
+                            </ActivatorContent>
+                            <ChildContent>
+                                <K7MenuItem Icon="magnifying-glass" OnClick="OpenMediaReIdentifyDialogAsync">@L["ReIdentify"]</K7MenuItem>
+                                <K7MenuItem Icon="arrow-clockwise" OnClick="RefreshMetadataAsync">@L["RefreshMetadata"]</K7MenuItem>
+                                <K7MenuItem Icon="pencil-simple" OnClick="OpenEditMetadataDialogAsync">@L["EditMetadata"]</K7MenuItem>
+                                <K7MenuItem Icon="file-zip" OnClick="OpenIndexedFilesDialogAsync">@L["IndexedVersions"]</K7MenuItem>
+                            </ChildContent>
+                        </K7Menu>
+                    }
+                    </div>
+                </div>
+            </div>
+            </div>
+        </div>
+
+            @if ((_movie.PersonRoles?.Count ?? 0) > 0)
+            {
+                <div class="media-hero-scroll-hint" aria-hidden="true">
+                    <K7Icon Icon="@Phosphor.CaretDown" />
+                </div>
+            }
+        </div>
+
+        @if (HasTvBelowContent)
+        {
+        <MediaPageContent Class="movie-page-content"
+                          DominantColor="@_dominantColor"
+                          Tinted="@(_dominantColor is not null)">
+        <div class="movie-page-sections" data-tv-scroll-zone="below">
+        @if ((_movie.PersonRoles?.Count ?? 0) > 0)
+        {
+            <Carousel Title="@L["CastingAndCrew"]">
+                @foreach (var cast in PersonRoleDisplayHelper.GroupForCarousel(_movie.PersonRoles))
+                {
+                    <CarouselItem @key="cast.Key">
+                        <PersonRole LitePersonRoleDto="@cast.PrimaryRole" SubtitleOverride="@cast.MergedSubtitle" />
+                    </CarouselItem>
+                }
+            </Carousel>
+        }
+
+        @if (_movie is not null)
+        {
+            <MediaReviewsSection @ref="_reviewsSection" MediaId="_movie.Id" />
+        }
+
+        @if (_similarMedia.Count > 0)
+        {
+            <Carousel Title="@L["SimilarMedia"]">
+                @foreach (var media in _similarMedia)
+                {
+                    <CarouselItem @key="media.Id">
+                        <MediaCard Model="media"
+                                   Href="@GetSimilarMediaHref(media)"
+                                   OverlayEnabled="true"
+                                   ProgressEnabled="CanResumePlayback"
+                                   WatchedStatusEnabled="CanResumePlayback"
+                                   FooterVisible="true"
+                                   ExcludeMenuEnabled="_canExclude"
+                                   WatchStateMenuEnabled="_canSetWatchState"
+                                   IsAdmin="_isAdmin"
+                                   OnExcludeForSelf="() => ExcludeSimilarForSelf(media)"
+                                   OnExcludeForOthers="() => ExcludeSimilarForOthers(media)" />
+                    </CarouselItem>
+                }
+            </Carousel>
+        }
+        </div>
+        </MediaPageContent>
+        }
+        </div>
+        </div>
+    }
+}

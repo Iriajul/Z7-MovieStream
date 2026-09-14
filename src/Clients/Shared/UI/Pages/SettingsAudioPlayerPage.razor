@@ -1,0 +1,37 @@
+@page "/settings/audio-player"
+@layout SettingsLayout
+@inject IStringLocalizer<SettingsAudioPlayerPage> L
+@inject IAudioPlayerService AudioPlayerService
+@inject AutoplayService AutoplayService
+@inject IDeviceStorageService DeviceStorage
+@inject IK7Snackbar Snackbar
+
+<div class="d-flex pa-4" style="width: 100%">
+    <h5>@L["Title"]</h5>
+</div>
+
+@if (_loading)
+{
+    <div class="d-flex flex-col pa-16">
+        <K7Spinner />
+    </div>
+}
+else if (_settings is not null && _audioPolicy is not null)
+{
+    <div class="settings-form-page">
+        <div class="settings-form-page__body pa-4 d-flex flex-col gap-6">
+            <AudioPlayerExperienceSettingsFields Settings="_settings" SettingsChanged="OnSettingsChanged" />
+
+            <K7Divider />
+
+            <PlaybackPolicySettingsFields AudioPolicy="_audioPolicy" AudioPolicyChanged="OnAudioPolicyChanged" />
+        </div>
+
+        <K7SettingsActionBar IsDirty="IsDirty"
+                             IsSaving="_saving"
+                             ResetDisabled="ResetDisabled"
+                             OnSave="SaveAsync"
+                             OnCancel="CancelChanges"
+                             OnResetToDefaults="ResetAsync" />
+    </div>
+}

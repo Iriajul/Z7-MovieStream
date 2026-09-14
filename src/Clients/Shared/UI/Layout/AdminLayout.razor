@@ -1,0 +1,114 @@
+@inherits LayoutComponentBase
+@layout MainLayout
+@inject IStringLocalizer<AdminLayout> L
+
+<SidebarLayout Title="@L["Title"]">
+    <SidebarContent>
+        <nav class="page-sidebar-nav">
+            <SidebarNavLink Href="/admin/dashboard" Title="@L["Dashboard"]" Icon="@Phosphor.Gauge" />
+
+            <SidebarNavGroup Title="@L["GroupContent"]" Icon="@Phosphor.FolderOpen" Routes="@ContentRoutes">
+                <NavLink class="nav-link focusable" href="/admin/libraries">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.VideoCamera" /></span>
+                    <span class="nav-label">@L["Libraries"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/library-groups">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.SquaresFour" /></span>
+                    <span class="nav-label">@L["LibraryGroups"]</span>
+                </NavLink>
+            </SidebarNavGroup>
+
+            <SidebarNavGroup Title="@L["GroupMembers"]" Icon="@Phosphor.UsersThree" Routes="@MembersRoutes">
+                <NavLink class="nav-link focusable" href="/admin/users">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Users" /></span>
+                    <span class="nav-label">@L["Users"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/devices">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Devices" /></span>
+                    <span class="nav-label">@L["Devices"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/restrictions">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Shield" /></span>
+                    <span class="nav-label">@L["Restrictions"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/authentication">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Lock" /></span>
+                    <span class="nav-label">@L["Authentication"]</span>
+                </NavLink>
+            </SidebarNavGroup>
+
+            <SidebarNavGroup Title="@L["GroupExperience"]" Icon="@Phosphor.SlidersHorizontal" Routes="@ExperienceRoutes">
+                <NavLink class="nav-link focusable" href="/admin/general">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Gear" /></span>
+                    <span class="nav-label">@L["General"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/home-layout">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.House" /></span>
+                    <span class="nav-label">@L["HomeLayout"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/video-playback">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Play" /></span>
+                    <span class="nav-label">@L["VideoPlayback"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/transcoding">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.FilmStrip" /></span>
+                    <span class="nav-label">@L["Transcoding"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/audio-playback">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.MusicNotes" /></span>
+                    <span class="nav-label">@L["AudioPlayback"]</span>
+                </NavLink>
+            </SidebarNavGroup>
+
+            <SidebarNavGroup Title="@L["GroupActivity"]" Icon="@Phosphor.ClockCounterClockwise" Routes="@ActivityRoutes">
+                <NavLink class="nav-link focusable" href="/admin/playback-history">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.ClockCounterClockwise" /></span>
+                    <span class="nav-label">@L["PlaybackHistory"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/stats">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.ChartBar" /></span>
+                    <span class="nav-label">@L["Stats"]</span>
+                </NavLink>
+            </SidebarNavGroup>
+
+            <SidebarNavGroup Title="@L["GroupSystem"]" Icon="@Phosphor.Heartbeat" Routes="@SystemRoutes">
+                <NavLink class="nav-link focusable" href="/admin/background-tasks">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Queue" /></span>
+                    <span class="nav-label">@L["BackgroundTasks"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/diagnostics">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Stethoscope" /></span>
+                    <span class="nav-label">@L["Diagnostics"]</span>
+                </NavLink>
+            </SidebarNavGroup>
+
+            <SidebarNavGroup Title="@L["GroupIntegrations"]" Icon="@Phosphor.PlugsConnected" Routes="@IntegrationRoutes">
+                <NavLink class="nav-link focusable" href="/admin/federation">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Globe" /></span>
+                    <span class="nav-label">@L["Federation"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/notifications">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Bell" /></span>
+                    <span class="nav-label">@L["Notifications"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/scrobbling">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Broadcast" /></span>
+                    <span class="nav-label">@L["Scrobbling"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/api-keys">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Key" /></span>
+                    <span class="nav-label">@L["ApiKeys"]</span>
+                </NavLink>
+                <NavLink class="nav-link focusable" href="/admin/music-intelligence">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Brain" /></span>
+                    <span class="nav-label">@L["MusicIntelligence"]</span>
+                </NavLink>
+            </SidebarNavGroup>
+        </nav>
+    </SidebarContent>
+    <ChildContent>
+        <div class="page-content">
+            @Body
+        </div>
+    </ChildContent>
+</SidebarLayout>

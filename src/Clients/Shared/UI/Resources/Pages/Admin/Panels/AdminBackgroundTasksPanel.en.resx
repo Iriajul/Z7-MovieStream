@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="SettingsTitle" xml:space="preserve"><value>Configuration</value></data>
+  <data name="HelpTitle" xml:space="preserve"><value>Background tasks help</value></data>
+  <data name="HelpAriaLabel" xml:space="preserve"><value>Background tasks help</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="WorkerCountLabel" xml:space="preserve"><value>Worker count</value></data>
+  <data name="SettingsSaved" xml:space="preserve"><value>Settings saved.</value></data>
+  <data name="TasksTitle" xml:space="preserve"><value>Background tasks</value></data>
+  <data name="Refresh" xml:space="preserve"><value>Refresh</value></data>
+  <data name="FilterAll" xml:space="preserve"><value>All</value></data>
+  <data name="FilterStatus" xml:space="preserve"><value>Status</value></data>
+  <data name="StatusPending" xml:space="preserve"><value>Pending</value></data>
+  <data name="StatusInProgress" xml:space="preserve"><value>In progress</value></data>
+  <data name="StatusWaitingForRetry" xml:space="preserve"><value>Waiting for retry</value></data>
+  <data name="StatusCompleted" xml:space="preserve"><value>Completed</value></data>
+  <data name="StatusFailed" xml:space="preserve"><value>Failed</value></data>
+  <data name="StatusCancelled" xml:space="preserve"><value>Cancelled</value></data>
+  <data name="NoTasks" xml:space="preserve"><value>No tasks.</value></data>
+  <data name="Empty" xml:space="preserve"><value>No tasks</value></data>
+  <data name="EmptyDescription" xml:space="preserve"><value>There are no background tasks in the queue right now, or nothing matches your filters.</value></data>
+  <data name="ColName" xml:space="preserve"><value>Name</value></data>
+  <data name="ColStatus" xml:space="preserve"><value>Status</value></data>
+  <data name="ColLane" xml:space="preserve"><value>Lane</value></data>
+  <data name="ColTriggeredBy" xml:space="preserve"><value>Origin</value></data>
+  <data name="FilterTriggeredBy" xml:space="preserve"><value>Origin</value></data>
+  <data name="Lane_LibraryScan" xml:space="preserve"><value>Library scan</value></data>
+  <data name="Lane_Probe" xml:space="preserve"><value>Container probe</value></data>
+  <data name="Lane_FfmpegPrepare" xml:space="preserve"><value>Ffmpeg preparation</value></data>
+  <data name="Lane_MediaAnalysis" xml:space="preserve"><value>Media analysis</value></data>
+  <data name="Lane_ImageExtract" xml:space="preserve"><value>Image extraction</value></data>
+  <data name="Lane_ImageProcessing" xml:space="preserve"><value>Image processing</value></data>
+  <data name="Lane_Metadata" xml:space="preserve"><value>Metadata</value></data>
+  <data name="Lane_Federation" xml:space="preserve"><value>Federation</value></data>
+  <data name="Lane_DownloadTranscode" xml:space="preserve"><value>Offline downloads</value></data>
+  <data name="TriggeredBy_System" xml:space="preserve"><value>System</value></data>
+  <data name="TriggeredBy_User" xml:space="preserve"><value>User</value></data>
+  <data name="TriggeredBy_Scheduler" xml:space="preserve"><value>Scheduler</value></data>
+  <data name="TriggeredBy_Watcher" xml:space="preserve"><value>File watcher</value></data>
+  <data name="TriggeredBy_Federation" xml:space="preserve"><value>Federation</value></data>
+  <data name="TriggeredBy_Diagnostics" xml:space="preserve"><value>Diagnostics</value></data>
+  <data name="WorkClass_Polish" xml:space="preserve"><value>Polish</value></data>
+  <data name="WorkClass_Prepare" xml:space="preserve"><value>Preparation</value></data>
+  <data name="WorkClass_CriticalEnrich" xml:space="preserve"><value>Critical enrichment</value></data>
+  <data name="WorkClass_CriticalProbe" xml:space="preserve"><value>Critical probe</value></data>
+  <data name="WorkClass_CriticalLink" xml:space="preserve"><value>Critical linking</value></data>
+  <data name="ColAttempts" xml:space="preserve"><value>Attempts</value></data>
+  <data name="ColDate" xml:space="preserve"><value>Created</value></data>
+  <data name="ColDuration" xml:space="preserve"><value>Duration</value></data>
+  <data name="DurationSubSecond" xml:space="preserve"><value>&lt; 1s</value></data>
+  <data name="DurationSeconds" xml:space="preserve"><value>{0}s</value></data>
+  <data name="DurationMinutes" xml:space="preserve"><value>{0}m {1}s</value></data>
+  <data name="DurationHours" xml:space="preserve"><value>{0}h {1}m</value></data>
+  <data name="Created" xml:space="preserve"><value>Created</value></data>
+  <data name="AriaDetail" xml:space="preserve"><value>Details</value></data>
+  <data name="AriaDelete" xml:space="preserve"><value>Delete</value></data>
+  <data name="DeleteTitle" xml:space="preserve"><value>Delete task</value></data>
+  <data name="DeleteMessage" xml:space="preserve"><value>Delete task '{0}'?</value></data>
+  <data name="DeleteConfirm" xml:space="preserve"><value>Delete</value></data>
+  <data name="TaskDeleted" xml:space="preserve"><value>Task deleted.</value></data>
+  <data name="TaskTypesTitle" xml:space="preserve"><value>Task types</value></data>
+  <data name="TaskType_AnalyzeMusicTrackAudioCommand" xml:space="preserve"><value>Audio analysis</value></data>
+  <data name="TaskType_ComputeHlsSegmentsCommand" xml:space="preserve"><value>HLS segment computation</value></data>
+  <data name="TaskType_CreateFileMetadatasCommand" xml:space="preserve"><value>File metadata extraction</value></data>
+  <data name="TaskType_CreateMediaCommand" xml:space="preserve"><value>Media creation</value></data>
+  <data name="TaskType_DeleteIndexedFileCommand" xml:space="preserve"><value>File deletion</value></data>
+  <data name="TaskType_DownloadMetadataPictureFromProviderCommand" xml:space="preserve"><value>Image download</value></data>
+  <data name="TaskType_GenerateMetadataPictureVariantsCommand" xml:space="preserve"><value>Thumbnail generation</value></data>
+  <data name="TaskType_GenerateThumbnailsCommand" xml:space="preserve"><value>Video thumbnail generation</value></data>
+  <data name="TaskType_GenerateEpisodeStillFromSourceCommand" xml:space="preserve"><value>Episode still generation</value></data>
+  <data name="TaskType_IndexLibraryFilesCommand" xml:space="preserve"><value>Library indexing</value></data>
+  <data name="TaskType_IndexLibraryPathsCommand" xml:space="preserve"><value>Path indexing</value></data>
+  <data name="TaskType_RefreshMediaMetadatasCommand" xml:space="preserve"><value>Metadata refresh</value></data>
+  <data name="TaskType_EnrichSerieTmdbSupplementalCommand" xml:space="preserve"><value>TMDB series enrichment</value></data>
+  <data name="TaskType_EnrichMusicArtistWikidataCommand" xml:space="preserve"><value>Wikidata artist enrichment</value></data>
+  <data name="TaskType_DetectMediaSegmentsCommand" xml:space="preserve"><value>Intro/outro detection</value></data>
+  <data name="TaskType_ExtractSerieThemeSongCommand" xml:space="preserve"><value>Theme song generation</value></data>
+  <data name="TaskType_ExtractChaptersCommand" xml:space="preserve"><value>Chapter extraction</value></data>
+  <data name="TaskType_RematchLibraryMediaCommand" xml:space="preserve"><value>Library rematch</value></data>
+  <data name="TaskType_RefreshPersonMetadataCommand" xml:space="preserve"><value>Person metadata refresh</value></data>
+  <data name="FilterByType" xml:space="preserve"><value>Filter by type</value></data>
+  <data name="AllTypes" xml:space="preserve"><value>All types</value></data>
+  <data name="TimeJustNow" xml:space="preserve"><value>Just now</value></data>
+  <data name="TimeMinutesAgo" xml:space="preserve"><value>{0} min ago</value></data>
+  <data name="TimeHoursAgo" xml:space="preserve"><value>{0}h ago</value></data>
+  <data name="TimeDaysAgo" xml:space="preserve"><value>{0}d ago</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="CancelTitle" xml:space="preserve"><value>Cancel task</value></data>
+  <data name="CancelMessage" xml:space="preserve"><value>Cancel task '{0}'?</value></data>
+  <data name="CancelConfirm" xml:space="preserve"><value>Cancel task</value></data>
+  <data name="TaskCancelled" xml:space="preserve"><value>Task cancelled.</value></data>
+  <data name="FilterTaskType" xml:space="preserve"><value>Task type</value></data>
+  <data name="SortBy" xml:space="preserve"><value>Sort by</value></data>
+  <data name="SortDateDesc" xml:space="preserve"><value>Newest first</value></data>
+  <data name="SortDateAsc" xml:space="preserve"><value>Oldest first</value></data>
+  <data name="SortDurationDesc" xml:space="preserve"><value>Longest duration</value></data>
+  <data name="SortDurationAsc" xml:space="preserve"><value>Shortest duration</value></data>
+  <data name="SortNameAsc" xml:space="preserve"><value>Name A-Z</value></data>
+  <data name="SortNameDesc" xml:space="preserve"><value>Name Z-A</value></data>
+</root>

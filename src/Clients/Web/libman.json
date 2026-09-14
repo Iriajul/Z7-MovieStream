@@ -1,0 +1,13 @@
+{
+  "version": "3.0",
+  "defaultProvider": "cdnjs",
+  "libraries": [
+    {
+      "library": "bowser@2.11.0",
+      "destination": "wwwroot/dist/bowser/",
+      "files": [
+        "es5.min.js"
+      ]
+    }
+  ]
+}

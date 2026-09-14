@@ -1,0 +1,29 @@
+﻿using Microsoft.AspNetCore.Components;
+
+namespace K7.Clients.Shared.UI.Components;
+
+public partial class K7Button
+{
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string Variant { get; set; } = "filled";
+    [Parameter] public string Color { get; set; } = "";
+    [Parameter] public string Size { get; set; } = "";
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public string Style { get; set; } = "";
+    [Parameter] public string Type { get; set; } = "button";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool Focusable { get; set; } = true;
+    [Parameter] public string StartIcon { get; set; } = "";
+    [Parameter] public string EndIcon { get; set; } = "";
+    [Parameter] public string Href { get; set; } = "";
+    [Parameter] public string AriaLabel { get; set; } = "";
+    [Parameter] public EventCallback OnClick { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string FocusableClass => Focusable && !Disabled ? "focusable" : "";
+
+    private string CssClass =>
+        $"k7-btn k7-btn--{Variant} {FocusableClass} {(string.IsNullOrEmpty(Color) ? "" : $"k7-btn--{Color}")} {(Size switch { "sm" => "k7-btn--sm", "lg" => "k7-btn--lg", "xl" => "k7-btn--xl", _ => "" })} {(Disabled ? "k7-btn--disabled" : "")} {Class}".Trim();
+
+    private string? ResolvedAriaLabel => string.IsNullOrEmpty(AriaLabel) ? null : AriaLabel;
+}

@@ -1,0 +1,43 @@
+@namespace K7.Clients.Shared.UI.Components
+@using K7.Clients.Shared.Mappings
+@using K7.Shared.Dtos.Entities.Medias
+
+@if (!_renderCarousel)
+{
+    <div class="tv-feed-row-spacer" aria-hidden="true"></div>
+}
+else if (_loading)
+{
+    <Carousel Skeleton="true" Title="@Title">
+        @for (var i = 0; i < 8; i++)
+        {
+            <CarouselItem>
+                <MediaCard Skeleton="true" FooterVisible="true" />
+            </CarouselItem>
+        }
+    </Carousel>
+}
+else if (_items.Count > 0)
+{
+    <Carousel Title="@Title" ContentKey="@string.Join(',', _cardItems.Select(i => i.Id))">
+        @foreach (var item in _cardItems)
+        {
+            <CarouselItem @key="item.Id" ItemId="@GetCardElementId(item.Id)">
+                <MediaCard Model="@item.Model"
+                           ElementId="@GetCardElementId(item.Id)"
+                           Variant="@item.Variant"
+                           Href="@item.Href"
+                           OverlayEnabled="true"
+                           ProgressEnabled="@ProgressEnabled"
+                           WatchedStatusEnabled="@ProgressEnabled"
+                           FooterVisible="true"
+                           ExcludeMenuEnabled="_canExclude"
+                           WatchStateMenuEnabled="_canSetWatchState"
+                           IsAdmin="_isAdmin"
+                           OnExcludeForSelf="() => ExcludeForSelf(item.Model)"
+                           OnExcludeForOthers="() => ExcludeForOthers(item.Model)"
+                           OnFocused="@CreateSilentCardFocusCallback(item.Model)" />
+            </CarouselItem>
+        }
+    </Carousel>
+}

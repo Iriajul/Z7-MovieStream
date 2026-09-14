@@ -1,0 +1,175 @@
+@inject IStringLocalizer<AdminStreamCard> L
+
+<div class="stream-card-wrapper">
+<K7Paper Outlined="true" Class="@($"stream-card {CardVariantClass}")" @onclick="OnCardClicked">
+    <div class="stream-card__poster">
+        @if (!string.IsNullOrEmpty(Stream.ThumbnailUrl))
+        {
+            <K7Image Src="@Stream.ThumbnailUrl" Alt="@Stream.MediaTitle" Class="stream-card__poster-img" ObjectFit="cover" />
+        }
+        else
+        {
+            <div class="stream-card__poster-placeholder">
+                <K7Icon Icon="@PlaceholderIcon" />
+            </div>
+        }
+
+        @if (Stream.State == (int)K7.Server.Domain.Enums.PlaybackState.Paused)
+        {
+            <div class="stream-card__state-overlay">
+                <K7Icon Icon="@Phosphor.Pause" />
+            </div>
+        }
+    </div>
+
+    <div class="stream-card__body">
+        <div class="stream-card__top-row">
+            <div class="stream-card__user">
+                <K7Avatar Size="sm" Image="@Stream.UserAvatarUrl" UserId="@Stream.UserId">@UserInitial</K7Avatar>
+                <span class="stream-card__user-name">@(Stream.UserName ?? "-")</span>
+            </div>
+            @if (Stream.StreamDecision is not null)
+            {
+                <span class="stream-card__mode-badge @OverallModeBadgeClass">@OverallModeLabel</span>
+            }
+            @if (ShowEncoderBadge)
+            {
+                <span class="stream-card__encoder-badge @(IsHardwareEncoder ? "stream-card__encoder-badge--hw" : "stream-card__encoder-badge--sw")">
+                    @(IsHardwareEncoder ? L["Hardware"] : L["Software"])
+                </span>
+            }
+            @if (ShowAudioEncoderBadge)
+            {
+                <span class="stream-card__encoder-badge stream-card__encoder-badge--sw" title="@L["Software"]">
+                    @Stream.StreamDecision!.AudioEncoder
+                </span>
+            }
+            @if (!string.IsNullOrEmpty(Stream.SharedProfileName))
+            {
+                <K7Chip Size="sm" Color="secondary" Variant="outlined">@Stream.SharedProfileName</K7Chip>
+            }
+        </div>
+
+        <div class="stream-card__title-row">
+            <span class="stream-card__title">@(Stream.MediaTitle ?? "-")</span>
+            @if (Stream.State == (int)K7.Server.Domain.Enums.PlaybackState.Buffering)
+            {
+                <K7Chip Size="sm" Color="info" Variant="filled">@L["Buffering"]</K7Chip>
+            }
+        </div>
+
+        @if (Stream.StreamDecision is { } decision)
+        {
+            <div class="stream-card__tracks">
+                @if (decision.SourceVideoCodec is not null)
+                {
+                    <div class="stream-card__track-row">
+                        <span class="stream-card__track-label">@L["Video"]</span>
+                        <span class="stream-card__track-codec">@decision.SourceVideoCodec.ToUpperInvariant()</span>
+                        <span class="stream-card__track-arrow">@L["Arrow"]</span>
+                        <span class="stream-card__track-codec">@((decision.StreamVideoCodec ?? decision.SourceVideoCodec).ToUpperInvariant())</span>
+                        <span class="stream-card__track-decision @(IsVideoTranscoded ? "stream-card__track-decision--transcode" : "stream-card__track-decision--direct")">
+                            @(IsVideoTranscoded ? L["Transcode"] : L["DirectPlay"])
+                        </span>
+                        @if (decision.VideoEncoder is { } encoder)
+                        {
+                            <span class="stream-card__encoder">@encoder (@(decision.IsHardwareAccelerated == true ? L["Hardware"] : L["Software"]))</span>
+                        }
+                    </div>
+                }
+                @if (decision.SourceAudioCodec is not null)
+                {
+                    var lang = decision.AudioTrackLanguage is not null
+                        ? K7.Shared.SupportedLanguages.FindByCode(decision.AudioTrackLanguage)
+                        : null;
+                    <div class="stream-card__track-row">
+                        <span class="stream-card__track-label">@L["Audio"]</span>
+                        @if (lang is not null)
+                        {
+                            <span class="fi fi-@lang.CountryCode stream-card__track-flag"></span>
+                        }
+                        <span class="stream-card__track-codec">@decision.SourceAudioCodec.ToUpperInvariant()</span>
+                        <span class="stream-card__track-arrow">@L["Arrow"]</span>
+                        <span class="stream-card__track-codec">@((decision.StreamAudioCodec ?? decision.SourceAudioCodec).ToUpperInvariant())</span>
+                        <span class="stream-card__track-decision @(IsAudioTranscoded ? "stream-card__track-decision--transcode" : "stream-card__track-decision--direct")">
+                            @(IsAudioTranscoded ? L["Transcode"] : L["DirectPlay"])
+                        </span>
+                        @if (decision.AudioEncoder is { } audioEncoder)
+                        {
+                            <span class="stream-card__encoder">@audioEncoder (@L["Software"])</span>
+                        }
+                    </div>
+                }
+                @if (HasSubtitleTrack)
+                {
+                    var subLang = decision.SubtitleTrackLanguage is not null
+                        ? K7.Shared.SupportedLanguages.FindByCode(decision.SubtitleTrackLanguage)
+                        : null;
+                    <div class="stream-card__track-row">
+                        <span class="stream-card__track-label">@L["Subtitles"]</span>
+                        @if (subLang is not null)
+                        {
+                            <span class="fi fi-@subLang.CountryCode stream-card__track-flag"></span>
+                        }
+                        @if (decision.SubtitleTrackTitle is { } subTitle)
+                        {
+                            <span class="stream-card__track-title">@subTitle</span>
+                        }
+                        @if (decision.SubtitleCodec is { } subCodec)
+                        {
+                            <span class="stream-card__track-codec">@subCodec.ToUpperInvariant()</span>
+                        }
+                        <span class="stream-card__track-decision @(IsSubtitleBurnIn ? "stream-card__track-decision--transcode" : "stream-card__track-decision--direct")">
+                            @(IsSubtitleBurnIn ? L["BurnIn"] : L["Sidecar"])
+                        </span>
+                    </div>
+                }
+                @if (decision.Reason != K7.Server.Domain.Enums.TranscodeReason.None)
+                {
+                    <span class="stream-card__reason">@FormatReason(decision.Reason)</span>
+                }
+            </div>
+        }
+
+        @if (ShowProgress)
+        {
+            <div class="stream-card__progress">
+                <K7ProgressBar Value="@ProgressPercent" />
+                <div class="stream-card__times">
+                    <span>@FormatTime(Stream.Position)</span>
+                    @if (Stream.State == (int)K7.Server.Domain.Enums.PlaybackState.Paused)
+                    {
+                        <span class="stream-card__paused-label">@L["Paused"]</span>
+                    }
+                    <span>@FormatRemainingTime()</span>
+                </div>
+            </div>
+        }
+
+        <div class="stream-card__footer">
+            <span class="stream-card__device">
+                <K7Icon Icon="@Phosphor.Devices"  IconSize="@K7IconSize.Sm" />
+                @DeviceLabel
+            </span>
+            @if (Stream.StreamDecision?.SourceResolution is { } res)
+            {
+                <span class="stream-card__resolution">
+                    @if (Stream.StreamDecision.StreamResolution is { } streamRes
+                        && !string.Equals(res, streamRes, StringComparison.OrdinalIgnoreCase))
+                    {
+                        @($"{FormatResolution(res)} {L["Arrow"]} {FormatResolution(streamRes)}")
+                    }
+                    else
+                    {
+                        @FormatResolution(res)
+                    }
+                </span>
+            }
+            @if (Stream.StreamDecision?.Bitrate is > 0)
+            {
+                <span class="stream-card__bitrate">@FormatBitrate(Stream.StreamDecision.Bitrate.Value)</span>
+            }
+        </div>
+    </div>
+</K7Paper>
+</div>

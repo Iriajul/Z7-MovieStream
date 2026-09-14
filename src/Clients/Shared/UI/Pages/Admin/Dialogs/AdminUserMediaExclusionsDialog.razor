@@ -1,0 +1,37 @@
+
+<div class="k7-dialog-content">
+        @if (_loading)
+        {
+            <K7ProgressBar Indeterminate="true" />
+        }
+        else if (_excludedMedias.Count == 0)
+        {
+            <p class="exclusions__empty">Aucun media masque pour cet utilisateur.</p>
+        }
+        else
+        {
+            <p class="exclusions__hint">
+                @_excludedMedias.Count media(s) masque(s). Decochez pour retablir l'acces.
+            </p>
+            <K7CheckboxList TItem="ExcludedMediaItem"
+                            Items="_excludedMedias"
+                            IsChecked="@(_ => true)"
+                            CheckedChanged="@(e => ToggleMedia(e.Item, e.Checked))">
+                <ItemTemplate Context="media">
+                    @if (!string.IsNullOrEmpty(media.PosterUrl))
+                    {
+                        <K7Avatar Size="sm" Image="@media.PosterUrl" />
+                    }
+                    else
+                    {
+                        <K7Avatar Size="sm" Letter="M" />
+                    }
+                    <span class="exclusions__name">@(media.Title ?? media.Id.ToString())</span>
+                </ItemTemplate>
+            </K7CheckboxList>
+        }
+    </div>
+    <div class="k7-dialog-actions">
+        <K7Button OnClick="Cancel">Annuler</K7Button>
+        <K7Button Color="primary" Variant="filled" OnClick="Submit">Enregistrer</K7Button>
+    </div>

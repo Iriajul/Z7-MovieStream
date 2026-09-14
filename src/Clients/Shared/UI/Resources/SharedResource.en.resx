@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+
+  <data name="Play" xml:space="preserve"><value>Play</value></data>
+  <data name="PlayAll" xml:space="preserve"><value>Play all</value></data>
+  <data name="Shuffle" xml:space="preserve"><value>Shuffle</value></data>
+  <data name="Search" xml:space="preserve"><value>Search</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="ShowPassword" xml:space="preserve"><value>Show password</value></data>
+  <data name="HidePassword" xml:space="preserve"><value>Hide password</value></data>
+  <data name="Confirm" xml:space="preserve"><value>Confirm</value></data>
+  <data name="Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Remove" xml:space="preserve"><value>Remove</value></data>
+  <data name="Continue" xml:space="preserve"><value>Continue</value></data>
+  <data name="Resume" xml:space="preserve"><value>Resume</value></data>
+  <data name="ResumeAtTime" xml:space="preserve"><value>Resume at {0}</value></data>
+  <data name="PlayFromBeginning" xml:space="preserve"><value>Play from beginning</value></data>
+  <data name="Previous" xml:space="preserve"><value>Previous</value></data>
+  <data name="Next" xml:space="preserve"><value>Next</value></data>
+  <data name="Loading" xml:space="preserve"><value>Loading…</value></data>
+  <data name="SignIn" xml:space="preserve"><value>Sign in</value></data>
+  <data name="TryAgain" xml:space="preserve"><value>Try again</value></data>
+  <data name="Or" xml:space="preserve"><value>OR</value></data>
+  <data name="AccessDenied" xml:space="preserve"><value>Access denied</value></data>
+  <data name="NoPermission" xml:space="preserve"><value>You don't have permission to access this page.</value></data>
+  <data name="GoToHome" xml:space="preserve"><value>Go to Home</value></data>
+  <data name="Title" xml:space="preserve"><value>Title</value></data>
+  <data name="Image" xml:space="preserve"><value>Image</value></data>
+  <data name="Actions" xml:space="preserve"><value>Actions</value></data>
+  <data name="Artist" xml:space="preserve"><value>Artist</value></data>
+  <data name="Album" xml:space="preserve"><value>Album</value></data>
+  <data name="HideForMe" xml:space="preserve"><value>Hide for me</value></data>
+  <data name="HideForUser" xml:space="preserve"><value>Hide for a user</value></data>
+  <data name="ExclusionsUpdated" xml:space="preserve"><value>Exclusions updated.</value></data>
+  <data name="ErrorWithDetails" xml:space="preserve"><value>Error: {0}</value></data>
+  <data name="RefreshMetadataCompleted" xml:space="preserve"><value>Metadata updated.</value></data>
+  <data name="Hidden" xml:space="preserve"><value>"{0}" hidden</value></data>
+  <data name="Unhidden" xml:space="preserve"><value>"{0}" visible again</value></data>
+  <data name="MarkedAsWatched" xml:space="preserve"><value>Marked as watched.</value></data>
+  <data name="MarkedAsUnwatched" xml:space="preserve"><value>Marked as unwatched.</value></data>
+  <data name="ConfirmMarkWatchedTitle" xml:space="preserve"><value>Mark as watched</value></data>
+  <data name="ConfirmMarkUnwatchedTitle" xml:space="preserve"><value>Mark as unwatched</value></data>
+  <data name="ConfirmMarkWatchedMessage" xml:space="preserve"><value>Mark {0} episodes as watched?</value></data>
+  <data name="ConfirmMarkUnwatchedMessage" xml:space="preserve"><value>Mark {0} episodes as unwatched?</value></data>
+  <data name="ConfirmMarkBulkWatchedMessage" xml:space="preserve"><value>Mark all episodes as watched?</value></data>
+  <data name="ConfirmMarkBulkUnwatchedMessage" xml:space="preserve"><value>Mark all episodes as unwatched?</value></data>
+  <data name="Tracks" xml:space="preserve"><value>tracks</value></data>
+  <data name="Disc" xml:space="preserve"><value>Disc</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Create" xml:space="preserve"><value>Create</value></data>
+  <data name="Yes" xml:space="preserve"><value>Yes</value></data>
+  <data name="No" xml:space="preserve"><value>No</value></data>
+  <data name="Ok" xml:space="preserve"><value>OK</value></data>
+  <data name="Name" xml:space="preserve"><value>Name</value></data>
+  <data name="Type" xml:space="preserve"><value>Type</value></data>
+  <data name="Path" xml:space="preserve"><value>Path</value></data>
+  <data name="All" xml:space="preserve"><value>All</value></data>
+  <data name="Untitled" xml:space="preserve"><value>Untitled</value></data>
+  <data name="UnknownArtist" xml:space="preserve"><value>Unknown artist</value></data>
+  <data name="Guest" xml:space="preserve"><value>Guest</value></data>
+  <data name="Enabled" xml:space="preserve"><value>Enabled</value></data>
+  <data name="Disabled" xml:space="preserve"><value>Disabled</value></data>
+  <data name="EnabledFeminine" xml:space="preserve"><value>Enabled</value></data>
+  <data name="DisabledFeminine" xml:space="preserve"><value>Disabled</value></data>
+  <data name="Duration" xml:space="preserve"><value>Duration</value></data>
+  <data name="About" xml:space="preserve"><value>About</value></data>
+  <data name="DurationHoursMinutes" xml:space="preserve"><value>{0} h {1} min</value></data>
+  <data name="MediaPreparingPlayback" xml:space="preserve"><value>This media is still being prepared, playback will be available shortly.</value></data>
+  <data name="DurationMinutes" xml:space="preserve"><value>{0} min</value></data>
+  <data name="TrackNumber" xml:space="preserve"><value>#</value></data>
+  <data name="MediaTypeMovies" xml:space="preserve"><value>Movies</value></data>
+  <data name="MediaTypeSeries" xml:space="preserve"><value>Series</value></data>
+  <data name="MediaTypeMusic" xml:space="preserve"><value>Music</value></data>
+  <data name="MediaTypeMusicAlbums" xml:space="preserve"><value>Albums</value></data>
+  <data name="MediaTypeMusicTracks" xml:space="preserve"><value>Tracks</value></data>
+  <data name="MediaTypeMusicArtists" xml:space="preserve"><value>Artists</value></data>
+  <data name="MediaTypeSerieSeasons" xml:space="preserve"><value>Seasons</value></data>
+  <data name="MediaTypeSerieEpisodes" xml:space="preserve"><value>Episodes</value></data>
+  <data name="ItemSize" xml:space="preserve"><value>Size</value></data>
+  <data name="Spacing" xml:space="preserve"><value>Spacing</value></data>
+  <data name="SeekBar" xml:space="preserve"><value>Seek bar</value></data>
+  <data name="Close" xml:space="preserve"><value>Close</value></data>
+  <data name="NowPlaying" xml:space="preserve"><value>Now playing</value></data>
+  <data name="ItemCount" xml:space="preserve"><value>{0} item(s)</value></data>
+  <data name="Reset" xml:space="preserve"><value>Reset</value></data>
+  <data name="ResetToDefaults" xml:space="preserve"><value>Reset to defaults</value></data>
+  <data name="ResetToDefaultsTitle" xml:space="preserve"><value>Reset to defaults</value></data>
+  <data name="ResetToDefaultsMessage" xml:space="preserve"><value>Remove your customizations and revert to default values?</value></data>
+  <data name="UnsavedChangesTitle" xml:space="preserve"><value>Unsaved changes</value></data>
+  <data name="UnsavedChangesMessage" xml:space="preserve"><value>You have unsaved changes. Discard them?</value></data>
+  <data name="SeasonNumber" xml:space="preserve"><value>Season {0}</value></data>
+  <data name="Specials" xml:space="preserve"><value>Specials</value></data>
+  <data name="EpisodeCount" xml:space="preserve"><value>{0} episode(s)</value></data>
+  <data name="IndexedVersions" xml:space="preserve"><value>Indexed files</value></data>
+  <data name="LoadError" xml:space="preserve"><value>Failed to load.</value></data>
+  <data name="MediaUnavailable" xml:space="preserve"><value>Unavailable</value></data>
+  <data name="MediaUnavailableDetail" xml:space="preserve"><value>This media no longer has an indexed file.</value></data>
+  <data name="ToggleColumns" xml:space="preserve"><value>Columns</value></data>
+  <data name="BackToStart" xml:space="preserve"><value>Back to start</value></data>
+  <data name="BackToTop" xml:space="preserve"><value>Back to top</value></data>
+  <data name="NoResults" xml:space="preserve"><value>No results</value></data>
+  <data name="JumpIndex" xml:space="preserve"><value>Jump index</value></data>
+  <data name="ViewMode" xml:space="preserve"><value>View mode</value></data>
+  <data name="EditMetadata" xml:space="preserve"><value>Edit metadata</value></data>
+  <data name="SleepTimer" xml:space="preserve"><value>Sleep timer</value></data>
+  <data name="EndOfTrack" xml:space="preserve"><value>End of track</value></data>
+  <data name="CancelSleepTimer" xml:space="preserve"><value>Cancel sleep timer</value></data>
+  <data name="Share" xml:space="preserve"><value>Share</value></data>
+  <data name="Shared" xml:space="preserve"><value>Shared</value></data>
+  <data name="CopiedToClipboard" xml:space="preserve"><value>Copied to clipboard</value></data>
+  <data name="SaveQueueAsPlaylist" xml:space="preserve"><value>Save queue as playlist</value></data>
+  <data name="QueueSavedAsPlaylist" xml:space="preserve"><value>Queue saved as playlist</value></data>
+  <data name="Visualizer" xml:space="preserve"><value>Enable Visualizer</value></data>
+  <data name="DisableVisualizer" xml:space="preserve"><value>Disable Visualizer</value></data>
+  <data name="VisualizerUnavailableOnTv" xml:space="preserve"><value>Visualizer is not available on TV</value></data>
+  <data name="VisualizerUnavailable" xml:space="preserve"><value>Visualizer is not available on this device</value></data>
+  <data name="StreamNotReady" xml:space="preserve"><value>Playback could not start. The stream may still be indexing.</value></data>
+  <data name="StreamPlaybackFailed" xml:space="preserve"><value>Playback could not start. Please try again.</value></data>
+  <data name="MediaPlaybackUnplayable" xml:space="preserve"><value>This media cannot be played. Please contact your administrator.</value></data>
+  <data name="StreamPlaybackTimedOut" xml:space="preserve"><value>Playback took too long to start. Transcoding may still be in progress.</value></data>
+  <data name="MpcExternalPlayerLaunchFailed" xml:space="preserve"><value>Could not start MPC. Check the executable path under Settings, Video playback.</value></data>
+  <data name="MpcExternalPlayerWebUiUnavailable" xml:space="preserve"><value>MPC web interface is not reachable. Playback continues, but Z7 cannot save the position.</value></data>
+  <data name="TrackInfo" xml:space="preserve"><value>Track Info</value></data>
+  <data name="AudioDetails" xml:space="preserve"><value>Audio Details</value></data>
+  <data name="Codec" xml:space="preserve"><value>Codec</value></data>
+  <data name="Container" xml:space="preserve"><value>Container</value></data>
+  <data name="SampleRate" xml:space="preserve"><value>Sample Rate</value></data>
+  <data name="Channels" xml:space="preserve"><value>Channels</value></data>
+  <data name="FileSize" xml:space="preserve"><value>File Size</value></data>
+  <data name="Bitrate" xml:space="preserve"><value>Bitrate</value></data>
+  <data name="TrackProperties" xml:space="preserve"><value>Track Properties</value></data>
+  <data name="Key" xml:space="preserve"><value>Key</value></data>
+  <data name="Loudness" xml:space="preserve"><value>Loudness</value></data>
+  <data name="Energy" xml:space="preserve"><value>Energy</value></data>
+  <data name="Danceability" xml:space="preserve"><value>Danceability</value></data>
+  <data name="Valence" xml:space="preserve"><value>Valence</value></data>
+  <data name="ListeningStats" xml:space="preserve"><value>Listening Stats</value></data>
+  <data name="PlayCount" xml:space="preserve"><value>Play Count</value></data>
+  <data name="SkipCount" xml:space="preserve"><value>Skip count</value></data>
+  <data name="TotalPlayCount" xml:space="preserve"><value>Total plays</value></data>
+  <data name="LastPlayed" xml:space="preserve"><value>Last Played</value></data>
+  <data name="UpNext" xml:space="preserve"><value>Up Next</value></data>
+  <data name="NoPreviousTracks" xml:space="preserve"><value>No previous tracks</value></data>
+  <data name="NoUpcomingTracks" xml:space="preserve"><value>No upcoming tracks</value></data>
+  <data name="Back" xml:space="preserve"><value>Back</value></data>
+  <data name="GoToArtist" xml:space="preserve"><value>Go to artist</value></data>
+  <data name="GoToAlbum" xml:space="preserve"><value>Go to album</value></data>
+  <data name="AddToPlaylist" xml:space="preserve"><value>Add to playlist...</value></data>
+  <data name="PlayingOn" xml:space="preserve"><value>Playing on {0}</value></data>
+  <data name="ResumeHere" xml:space="preserve"><value>Resume here</value></data>
+  <data name="AudioTrack" xml:space="preserve"><value>Audio</value></data>
+  <data name="Subtitles" xml:space="preserve"><value>Subtitles</value></data>
+  <data name="Joining" xml:space="preserve"><value>Joining...</value></data>
+  <data name="Join" xml:space="preserve"><value>Join</value></data>
+  <data name="MediaTypeTVShows" xml:space="preserve"><value>TV shows</value></data>
+  <data name="RoleUser" xml:space="preserve"><value>User</value></data>
+  <data name="RoleAdministrator" xml:space="preserve"><value>Administrator</value></data>
+  <data name="PlaySimilar" xml:space="preserve"><value>Play similar</value></data>
+  <data name="Similar" xml:space="preserve"><value>Similar</value></data>
+  <data name="Suggestions" xml:space="preserve"><value>Discover</value></data>
+  <data name="NoSuggestions" xml:space="preserve"><value>No discoveries available</value></data>
+  <data name="NoSimilarTracks" xml:space="preserve"><value>No similar tracks found</value></data>
+  <data name="PlayingSimilar" xml:space="preserve"><value>Playing tracks similar to {0}</value></data>
+  <data name="SimilarTracksError" xml:space="preserve"><value>Error finding similar tracks</value></data>
+  <data name="Intro" xml:space="preserve"><value>Intro</value></data>
+  <data name="Outro" xml:space="preserve"><value>Outro</value></data>
+  <data name="TrailerOpenFailed" xml:space="preserve"><value>Could not open the trailer</value></data>
+</root>

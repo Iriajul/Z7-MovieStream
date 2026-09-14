@@ -1,0 +1,13 @@
+@inherits LayoutComponentBase
+@using K7.Clients.Shared.UI
+@using K7.Clients.Shared.UI.Components
+
+<div class="auth-layout">
+    <K7.Server.Web.Components.Pages.Auth.AuthBackdrop />
+    <div class="auth-layout__content">
+        <div class="auth-layout__logo">
+            <K7Icon Icon="@K7Brand.Logo" aria-hidden="true" />
+        </div>
+        @Body
+    </div>
+</div>

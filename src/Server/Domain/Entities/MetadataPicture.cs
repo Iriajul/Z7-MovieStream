@@ -1,0 +1,39 @@
+﻿using K7.Server.Domain.Entities.Collections;
+using K7.Server.Domain.Entities.Medias;
+using K7.Server.Domain.Entities.Metadatas;
+using K7.Server.Domain.Entities.Metadatas.Files;
+using K7.Server.Domain.Entities.Metadatas.PersonRoles;
+using K7.Server.Domain.Entities.Playlists;
+using K7.Server.Domain.Entities.Users;
+
+namespace K7.Server.Domain.Entities;
+public class MetadataPicture : BaseAuditableEntity
+{
+    public required MetadataPictureType Type { get; set; }
+    public Uri? OriginalRemoteUri { get; set; }
+    public string? LocalPath { get; set; }
+    public int? OriginalWidth { get; set; }
+    public int? OriginalHeight { get; set; }
+    public string? DominantColor { get; set; }
+
+    public Guid? MediaId { get; set; }
+    public BaseMedia? Media { get; set; }
+    public Guid? VideoFileMetadataId { get; set; }
+    public VideoFileMetadata? VideoFileMetadata { get; set; }
+    public Guid? PersonId { get; set; }
+    public Person? Person { get; set; }
+    public Guid? PersonRoleId { get; set; }
+    public BasePersonRole? PersonRole { get; set; }
+    public Guid? PlaylistId { get; set; }
+    public Playlist? Playlist { get; set; }
+    public Guid? CollectionId { get; set; }
+    public Collection? Collection { get; set; }
+    public Guid? LibraryGroupId { get; set; }
+    public LibraryGroup? LibraryGroup { get; set; }
+    public Guid? UserId { get; set; }
+    public User? User { get; set; }
+    public Guid? SharedProfileId { get; set; }
+    public SharedProfile? SharedProfile { get; set; }
+
+    public IList<MetadataPictureVariant> Variants { get; set; } = [];
+}

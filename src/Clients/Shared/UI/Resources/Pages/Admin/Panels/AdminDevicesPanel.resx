@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="NoDevices" xml:space="preserve"><value>Aucun appareil trouvé.</value></data>
+  <data name="DeviceCount" xml:space="preserve"><value>{0} appareil(s)</value></data>
+  <data name="UnknownDevice" xml:space="preserve"><value>Appareil inconnu</value></data>
+  <data name="LastSeen" xml:space="preserve"><value>Dernière activité</value></data>
+  <data name="UserCount" xml:space="preserve"><value>{0} utilisateur(s)</value></data>
+  <data name="ThisDevice" xml:space="preserve"><value>Cet appareil</value></data>
+  <data name="DeleteDevice" xml:space="preserve"><value>Supprimer l'appareil</value></data>
+  <data name="DeleteDeviceTitle" xml:space="preserve"><value>Supprimer l'appareil</value></data>
+  <data name="DeleteDeviceConfirmation" xml:space="preserve"><value>Voulez-vous vraiment supprimer cet appareil ?</value></data>
+  <data name="Delete" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="DeviceTypeDesktop" xml:space="preserve"><value>Ordinateur</value></data>
+  <data name="DeviceTypePhone" xml:space="preserve"><value>Telephone</value></data>
+  <data name="DeviceTypeTablet" xml:space="preserve"><value>Tablette</value></data>
+  <data name="DeviceTypeTv" xml:space="preserve"><value>Television</value></data>
+  <data name="DeviceTypeWatch" xml:space="preserve"><value>Montre</value></data>
+  <data name="ClientTypeNative" xml:space="preserve"><value>Application native</value></data>
+  <data name="ClientTypeWeb" xml:space="preserve"><value>Navigateur</value></data>
+  <data name="ClientTypeExternal" xml:space="preserve"><value>Client externe</value></data>
+  <data name="Select" xml:space="preserve"><value>Sélectionner</value></data>
+  <data name="SelectAll" xml:space="preserve"><value>Tout sélectionner</value></data>
+  <data name="DeselectAll" xml:space="preserve"><value>Tout désélectionner</value></data>
+  <data name="SelectedCount" xml:space="preserve"><value>{0} sélectionné(s)</value></data>
+  <data name="DeleteSelected" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="DeleteSelectedTitle" xml:space="preserve"><value>Supprimer les appareils</value></data>
+  <data name="DeleteSelectedMessage" xml:space="preserve"><value>Supprimer {0} appareil(s) ? Cette action est irréversible.</value></data>
+  <data name="DeleteSelectedSuccess" xml:space="preserve"><value>{0} appareil(s) supprimé(s)</value></data>
+  <data name="DeleteSelectedError" xml:space="preserve"><value>Impossible de supprimer les appareils sélectionnés</value></data>
+  <data name="DeleteSelectedPartial" xml:space="preserve"><value>{0} supprimé(s), {1} en échec</value></data>
+</root>

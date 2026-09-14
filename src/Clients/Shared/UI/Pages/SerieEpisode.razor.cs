@@ -1,0 +1,623 @@
+using K7.Clients.Shared.Helpers;
+using K7.Clients.Shared.Interfaces;
+using K7.Clients.Shared.Models;
+using K7.Clients.Shared.Services;
+using K7.Clients.Shared.UI.Components;
+using K7.Clients.Shared.UI.Components.Dialogs;
+using K7.Clients.Shared.UI.Helpers;
+using K7.Server.Domain.Enums;
+using K7.Shared.Dtos.Entities;
+using K7.Shared.Dtos.Entities.Medias;
+using K7.Shared.Dtos.Entities.Metadatas.Files;
+using K7.Shared.Enums;
+using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
+
+namespace K7.Clients.Shared.UI.Pages;
+
+public partial class SerieEpisode : IAsyncDisposable
+{
+    [Inject] private ISpatialNavService SpatialNav { get; set; } = default!;
+
+    [Parameter] public string SerieId { get; set; } = "";
+    [Parameter] public int SeasonNumber { get; set; }
+    [Parameter] public int EpisodeNumber { get; set; }
+
+    private SerieEpisodeDto? _episode;
+    private IndexedFileDto? _indexedFile;
+    private string? _stillUrl;
+    private int? _stillSourceWidth;
+    private int? _stillSourceHeight;
+    private bool _useHdStillBackdrop;
+    private string? _dominantColor;
+    private string _pageTitle = "";
+    private bool _loading = true;
+    private bool _canExclude;
+    private bool _canSetWatchState;
+    private bool _canRate;
+    private int? _episodeUserRating;
+    private bool _isAdmin;
+    private LiteSerieEpisodeDto? _previousEpisode;
+    private LiteSerieEpisodeDto? _nextEpisode;
+    private List<LiteSerieEpisodeDto> _moreEpisodes = [];
+    private MediaReviewsSection? _reviewsSection;
+    private ElementReference _tvScrollRoot;
+    private bool _tvScrollInitialized;
+    private bool _initialFocusApplied;
+    private MediaMetadataRefreshWatcher? _metadataRefreshWatcher;
+    private Guid? _watchedEpisodeId;
+    private DebouncedActionRunner? _progressRefreshRunner;
+
+    private string DominantColorStyle => DominantColorCss.ToVariableStyle("--media-dominant-color", _dominantColor);
+
+    private bool HasBelowContent =>
+        _moreEpisodes.Count > 0 || (_episode?.PersonRoles?.Count ?? 0) > 0;
+
+    protected override void OnInitialized()
+    {
+        _metadataRefreshWatcher = new MediaMetadataRefreshWatcher(K7HubClient, InvokeAsync);
+        _progressRefreshRunner = new DebouncedActionRunner(
+            RefreshProgressFromHubAsync,
+            InvokeAsync,
+            delayMs: 800);
+        K7HubClient.ProgressUpdated += OnProgressUpdated;
+    }
+
+    private void OnProgressUpdated(Guid mediaId, double progressPercentage, bool isCompleted, MediaType mediaType)
+    {
+        if (_episode is null)
+            return;
+
+        // Ignore self-echo while this client is reporting progress (avoids a brief "watched"
+        // flash when the player emits a bogus short duration on start).
+        if (PlaybackProgressTracker.CurrentMediaId == mediaId)
+            return;
+
+        if (mediaId == _episode.Id)
+        {
+            _progressRefreshRunner?.Schedule();
+            return;
+        }
+
+        // Sibling carousel badges (watched / progress) when another episode in the season updates.
+        if (mediaType == MediaType.SerieEpisode && _moreEpisodes.Any(e => e.Id == mediaId))
+            InvokeAsync(ReloadMoreEpisodesAsync).FireAndForget();
+    }
+
+    private async Task RefreshProgressFromHubAsync() =>
+        await RefreshCurrentEpisodeProgressAsync();
+
+    private async Task RefreshCurrentEpisodeProgressAsync()
+    {
+        await RefreshEpisodeUserStateAsync();
+        StateHasChanged();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadEpisodeAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_loading && _episode is not null && HasBelowContent)
+        {
+            if (!_tvScrollInitialized)
+            {
+                _tvScrollInitialized = await TvDetailScrollJs.TryInitAsync(JSRuntime, _tvScrollRoot);
+            }
+            else
+            {
+                await TvDetailScrollJs.TrySyncAsync(JSRuntime, _tvScrollRoot);
+            }
+        }
+
+        if (!_initialFocusApplied && !_loading && _episode is not null)
+        {
+            _initialFocusApplied = true;
+            try
+            {
+                await SpatialNav.FocusFirstAsync(
+                    ".episode-actions-play[data-initial-focus], [data-tv-scroll-zone='actions'] [data-initial-focus]");
+            }
+            catch (InvalidOperationException) { }
+        }
+    }
+
+    private async Task LoadEpisodeAsync(bool isBackgroundRefresh = false, bool isPicturesRefresh = false)
+    {
+        if (isBackgroundRefresh || isPicturesRefresh)
+        {
+            if (_episode is null)
+                return;
+
+            var refreshedMedia = await k7ServerService.GetMediaAsync(_episode.Id, bypassCache: true);
+            _episode = refreshedMedia as SerieEpisodeDto;
+            if (_episode is null)
+                return;
+
+            _indexedFile = _episode.IndexedFiles?.FirstOrDefault();
+            UpdateStillFromEpisode(isPicturesRefresh ? DateTimeOffset.UtcNow : _episode.LastMetadataRefreshedAt);
+
+            if (isBackgroundRefresh)
+                Snackbar.Add(S["RefreshMetadataCompleted"], K7Severity.Success);
+
+            StateHasChanged();
+            return;
+        }
+
+        _tvScrollInitialized = false;
+        _initialFocusApplied = false;
+        (_canExclude, _isAdmin) = await MediaCardExcludeActions.LoadPermissionsAsync(FeatureAccess);
+        _canSetWatchState = await WatchStateActions.CanSetWatchStateAsync(FeatureAccess);
+        _canRate = await FeatureAccess.HasCapabilityAsync(Capability.CanRate);
+
+        _loading = true;
+        _episode = null;
+        StateHasChanged();
+
+        if (!Guid.TryParse(SerieId, out var serieId))
+        {
+            _loading = false;
+            return;
+        }
+
+        var serieMedia = await k7ServerService.GetMediaAsync(serieId);
+        if (serieMedia is not SerieDto serie)
+        {
+            _loading = false;
+            return;
+        }
+
+        await ThemeSongPlaybackHelper.TryStartAsync(
+            serie.Id,
+            serie.HasThemeSong,
+            k7ServerService,
+            UserPreferencesService,
+            AmbientThemeService,
+            AudioPlayerService,
+            PlayerService,
+            DeviceStorageService);
+
+        var seasonSummary = serie.Seasons?.FirstOrDefault(s => s.SeasonNumber == SeasonNumber);
+        if (seasonSummary is null)
+        {
+            _loading = false;
+            return;
+        }
+
+        var seasonMedia = await k7ServerService.GetMediaAsync(seasonSummary.Id);
+        if (seasonMedia is not SerieSeasonDto seasonDto)
+        {
+            _loading = false;
+            return;
+        }
+
+        var episodes = (seasonDto.Episodes ?? [])
+            .OrderBy(e => e.EpisodeNumber)
+            .ToList();
+
+        var liteEpisode = episodes.FirstOrDefault(e => e.EpisodeNumber == EpisodeNumber);
+        if (liteEpisode is null)
+        {
+            _loading = false;
+            return;
+        }
+
+        var media = await k7ServerService.GetMediaAsync(liteEpisode.Id);
+        _episode = media as SerieEpisodeDto;
+        if (_episode is null)
+        {
+            _loading = false;
+            return;
+        }
+
+        _indexedFile = _episode.IndexedFiles?.FirstOrDefault();
+        _episodeUserRating = GetUserRating(_episode.Ratings);
+        _pageTitle = $"{_episode.SerieTitle} - S{SeasonNumber:00}E{EpisodeNumber:00} - {_episode.Title}";
+
+        UpdateStillFromEpisode(_episode.LastMetadataRefreshedAt);
+        SetupMetadataRefreshWatcher(_episode.Id);
+
+        var navigableEpisodes = episodes
+            .Where(e => SeriePlaybackHelper.IsPlayable(e) || e.EpisodeNumber == EpisodeNumber)
+            .ToList();
+        var episodeIndex = navigableEpisodes.FindIndex(e => e.EpisodeNumber == EpisodeNumber);
+        _previousEpisode = episodeIndex > 0 ? navigableEpisodes[episodeIndex - 1] : null;
+        _nextEpisode = episodeIndex >= 0 && episodeIndex < navigableEpisodes.Count - 1
+            ? navigableEpisodes[episodeIndex + 1]
+            : null;
+        _moreEpisodes = navigableEpisodes
+            .Where(e => e.EpisodeNumber != EpisodeNumber)
+            .Where(SeriePlaybackHelper.IsPlayable)
+            .ToList();
+
+        _loading = false;
+    }
+
+    private void SetupMetadataRefreshWatcher(Guid episodeId)
+    {
+        if (_watchedEpisodeId == episodeId)
+            return;
+
+        _watchedEpisodeId = episodeId;
+        _metadataRefreshWatcher?.Watch(
+            episodeId,
+            () => LoadEpisodeAsync(isBackgroundRefresh: true),
+            () => LoadEpisodeAsync(isPicturesRefresh: true));
+    }
+
+    private void UpdateStillFromEpisode(DateTimeOffset? cacheVersion = null)
+    {
+        if (_episode is null)
+            return;
+
+        var still = _episode.Pictures?.FirstOrDefault(p => p.Type == MetadataPictureType.Still)
+                    ?? _episode.Pictures?.FirstOrDefault();
+        _useHdStillBackdrop = MetadataPictureDisplayHelper.IsHdStill(still);
+        var stillUri = apiClient.GetAbsoluteUri(
+            still?.GetUri(MetadataPictureDisplayHelper.SizeFor(ImageDisplayRole.Hero))?.OriginalString)?.AbsoluteUri;
+        _stillUrl = MediaPictureUrlHelper.WithCacheBuster(stillUri, cacheVersion);
+        _stillSourceWidth = still?.OriginalWidth;
+        _stillSourceHeight = still?.OriginalHeight;
+        _dominantColor = still?.DominantColor;
+    }
+
+    private async Task PlayAsync(bool fromBeginning = false)
+    {
+        if (_episode is null)
+            return;
+
+        if (_indexedFile is null && (_episode.RemoteIndexedFiles is null || _episode.RemoteIndexedFiles.Count == 0))
+        {
+            Snackbar.Add(S["MediaUnavailableDetail"], K7Severity.Info);
+            return;
+        }
+
+        if (_indexedFile is null)
+            return;
+
+        var videoMetadata = _indexedFile.FileMetadata as VideoFileMetadataDto;
+        if (videoMetadata is null) return;
+
+        await ThemeSongPlaybackHelper.InterruptAsync(AmbientThemeService, Guid.Parse(SerieId));
+
+        await RefreshEpisodeUserStateAsync();
+
+        PlaybackProgressTracker.StartTracking(_episode.Id,
+            await FeatureAccess.HasCapabilityAsync(Capability.CanReportPlaybackProgress),
+            Guid.Parse(SerieId),
+            _indexedFile.Id);
+
+        var episodeTitle = VideoPlayerTitleHelper.FormatEpisode(_episode);
+
+        double? startPosition = null;
+        if (fromBeginning)
+        {
+            startPosition = 0;
+        }
+        else if (await FeatureAccess.HasCapabilityAsync(Capability.CanResumePlayback)
+            && _episode.UserState is { LastPlaybackPosition: >= 1, IsCompleted: false })
+        {
+            startPosition = _episode.UserState.LastPlaybackPosition;
+        }
+
+        await PlayerService.PlayIndexedFileAsync(
+            _indexedFile.Id,
+            videoMetadata.AudioTracks ?? [],
+            videoMetadata.SubtitleTracks,
+            videoResolution: videoMetadata.VideoResolution,
+            thumbnailsUrl: videoMetadata.Thumbnails?.Uri?.ToString(),
+            mediaId: _episode.Id,
+            title: episodeTitle,
+            coverUrl: _stillUrl,
+            startPosition: startPosition,
+            chapters: videoMetadata.Chapters,
+            durationSeconds: videoMetadata.Duration.TotalSeconds);
+    }
+
+    private bool CanResumePlayback =>
+        HasPlayableFile
+        && _episode?.UserState is { LastPlaybackPosition: >= 1, IsCompleted: false };
+
+    private bool HasPlayableFile =>
+        _indexedFile is not null
+        || (_episode?.RemoteIndexedFiles?.Count > 0 == true);
+
+    private string PrimaryPlayLabel
+    {
+        get
+        {
+            if (!HasPlayableFile)
+                return S["MediaUnavailable"];
+            if (!CanResumePlayback)
+                return S["Play"];
+
+            var position = PlaybackPositionFormatter.TryFormat(_episode?.UserState?.LastPlaybackPosition ?? 0);
+            if (position is not null)
+                return string.Format(S["ResumeAtTime"], position);
+
+            return S["Resume"];
+        }
+    }
+
+    private async Task RefreshEpisodeUserStateAsync()
+    {
+        if (_episode is null) return;
+
+        var fresh = await k7ServerService.GetMediaAsync(_episode.Id, bypassCache: true);
+        if (fresh is SerieEpisodeDto episode)
+            _episode = _episode with { UserState = episode.UserState };
+    }
+
+    private async Task OpenEditMetadataAsync()
+    {
+        if (_episode is null) return;
+        var parameters = new K7DialogParameters<EditMetadataDialog>
+        {
+            { x => x.Media, _episode }
+        };
+        var options = new K7DialogOptions { CloseOnEscapeKey = true, MaxWidth = K7DialogMaxWidth.Medium, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<EditMetadataDialog>(S["EditMetadata"], parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false })
+        {
+            var media = await k7ServerService.GetMediaAsync(_episode.Id, bypassCache: true);
+            _episode = media as SerieEpisodeDto;
+            UpdateStillFromEpisode(DateTimeOffset.UtcNow);
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenIndexedFilesAsync()
+    {
+        if (_episode is null) return;
+        var parameters = new K7DialogParameters<IndexedFilesDialog>
+        {
+            { x => x.Media, _episode },
+            { x => x.OnReIdentifyFile, EventCallback.Factory.Create<Guid>(this, OpenFileReIdentifyDialogAsync) }
+        };
+        var options = new K7DialogOptions { CloseOnEscapeKey = true, MaxWidth = K7DialogMaxWidth.Medium, FullWidth = true };
+        await DialogService.ShowAsync<IndexedFilesDialog>(S["IndexedVersions"], parameters, options);
+    }
+
+    private async Task OpenFileReIdentifyDialogAsync(Guid indexedFileId)
+    {
+        if (_episode is null) return;
+
+        var (searchQuery, searchYear) = ReIdentifySearchDefaultsHelper.FromIndexedFiles(
+            _episode.IndexedFiles,
+            MediaType.Serie,
+            preferredIndexedFileId: indexedFileId,
+            fallbackQuery: _episode.SerieTitle);
+
+        var parameters = new K7DialogParameters<ReIdentifyDialog>
+        {
+            { x => x.IndexedFileId, indexedFileId },
+            { x => x.InitialSearchQuery, searchQuery },
+            { x => x.InitialSearchYear, searchYear },
+            { x => x.MediaType, MediaType.Serie },
+            { x => x.LibraryId, GetLibraryIdForReIdentify(indexedFileId) },
+            {
+                x => x.SourcePath,
+                ReIdentifySearchDefaultsHelper.ResolveSourcePath(
+                    _episode.IndexedFiles,
+                    MediaType.Serie,
+                    preferredIndexedFileId: indexedFileId)
+            }
+        };
+
+        var options = new K7DialogOptions { CloseOnEscapeKey = true, MaxWidth = K7DialogMaxWidth.Medium, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<ReIdentifyDialog>(L["ReIdentifyFileDialogTitle"], parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add(L["ReIdentifyFileSent"], K7Severity.Success);
+            await NavigationHistoryHelper.NavigateBackOrHomeAsync(JSRuntime, NavigationManager);
+        }
+    }
+
+    private Guid? GetLibraryIdForReIdentify(Guid? indexedFileId = null)
+    {
+        if (_episode?.LibraryId is { } libraryId)
+            return libraryId;
+
+        if (_episode?.IndexedFiles is not { Count: > 0 })
+            return null;
+
+        if (indexedFileId.HasValue)
+            return _episode.IndexedFiles.FirstOrDefault(f => f.Id == indexedFileId)?.LibraryId;
+
+        return _episode.IndexedFiles.First().LibraryId;
+    }
+
+    private void NavigateToSerie() => NavigationManager.NavigateTo($"/series/{SerieId}");
+
+    private void NavigateToSeason() => NavigationManager.NavigateTo($"/series/{SerieId}/seasons/{SeasonNumber}");
+
+    private Task OpenOverviewDialogAsync()
+    {
+        if (_episode is null || string.IsNullOrWhiteSpace(_episode.Overview))
+            return Task.CompletedTask;
+
+        var parameters = new K7DialogParameters<OverviewDialog>
+        {
+            { "ContentText", _episode.Overview },
+        };
+        var options = new K7DialogOptions { CloseOnEscapeKey = true, MaxWidth = K7DialogMaxWidth.Medium, FullWidth = true };
+        return DialogService.ShowAsync<OverviewDialog>(L["Overview"], parameters, options);
+    }
+
+    private static string FormatDuration(int totalMinutes)
+    {
+        if (totalMinutes >= 60)
+        {
+            var hours = totalMinutes / 60;
+            var mins = totalMinutes % 60;
+            return mins > 0 ? $"{hours}h{mins:00}" : $"{hours}h";
+        }
+
+        return $"{totalMinutes}min";
+    }
+
+    private int GetDisplayRuntime()
+    {
+        if (_episode?.Runtime is > 0)
+            return _episode.Runtime.Value;
+
+        if (_indexedFile?.FileMetadata is VideoFileMetadataDto video && video.Duration.TotalMinutes > 0)
+            return (int)Math.Round(video.Duration.TotalMinutes);
+
+        return 0;
+    }
+
+    private string? GetEpisodeStillUrl(LiteSerieEpisodeDto episode)
+    {
+        if (episode.StillImageId is null) return null;
+        return apiClient.GetAbsoluteUri(
+            episode.Pictures?.FirstOrDefault(p => p.Type == MetadataPictureType.Still)
+                ?.GetUri(MetadataPictureSize.Small)?.OriginalString)?.AbsoluteUri;
+    }
+
+    private async Task ReloadEpisodeAsync()
+    {
+        if (_episode is null)
+            return;
+
+        var media = await k7ServerService.GetMediaAsync(_episode.Id, bypassCache: true);
+        _episode = media as SerieEpisodeDto;
+        _indexedFile = _episode?.IndexedFiles?.FirstOrDefault();
+        UpdateStillFromEpisode(DateTimeOffset.UtcNow);
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        K7HubClient.ProgressUpdated -= OnProgressUpdated;
+        _progressRefreshRunner?.Dispose();
+        _metadataRefreshWatcher?.Dispose();
+
+        if (_tvScrollInitialized)
+            await TvDetailScrollJs.TryDisposeAsync(JSRuntime, _tvScrollRoot);
+    }
+
+    private async Task ToggleWatchStateAsync()
+    {
+        if (_episode is null)
+            return;
+
+        var watched = _episode.UserState?.IsCompleted != true;
+        var success = await WatchStateActions.ApplyAsync(
+            k7ServerService,
+            CacheStore,
+            DialogService,
+            Snackbar,
+            S,
+            _episode.Id,
+            watched,
+            WatchStateScope.Item);
+
+        if (success)
+            await ReloadEpisodeAsync();
+    }
+
+    private async Task ExcludeForSelfAsync()
+    {
+        if (_episode is null)
+            return;
+
+        var model = new MediaCardViewModel
+        {
+            Id = _episode.Id.ToString(),
+            Title = _episode.Title ?? $"E{_episode.EpisodeNumber}"
+        };
+
+        await MediaCardExcludeActions.ExcludeForSelfAsync(model, UserAdminService, Snackbar, S);
+    }
+
+    private async Task ExcludeForOthersAsync()
+    {
+        if (_episode is null)
+            return;
+
+        var model = new MediaCardViewModel
+        {
+            Id = _episode.Id.ToString(),
+            Title = _episode.Title ?? $"E{_episode.EpisodeNumber}"
+        };
+
+        await MediaCardExcludeActions.ExcludeForOthersAsync(model, DialogService, Snackbar, S);
+    }
+
+    private async Task ExcludeCarouselEpisodeForSelfAsync(LiteSerieEpisodeDto episode)
+    {
+        var model = new MediaCardViewModel
+        {
+            Id = episode.Id.ToString(),
+            Title = episode.Title ?? $"E{episode.EpisodeNumber}"
+        };
+
+        var excluded = await MediaCardExcludeActions.ExcludeForSelfAsync(model, UserAdminService, Snackbar, S);
+        if (excluded)
+        {
+            _moreEpisodes.RemoveAll(e => e.Id == episode.Id);
+            StateHasChanged();
+        }
+    }
+
+    private Task ExcludeCarouselEpisodeForOthersAsync(LiteSerieEpisodeDto episode)
+    {
+        var model = new MediaCardViewModel
+        {
+            Id = episode.Id.ToString(),
+            Title = episode.Title ?? $"E{episode.EpisodeNumber}"
+        };
+
+        return MediaCardExcludeActions.ExcludeForOthersAsync(model, DialogService, Snackbar, S);
+    }
+
+    private async Task ReloadMoreEpisodesAsync()
+    {
+        if (_episode is null)
+            return;
+
+        var seasonMedia = await k7ServerService.GetMediaAsync(_episode.SeasonId);
+        if (seasonMedia is not SerieSeasonDto seasonDto)
+            return;
+
+        _moreEpisodes = (seasonDto.Episodes ?? [])
+            .OrderBy(e => e.EpisodeNumber)
+            .Where(e => e.EpisodeNumber != EpisodeNumber)
+            .Where(SeriePlaybackHelper.IsPlayable)
+            .ToList();
+        StateHasChanged();
+    }
+
+    private async Task OpenReviewDialogAsync()
+    {
+        if (_episode is null)
+            return;
+
+        var changed = await MediaReviewDialogHelper.OpenAsync(
+            DialogService,
+            ReviewDialogL,
+            _episode.Id,
+            _episode.Title ?? $"E{_episode.EpisodeNumber}");
+
+        if (!changed)
+            return;
+
+        var media = await k7ServerService.GetMediaAsync(_episode.Id);
+        _episode = media as SerieEpisodeDto;
+        _episodeUserRating = GetUserRating(_episode?.Ratings);
+        if (_reviewsSection is not null)
+            await _reviewsSection.RefreshAsync();
+    }
+
+    private static int? GetUserRating(IReadOnlyList<RatingDto>? ratings) =>
+        ratings?.FirstOrDefault(r => r.Source == RatingSource.LocalUser)?.Value is double value
+            ? (int)value
+            : null;
+}

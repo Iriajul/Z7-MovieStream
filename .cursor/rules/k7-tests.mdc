@@ -1,0 +1,14 @@
+---
+description: K7 testing conventions (NUnit, AwesomeAssertions, NSubstitute)
+globs: tests/**
+alwaysApply: false
+---
+
+# Testing
+
+Stack: NUnit, AwesomeAssertions, NSubstitute. AAA structure.
+
+Naming: `{ClassUnderTest}Tests`, `{Method}_Should{Expected}_When{Condition}`.
+
+Functional: `CustomWebApplicationFactory`. Integration: Testcontainers + Respawn.
+Critical Blazor components: bUnit in `tests/Clients.ComponentTests` (components live under `Clients/Shared/UI/Components/`).

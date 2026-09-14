@@ -1,0 +1,213 @@
+@page "/music/artists/{Id}"
+@using K7.Shared.Dtos.Entities.Medias
+@using K7.Shared.Dtos.Entities.PersonRoles
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IMediaService k7ServerService
+@inject IK7ServerService apiClient
+@inject IStringLocalizer<MusicArtistDetail> L
+@inject IStringLocalizer<SharedResource> S
+<PageTitle>@_artist?.Title</PageTitle>
+@if (_loading)
+{
+    <div class="artist-detail-page artist-detail-page--skeleton" aria-busy="true">
+        <div class="artist-hero">
+            <div class="artist-hero-portrait">
+                <K7Skeleton Class="artist-skeleton-portrait" />
+            </div>
+            <div class="artist-hero-info">
+                <K7Skeleton Class="artist-skeleton-name" />
+                <div class="artist-skeleton-bio">
+                    <K7Skeleton Shape="text" Width="92%" Height="16px" />
+                    <K7Skeleton Shape="text" Width="80%" Height="16px" />
+                    <K7Skeleton Shape="text" Width="64%" Height="16px" />
+                </div>
+                <div class="artist-actions">
+                    <K7Skeleton Class="artist-skeleton-play" />
+                    <K7Skeleton Class="artist-skeleton-play artist-skeleton-play--outline" />
+                </div>
+            </div>
+        </div>
+        <Carousel Skeleton="true">
+            @for (var i = 0; i < 8; i++)
+            {
+                <CarouselItem>
+                    <MediaCard Skeleton="true" Variant="MediaCardVariant.Cover" FooterVisible="true" />
+                </CarouselItem>
+            }
+        </Carousel>
+    </div>
+}
+else if (_artist is not null)
+{
+    <MediaPageContent Class="artist-detail-wash"
+                      FullWash="true"
+                      DominantColor="@_portraitDominantColor"
+                      Tinted="@(_portraitDominantColor is not null)">
+        <div class="artist-detail-page">
+        <K7BackButton />
+
+        <div class="artist-hero-viewport">
+            <div class="artist-hero">
+                <div class="artist-hero-portrait">
+                    @if (_portraitUrl is not null)
+                    {
+                        <K7Image Src="@_portraitUrl"
+                                  Alt="@_artist.Title"
+                                  Class="artist-portrait"
+                                  ObjectFit="cover" />
+                    }
+                    else
+                    {
+                        <K7Avatar Class="artist-avatar-placeholder">
+                            @(_artist.Title?[..1].ToUpperInvariant())
+                        </K7Avatar>
+                    }
+                </div>
+
+                <div class="artist-hero-info">
+                    <div class="artist-title-row">
+                        <h2 class="artist-name">@_artist.Title</h2>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_artist.Biography))
+                    {
+                        <div class="artist-bio overview-clickable focusable" tabindex="0" role="button" @onclick="OpenBiographyDialogAsync">
+                            <p class="artist-bio-text">@_artist.Biography</p>
+                        </div>
+                    }
+
+                    @if (_canRate)
+                    {
+                        <div class="artist-user-rating" @onclick:stopPropagation="true">
+                            <RatingStars MediaId="_artist.Id" Value="_artistUserRating" Size="md" />
+                        </div>
+                    }
+
+                    <div class="artist-actions">
+                        @if (_tracks.Count > 0 || _albums.Count > 0)
+                        {
+                            <K7Button Variant="filled"
+                                       Color="primary"
+                                       StartIcon="@Phosphor.Play"
+                                       Size="lg"
+                                       OnClick="PlayAll" data-initial-focus>
+                                @S["PlayAll"]
+                            </K7Button>
+                            <K7Button Variant="outlined"
+                                       Color="primary"
+                                       StartIcon="@Phosphor.Shuffle"
+                                       OnClick="ShuffleAll">
+                                @S["Shuffle"]
+                            </K7Button>
+                            @if (_tracks.Count > 0)
+                            {
+                                <DownloadAllButton Items="GetDownloadRequests()" Label="@_artist.Title" />
+                            }
+                        }
+                        @if (_musicIntelligenceAvailable || _isAdmin)
+                        {
+                            <K7Menu Title="@L["MoreActions"]">
+                                <ActivatorContent>
+                                    <K7IconButton Icon="@Phosphor.DotsThreeVertical" AriaLabel="@L["MoreActions"]" />
+                                </ActivatorContent>
+                                <ChildContent>
+                                    @if (_musicIntelligenceAvailable)
+                                    {
+                                        <K7MenuItem Icon="users-three" OnClick="NavigateToSimilarArtistsAsync">@L["ViewSimilarArtists"]</K7MenuItem>
+                                    }
+                                    @if (_isAdmin)
+                                    {
+                                        <K7MenuItem Icon="arrow-clockwise" OnClick="RefreshMetadataAsync">@L["RefreshMetadata"]</K7MenuItem>
+                                        <K7MenuItem Icon="pencil-simple" OnClick="OpenEditMetadataDialogAsync">@L["EditMetadata"]</K7MenuItem>
+                                    }
+                                </ChildContent>
+                            </K7Menu>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+            @if (_albums.Count > 0)
+            {
+                <div class="artist-albums-section">
+                    <Carousel Title="@L["AlbumsSection"]">
+                        @foreach (var album in _albums)
+                        {
+                            <CarouselItem @key="album.Id">
+                                <MediaCard Model="album" Variant="MediaCardVariant.Cover" Href="@($"/music/albums/{album.Id}")" OverlayEnabled="true" FooterVisible="true" />
+                            </CarouselItem>
+                        }
+                    </Carousel>
+                </div>
+            }
+
+            @if (_similarArtists.Count > 0)
+            {
+                <div class="artist-similar-section">
+                    <Carousel Title="@L["SimilarArtists"]">
+                        @foreach (var artist in _similarArtists)
+                        {
+                            <CarouselItem @key="artist.Id">
+                                <MediaCard Model="artist" Variant="MediaCardVariant.Cover" Href="@($"/music/artists/{artist.Id}")" OverlayEnabled="true" FooterVisible="true" />
+                            </CarouselItem>
+                        }
+                    </Carousel>
+                </div>
+            }
+
+            @if (_members.Count > 0)
+            {
+                <div class="artist-members-section">
+                    <Carousel Title="@L["MembersSection"]">
+                        @foreach (var member in _members)
+                        {
+                            <CarouselItem @key="member.Id">
+                                <PersonRole LitePersonRoleDto="@member" />
+                            </CarouselItem>
+                        }
+                    </Carousel>
+                </div>
+            }
+
+            @if (_topTracks.Count > 0)
+            {
+                <div class="artist-top-tracks-section">
+                    <h6 class="section-title">@L["TopTracks"]</h6>
+                    <K7Table Items="_topTracks"
+                              TItem="TrackViewModel"
+                              OnRowClick="@(args => OnTrackClick(args))"
+                              RowClass="cursor-pointer">
+                        <HeaderContent>
+                            <th class="col-track-number">#</th>
+                            <th>@S["Title"]</th>
+                            <th class="col-duration">@S["Duration"]</th>
+                            <th class="col-actions"></th>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <td>
+                                @if (context.IsPlaying)
+                                {
+                                    <K7Icon Name="equalizer"  IconSize="@K7IconSize.Sm" Color="primary" />
+                                }
+                                else
+                                {
+                                    <span class="track-number">@context.Rank</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="@(context.IsPlaying ? "track-playing" : "")">@context.Title</span>
+                            </td>
+                            <td class="col-duration">
+                                <span class="track-duration">@FormatTime(context.Duration)</span>
+                            </td>
+                            <td>
+                                <TrackContextMenu Track="BuildQueueItem(context)" UserRating="context.UserRating" />
+                            </td>
+                        </RowTemplate>
+                    </K7Table>
+                </div>
+            }
+        </div>
+    </MediaPageContent>
+}

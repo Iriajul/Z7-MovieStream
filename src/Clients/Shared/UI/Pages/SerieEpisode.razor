@@ -1,0 +1,253 @@
+@page "/series/{SerieId}/seasons/{SeasonNumber:int}/episodes/{EpisodeNumber:int}"
+@using K7.Server.Domain.Enums
+@using K7.Shared.Dtos.Entities.Medias
+@using K7.Shared.Dtos.Entities.Metadatas.Files
+@using K7.Shared.Dtos.Entities.PersonRoles
+@using Microsoft.AspNetCore.Components.Authorization
+@using K7.Clients.Shared.UI.Components.Dialogs
+@inject IMediaService k7ServerService
+@inject IK7ServerService apiClient
+@inject IPlayerService PlayerService
+@inject PlaybackProgressTracker PlaybackProgressTracker
+@inject IFeatureAccessService FeatureAccess
+@inject IK7DialogService DialogService
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<SerieEpisode> L
+@inject IStringLocalizer<SharedResource> S
+@inject IStringLocalizer<MediaCard> CardL
+@inject IStringLocalizer<MediaReviewDialog> ReviewDialogL
+@inject MediaCacheStore CacheStore
+@inject IK7Snackbar Snackbar
+@inject IUserAdminService UserAdminService
+@inject K7HubClient K7HubClient
+@inject IJSRuntime JSRuntime
+@inject IUserPreferencesService UserPreferencesService
+@inject IAmbientThemeService AmbientThemeService
+@inject IAudioPlayerService AudioPlayerService
+@inject IDeviceStorageService DeviceStorageService
+@implements IAsyncDisposable
+
+<PageTitle>@_pageTitle</PageTitle>
+
+@if (_loading)
+{
+    <div class="episode-page">
+        <MediaHeroSkeleton />
+    </div>
+}
+else if (_episode is not null)
+{
+    <div class="episode-page"
+         style="@DominantColorStyle">
+        @if (_stillUrl is not null)
+        {
+            <MediaPageBackdrop ImageUrl="@_stillUrl"
+                               DominantColor="@_dominantColor"
+                               ScrollTarget="@_tvScrollRoot"
+                               Class="@(_useHdStillBackdrop ? "" : "media-page-backdrop--soft-still")"
+                               SoftStillBlurEnabled="@(!_useHdStillBackdrop)"
+                               SoftStillSourceWidth="_stillSourceWidth"
+                               SoftStillSourceHeight="_stillSourceHeight" />
+        }
+
+        <div @ref="_tvScrollRoot"
+             class="episode-page-scroll media-page-scroll"
+             data-tv-scroll="@(HasBelowContent ? string.Empty : null)">
+        <div class="episode-main media-hero-main" data-tv-scroll-zone="main">
+            <K7BackButton Class="episode-back-btn" />
+
+            <div class="episode-hero media-hero">
+                <div class="media-hero-backdrop-zone">
+                    <h2 class="episode-title media-hero-title">@(_episode.Title ?? S["Untitled"])</h2>
+                </div>
+                <div class="media-hero-body">
+                <div class="episode-hero-content">
+                    <div class="episode-meta">
+                        <a class="episode-serie-link" href="@($"/series/{SerieId}")">@_episode.SerieTitle</a>
+                        <span class="episode-meta-separator">-</span>
+                        <span class="episode-meta-text">@string.Format(L["SeasonEpisode"], _episode.SeasonNumber, _episode.EpisodeNumber)</span>
+                    </div>
+
+                    <div class="episode-details">
+                        @if (_episode.AirDate is not null)
+                        {
+                            <span class="episode-detail-item">@_episode.AirDate.Value.ToString("d MMMM yyyy")</span>
+                        }
+                        @{
+                            var displayRuntime = GetDisplayRuntime();
+                        }
+                        @if (displayRuntime > 0)
+                        {
+                            <span class="episode-detail-item">@FormatDuration(displayRuntime)</span>
+                        }
+                    </div>
+
+                    <div class="episode-ratings">
+                        @if (_episode.Ratings?.FirstOrDefault(x => x.Source == RatingSource.MetadataProvider)?.Value is double externalRating)
+                        {
+                            <K7Chip Size="sm" Icon="star" Color="primary" Variant="filled" Style="font-weight: 700;">@externalRating.ToString("N1")</K7Chip>
+                        }
+                        @if (_canRate)
+                        {
+                            <div class="episode-user-rating" @onclick:stopPropagation="true">
+                                <RatingStars MediaId="_episode.Id" Value="_episodeUserRating" Size="md" />
+                            </div>
+                        }
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_episode.Overview))
+                    {
+                        <div class="episode-overview-wrap overview-clickable focusable"
+                             tabindex="0"
+                             role="button"
+                             @onclick="OpenOverviewDialogAsync">
+                            <p class="episode-overview">@_episode.Overview</p>
+                        </div>
+                    }
+
+                    <div class="episode-actions" data-tv-scroll-zone="actions">
+                        <div class="@(CanResumePlayback ? "episode-actions-primary episode-actions-primary--split" : "episode-actions-primary")">
+                            <K7Button Variant="filled"
+                                       Color="primary"
+                                       StartIcon="@(HasPlayableFile ? Phosphor.Play : Phosphor.WarningCircle)"
+                                       OnClick="() => PlayAsync(fromBeginning: false)"
+                                       Size="lg"
+                                       Disabled="@(!HasPlayableFile)"
+                                       Class="episode-actions-play" data-initial-focus>
+                                @PrimaryPlayLabel
+                            </K7Button>
+                            @if (CanResumePlayback)
+                            {
+                                <K7Button Variant="outlined"
+                                           StartIcon="@Phosphor.ClockCounterClockwise"
+                                           Color="primary"
+                                           Size="lg"
+                                           Class="episode-actions-replay"
+                                           AriaLabel="@S["PlayFromBeginning"]"
+                                           OnClick="() => PlayAsync(fromBeginning: true)" />
+                            }
+                        </div>
+
+                        <div class="episode-actions-secondary">
+                            @if (_canRate)
+                            {
+                                <K7IconButton Icon="@Phosphor.ChatCircleText" OnClick="OpenReviewDialogAsync" AriaLabel="@ReviewDialogL["Title"]" />
+                            }
+
+                            @if (_indexedFile is not null)
+                            {
+                                <DownloadButton IndexedFileId="_indexedFile.Id"
+                                                MediaId="_episode.Id"
+                                                Title="@(_episode.Title ?? $"E{_episode.EpisodeNumber}")"
+                                                MediaType="MediaType.SerieEpisode"
+                                                CoverUrl="@_stillUrl"
+                                                VideoMetadata="@(_indexedFile.FileMetadata as VideoFileMetadataDto)" />
+                            }
+
+                            <K7Menu>
+                                <ActivatorContent>
+                                    <K7IconButton Icon="@Phosphor.DotsThreeVertical" AriaLabel="@L["MoreActions"]" />
+                                </ActivatorContent>
+                                <ChildContent>
+                                    <K7MenuItem Icon="television" OnClick="NavigateToSerie">@L["BackToSerie"]</K7MenuItem>
+                                    <K7MenuItem Icon="film-strip" OnClick="NavigateToSeason">@L["BackToSeason"]</K7MenuItem>
+                                    <AuthorizeView Roles="User,Administrator">
+                                        <K7MenuItem Icon="check-circle" OnClick="ToggleWatchStateAsync">
+                                            @(_episode.UserState?.IsCompleted == true ? CardL["MarkAsUnwatched"] : CardL["MarkAsWatched"])
+                                        </K7MenuItem>
+                                    </AuthorizeView>
+                                    @if (_canExclude)
+                                    {
+                                        <K7MenuItem Icon="eye-slash" OnClick="ExcludeForSelfAsync">@S["HideForMe"]</K7MenuItem>
+                                    }
+                                    @if (_isAdmin)
+                                    {
+                                        <K7MenuItem Icon="circle" OnClick="ExcludeForOthersAsync">@S["HideForUser"]</K7MenuItem>
+                                    }
+                                    <AuthorizeView Roles="Administrator">
+                                        <K7MenuItem Icon="pencil-simple" OnClick="OpenEditMetadataAsync">@S["EditMetadata"]</K7MenuItem>
+                                        @if (_episode.IndexedFiles is { Count: > 0 })
+                                        {
+                                            <K7MenuItem Icon="file-zip" OnClick="OpenIndexedFilesAsync">@S["IndexedVersions"]</K7MenuItem>
+                                        }
+                                    </AuthorizeView>
+                                </ChildContent>
+                            </K7Menu>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+
+                @if (HasBelowContent)
+                {
+                    <div class="media-hero-scroll-hint" aria-hidden="true">
+                        <K7Icon Icon="@Phosphor.CaretDown" />
+                    </div>
+                }
+        </div>
+
+        <MediaPageContent Class="episode-page-content"
+                          Tinted="@(_dominantColor is not null)"
+                          DominantColor="@_dominantColor">
+        <div class="episode-page-sections" data-tv-scroll-zone="@(HasBelowContent ? "below" : null)">
+        @if (_moreEpisodes.Count > 0)
+        {
+            <Carousel Title="@L["MoreEpisodes"]">
+                @foreach (var episode in _moreEpisodes)
+                {
+                    <CarouselItem @key="episode.Id" ItemId="@($"more-episode-{episode.Id}")">
+                        <MediaCard Model="@(new MediaCardViewModel
+                                   {
+                                       Id = episode.Id.ToString(),
+                                       Kind = MediaCardKind.Episode,
+                                       Title = episode.Title,
+                                       AdditionalInformations = string.Format(L["SeasonEpisode"], episode.SeasonNumber, episode.EpisodeNumber),
+                                       PictureUrl = GetEpisodeStillUrl(episode),
+                                       Progress = episode.UserState?.ProgressPercentage ?? 0,
+                                       Watched = episode.UserState?.IsCompleted ?? false,
+                                   })"
+                                   Variant="MediaCardVariant.Backdrop"
+                                   Href="@($"/series/{SerieId}/seasons/{SeasonNumber}/episodes/{episode.EpisodeNumber}")"
+                                   FooterVisible="true"
+                                   ProgressEnabled="true"
+                                   OverlayEnabled="true"
+                                   WatchedStatusEnabled="true"
+                                   ExcludeMenuEnabled="_canExclude"
+                                   WatchStateMenuEnabled="_canSetWatchState"
+                                   IsAdmin="_isAdmin"
+                                   OnExcludeForSelf="() => ExcludeCarouselEpisodeForSelfAsync(episode)"
+                                   OnExcludeForOthers="() => ExcludeCarouselEpisodeForOthersAsync(episode)"
+                                   OnWatchStateChanged="ReloadMoreEpisodesAsync" />
+                    </CarouselItem>
+                }
+            </Carousel>
+        }
+
+        @if ((_episode.PersonRoles?.Count ?? 0) > 0)
+        {
+            <Carousel Title="@L["CastingAndCrew"]">
+                @foreach (var cast in PersonRoleDisplayHelper.GroupForCarousel(_episode.PersonRoles))
+                {
+                    <CarouselItem @key="cast.Key">
+                        <PersonRole LitePersonRoleDto="@cast.PrimaryRole" SubtitleOverride="@cast.MergedSubtitle" />
+                    </CarouselItem>
+                }
+            </Carousel>
+        }
+
+        <MediaReviewsSection @ref="_reviewsSection" MediaId="_episode.Id" />
+        </div>
+        </MediaPageContent>
+        </div>
+    </div>
+}
+else
+{
+    <div class="episode-page">
+        <div class="d-flex flex-col pa-16 align-center" style="gap: 16px;">
+            <K7BackButton />
+            <K7EmptyState Title="@L["NotFound"]" />
+        </div>
+    </div>
+}

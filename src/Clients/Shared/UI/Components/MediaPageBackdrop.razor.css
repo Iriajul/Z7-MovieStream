@@ -1,0 +1,227 @@
+.media-page-backdrop {
+    --media-scroll-fade: 0;
+    /* Absolute to the media page shell (not the scrolling child) so classic
+       scrollbar gutters do not clip the wash and leave a --color-bg strip. */
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    isolation: isolate;
+}
+
+.media-page-backdrop__image {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    opacity: 0;
+    transform: translateZ(0);
+    transition: opacity 0.45s ease;
+}
+
+.media-page-backdrop__image.k7-img-decoded {
+    opacity: 1;
+}
+
+.media-page-backdrop__image--layer {
+    /* No translateZ: a transformed backdrop becomes a containing block and
+       churns TV spatial-nav layout while JPEGs decode. */
+    transform: none;
+    opacity: 0;
+}
+
+.media-page-backdrop__image--layer.k7-img-decoded {
+    opacity: 0;
+}
+
+.media-page-backdrop__image--layer.media-page-backdrop__image--active,
+.media-page-backdrop__image--layer.media-page-backdrop__image--active.k7-img-decoded {
+    opacity: 1;
+}
+
+.media-page-backdrop__image--layer.media-page-backdrop__image--soft {
+    filter: blur(12px);
+    object-fit: cover;
+    object-position: center top;
+    width: 108%;
+    height: 108%;
+    inset: -4%;
+}
+
+/* Scrims must stay above every image layer (including temporary fades).
+   A higher z-index on the image made Medium/original look more saturated. */
+.media-page-backdrop__scrim-side {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+        linear-gradient(
+            to right,
+            rgba(0, 0, 0, 0.7) 0%,
+            rgba(0, 0, 0, 0.45) 22%,
+            rgba(0, 0, 0, 0.2) 42%,
+            rgba(0, 0, 0, 0.06) 58%,
+            transparent 75%
+        ),
+        linear-gradient(
+            to left,
+            rgba(0, 0, 0, 0.42) 0%,
+            rgba(0, 0, 0, 0.18) 40%,
+            transparent 100%
+        );
+    transform: translateZ(0);
+}
+
+.media-page-backdrop__scrim-bottom {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.62) 0%,
+        rgba(0, 0, 0, 0.3) 24%,
+        rgba(0, 0, 0, 0.1) 44%,
+        transparent 72%
+    );
+    transform: translateZ(0);
+}
+
+.media-page-backdrop__scroll-fade {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: var(--media-wash-color, var(--color-bg));
+    opacity: calc(var(--media-scroll-fade) * 0.92);
+    will-change: opacity;
+}
+
+.media-page-backdrop--soft-still .media-page-backdrop__image {
+    filter: blur(var(--media-soft-still-blur, 0px));
+}
+
+.media-page-backdrop--soft-still .media-page-backdrop__scrim-side {
+    background:
+        linear-gradient(
+            to right,
+            rgba(0, 0, 0, 0.84) 0%,
+            rgba(0, 0, 0, 0.66) 26%,
+            rgba(0, 0, 0, 0.42) 46%,
+            rgba(0, 0, 0, 0.2) 62%,
+            transparent 84%
+        ),
+        linear-gradient(
+            to left,
+            rgba(0, 0, 0, 0.48) 0%,
+            rgba(0, 0, 0, 0.2) 42%,
+            transparent 100%
+        );
+}
+
+.media-page-backdrop--soft-still .media-page-backdrop__scrim-bottom {
+    background: linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.8) 0%,
+        rgba(0, 0, 0, 0.52) 28%,
+        rgba(0, 0, 0, 0.26) 50%,
+        transparent 78%
+    );
+}
+
+.media-page-backdrop--soft-still::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: radial-gradient(
+        ellipse 90% 75% at 50% 28%,
+        transparent 18%,
+        rgba(0, 0, 0, 0.28) 58%,
+        rgba(0, 0, 0, 0.52) 100%
+    );
+    transform: translateZ(0);
+}
+
+@media (max-width: 599.98px) {
+    .media-page-backdrop {
+        inset: auto;
+        top: 0;
+        right: 0;
+        left: 0;
+        /* Prefer the page shell variable; keep a definite fallback so height never collapses. */
+        height: var(--media-backdrop-height, 50dvh);
+        -webkit-mask-image: linear-gradient(
+            to bottom,
+            #000 0%,
+            #000 78%,
+            rgba(0, 0, 0, 0.55) 90%,
+            transparent 100%
+        );
+        mask-image: linear-gradient(
+            to bottom,
+            #000 0%,
+            #000 78%,
+            rgba(0, 0, 0, 0.55) 90%,
+            transparent 100%
+        );
+    }
+
+    .media-page-backdrop__image {
+        -webkit-mask-image: none;
+        mask-image: none;
+    }
+
+    .media-page-backdrop__scrim-side {
+        background:
+            linear-gradient(to right, rgba(0, 0, 0, 0.66) 0%, rgba(0, 0, 0, 0.22) 12%, transparent 26%),
+            linear-gradient(to left, rgba(0, 0, 0, 0.66) 0%, rgba(0, 0, 0, 0.22) 12%, transparent 26%);
+    }
+
+    .media-page-backdrop__scrim-bottom {
+        background:
+            radial-gradient(
+                ellipse 140% 90% at 50% 100%,
+                rgba(0, 0, 0, 0.72) 0%,
+                rgba(0, 0, 0, 0.38) 32%,
+                transparent 64%
+            ),
+            linear-gradient(
+                to top,
+                var(--media-wash-color, var(--color-bg)) 0%,
+                color-mix(in srgb, var(--media-wash-color, var(--color-bg)) 55%, transparent) 40%,
+                transparent 68%
+            );
+    }
+
+    .media-page-backdrop__scroll-fade {
+        z-index: 2;
+    }
+
+    .media-page-backdrop--soft-still .media-page-backdrop__image {
+        filter: blur(var(--media-soft-still-blur, 0px));
+    }
+
+    .media-page-backdrop--soft-still .media-page-backdrop__scrim-side {
+        background:
+            linear-gradient(to right, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.34) 14%, transparent 30%),
+            linear-gradient(to left, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.34) 14%, transparent 30%);
+    }
+
+    .media-page-backdrop--soft-still .media-page-backdrop__scrim-bottom {
+        background:
+            radial-gradient(
+                ellipse 140% 90% at 50% 100%,
+                rgba(0, 0, 0, 0.82) 0%,
+                rgba(0, 0, 0, 0.48) 34%,
+                transparent 68%
+            ),
+            linear-gradient(
+                to top,
+                var(--media-wash-color, var(--color-bg)) 0%,
+                color-mix(in srgb, var(--media-wash-color, var(--color-bg)) 62%, transparent) 42%,
+                transparent 72%
+            );
+    }
+}

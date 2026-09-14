@@ -1,0 +1,204 @@
+# Backup and troubleshooting
+
+## Backup and restore
+
+K7 has no built-in backup feature. Back up the database and persistent paths yourself.
+
+Take a fresh database backup **before** running [K7.Import](../../tools/K7.Import/README.md): that tool has no undo, so a restore is the reliable rollback if the import fails or pollutes user data.
+
+### What to back up
+
+| Item | Location | Required? |
+|---|---|---|
+| Database | Postgres volume (`k7-postgres-data`) or Sqlite file (`{Database:Name}.db`) | **Yes** |
+| `Paths:Config` | Default `/data/config` in the sample compose | **Yes** |
+| Media libraries | Your host paths under `/media/...` | **Yes** (your files) |
+| `Paths:Metadatas` | Default `/data/metadatas` | **Recommended** - artwork and processed images; can be rebuilt by refreshing metadata, but that is slow |
+| `Paths:Logs` | `/data/logs` | Optional |
+| `Paths:Transcoding` | `/data/transcoding` | **No** - cache only |
+
+### Why Config matters
+
+Under `Paths:Config`:
+
+- `dataprotection-keys` - ASP.NET Data Protection key ring (cookies, antiforgery)
+- `openiddict-keys` - OpenIddict encryption and signing certificates
+
+Losing these while keeping the database typically **invalidates sessions and tokens** and can break federation client credentials until peers are re-established. Always restore Config together with the database from the same backup set.
+
+### Postgres backup example
+
+```bash
+docker compose exec -T postgres \
+  pg_dump -U postgres -d K7 -Fc > k7-$(date +%Y%m%d).dump
+```
+
+Restore (destructive - replace carefully):
+
+```bash
+docker compose exec -T postgres \
+  pg_restore -U postgres -d K7 --clean --if-exists < k7-YYYYMMDD.dump
+```
+
+Also archive the `k7-data` volume (or bind-mounted `/data` directory).
+
+### Sqlite backup example
+
+Stop the server (or ensure no writers), then copy the database file and the `/data` tree (`config`, `metadatas`, ...).
+
+### Restore checklist
+
+1. Stop `k7-server`.
+2. Restore the database.
+3. Restore `Paths:Config` (and Metadatas if you backed it up) to the same absolute paths.
+4. Confirm `BaseUrl`, database, and path env vars match the old instance.
+5. Start the server; migrations apply automatically.
+6. Sign in and verify libraries still point at mounted media paths.
+
+Keep `.env` / OIDC secrets out of git and back them up separately.
+
+## Troubleshooting
+
+### Where are the logs?
+
+| Source | Location |
+|---|---|
+| Container stdout | `docker compose logs -f k7-server` |
+| File sink | `Paths:Logs` (sample: `/data/logs/log-.log`) |
+
+Raise levels via Serilog env vars - see [configuration.md](configuration.md#logging-serilog).
+
+### Native Windows login hangs
+
+After a login attempt, grep server logs for `Auth ` and `Native auth`.
+
+Typical sequence for a healthy native login:
+
+1. `GET /connect/authorize` -> `location welcome` or `sign-in` (cookie missing)
+2. `POST /sign-in` -> `returnUrl local-authorize` and `location local-authorize`
+3. `GET /connect/authorize` -> `location loopback` (`locationHost localhost:port`), `custom-scheme` (`k7://callback/login` on Android/iOS), or `auth-complete` (Windows system browser)
+4. `POST /connect/token` -> 200, `grant authorization_code`, `client k7-native`
+5. `GET /auth/complete` -> 200 (Windows and older loopback clients). The page says the tab can be closed and opens `k7://callback/login`
+6. Client breadcrumbs: `login-start` -> `challenge-ready` -> `loopback` -> `authenticate-ready` -> `persist-ok` -> `login-complete`
+
+How to read a stuck attempt:
+
+- `POST /sign-in` with `returnUrl empty` or `location home`: the authorize ReturnUrl was lost (web home, not native callback)
+- Authorize 302 to `welcome`/`sign-in` after password: the session cookie did not stick
+- Token 200 but no `loopback` / no `/auth/complete`: the system browser never hit `http://localhost:port/`
+- `login-timeout` in client breadcrumbs: the app waited 3 minutes for the loopback callback
+- `login-complete authenticated` while the Welcome spinner stays: hang is in the MAUI WebView after tokens
+
+On the Windows PC, the client also writes `%TEMP%\k7-auth.log` (and a copy under the app data directory). That file is the source of `Native auth` lines if the POST to `/api/diagnostics/auth-trace` was blocked.
+
+### Cannot connect to the database
+
+- Check `POSTGRES_PASSWORD` matches `Database__Password`
+- On Compose, `Database__Server` must be the service name (`postgres`), not `localhost`
+- Wait for the Postgres healthcheck (`depends_on: service_healthy`)
+
+### Postgres 18: unused mount at `/var/lib/postgresql/data`
+
+Postgres logs mention an unused mount at `/var/lib/postgresql/data` and `pg_upgrade --link`, and the `k7-postgres` container never becomes healthy.
+
+The official Postgres 18 image requires the volume at `/var/lib/postgresql` (not `.../data`). The sample compose ships that path. If you still mount the old destination, **both** upgrades and first-time installs fail.
+
+- New/empty volume: point the volume at `/var/lib/postgresql` and recreate.
+- Existing cluster files in the volume: dump, delete the volume, restore - [Install - Postgres 18 volume mount](install.md#postgres-18-volume-mount).
+
+### Media files not visible / permission denied
+
+- Confirm the bind mount matches the library `RootPath`
+- Align `PUID`/`PGID` with host ownership of the media tree
+- Prefer `:ro` mounts
+
+### Lost settings / users after recreate
+
+- `Paths__*` were relative or not mounted - use a `/data` volume and absolute paths ([install.md](install.md))
+- Restored DB without restoring `Paths:Config` - sessions and OpenIddict keys no longer match
+
+### ffmpeg missing (non-Docker)
+
+Install ffmpeg or set `Paths__FFMpegBinaryFolder`. The official image already includes ffmpeg.
+
+### Hardware encoder test fails / playback stuck on nvenc
+
+Symptom: Admin -> Transcoding **Test encoder** fails with `Cannot load libcuda.so.1`, or logs show `Using video encoder h264_nvenc` then conversion failed. Capabilities used to list every encoder compiled into ffmpeg even when no GPU was present. K7 now only lists encoders that pass a verification encode.
+
+NVENC probes used to apply `scale_cuda` without a CUDA device context, so a working GPU was reported as missing (Aspire/local and Docker). The probe now encodes from system memory. Quality downscale stays on the GPU only when ffmpeg was built with `scale_cuda`.
+
+- `/dev/dri` enables **VAAPI** (Intel/AMD), not NVIDIA NVENC. For NVIDIA, use `gpus: all` (or the deploy reservations form) with nvidia-container-toolkit and set `NVIDIA_DRIVER_CAPABILITIES=compute,utility,video` - see [Operating - Hardware acceleration](operating.md#hardware-acceleration).
+- The K7 image needs VAAPI driver packages (included in current Dockerfiles). Rebuild or pull a recent image. Mounting `/dev/dri` alone is not enough if drivers are missing.
+- After changing devices or image, recreate the container so the probe runs again.
+- Temporary workaround: set encoder mode to **Software** in Admin -> Transcoding.
+- Debug inside the container: `vainfo` and logs containing `Hardware encoder h264_vaapi ... failed verification`.
+
+### Setup / login 500: antiforgery SecurePolicy Always
+
+Symptom in logs: `AntiforgeryOptions.Cookie.SecurePolicy = Always, but the current request is not an SSL request` (often on `/setup`).
+
+- Local HTTP (`http://localhost:7080`): set `Security__ForceHttps=false` (sample compose already does)
+- Behind a TLS reverse proxy: keep `Security__ForceHttps=true` and ensure the proxy sends `X-Forwarded-Proto: https` (private networks are trusted by default; set `Security__KnownProxies` only to override)
+
+### HTTPS redirect loops
+
+- Behind a proxy: ensure `X-Forwarded-Proto` is `https` (and that `TrustPrivateProxies` is true, or set `KnownProxies`)
+- Or temporarily set `Security__ForceHttps=false` on a trusted LAN while debugging
+- `Failed to determine the https port for redirect` is expected on the sample Docker stack (HTTP :7080 only). TLS belongs on the reverse proxy. K7 does not redirect to HTTPS in Production.
+
+### Native Windows login stays on /sign-in
+
+The Windows app opens the system browser. After a successful password sign-in the server must redirect back to `/connect/authorize?...` (that URL is in `ReturnUrl`). Current builds then send the tab to `/auth/complete` (same close message as TV device login) and that page opens `k7://callback/login`. If the browser never leaves `/sign-in?ReturnUrl=/connect/authorize...`, the app keeps spinning.
+
+A successful handoff writes `protocol-file` or `activated` then `protocol` then `authenticate-ready` then `login-complete` in `%LOCALAPPDATA%\K7\com.k7.maui\Data\k7-auth.log`. `login-start` then `challenge-ready` then a new `appdata=` line and nothing else means a second process started and never gave the code back to the waiting Sign in window.
+
+- Current Windows builds register `k7://` under the current user (`HKCU\SOFTWARE\Classes\k7`) at startup. Older builds waited on `http://localhost:{port}/` instead. The server still accepts both.
+- Use the same URL scheme the browser can store cookies on. `Security__ForceHttps=true` (default) issues Secure / `__Host-` cookies: they work on `https://` and on `http://localhost`, but **not** on `http://192.168.x.x` or other LAN hosts. Sample Compose sets `Security__ForceHttps=false` for plain HTTP on :7080.
+- Behind a TLS proxy, keep `ForceHttps=true` and send `X-Forwarded-Proto: https`. Nginx Proxy Manager does this by default when Force SSL is on and the proxy host is on a private IP (`TrustPrivateProxies`).
+- **Nginx Proxy Manager "Block Common Exploits":** can stay on. That rule 403s a raw `param=http://` (including `redirect_uri=http://localhost:{port}/` on older Windows clients). Current K7 re-encodes those authorize redirects. The `k7://` callback avoids that hop.
+
+### OIDC login fails
+
+- `BaseUrl` must match the public URL registered at the IdP
+- Redirect URI: `{BaseUrl}/api/authentication/callback/login/oidc`
+- Clock skew, wrong client secret, or `AutomaticAccountCreation=false` for a new user
+- Symptom `Challenge operations cannot be triggered from non-HTTPS endpoints`: plain HTTP needs `Security__ForceHttps=false`; behind TLS proxy keep `true` and ensure `X-Forwarded-Proto: https` (private proxies trusted by default)
+
+### Federation peer unreachable
+
+- Both `BaseUrl` values must be reachable from the other host
+- Feature flag enabled on both sides
+- TLS / private URL guards - [operating.md](operating.md#federation)
+
+### Setup page every time
+
+- Setup never completed, or database volume was wiped
+- Complete `/setup` or set `K7_ADMIN_USERNAME` (or `K7_ADMIN_EMAIL`) / `K7_ADMIN_PASSWORD`
+
+### Playback buffers or fails
+
+- Check Admin active streams / transcoder errors in logs
+- Disk full on `Paths:Transcoding`
+- Client quality too high - lower quality in the player
+- See also [Using K7 - When something goes wrong](../user/guide.md#when-something-goes-wrong)
+
+### Realtime monitor created no watches
+
+Logs: `Realtime monitor for library ... created no watches at /media/...`.
+
+- Confirm the path exists inside the container and scans find files (if the root is missing you get a different "root path unavailable" message).
+- Check the filesystem type: `findmnt -T /media/Series -o TARGET,FSTYPE,OPTIONS` inside the container. NFS/CIFS often cannot use inotify; disable realtime monitoring on that library and rely on Auto scan interval.
+- Compare with a library that starts successfully (`Started realtime monitor ...`): use the same mount style when possible.
+- For huge **local** trees only: raise host `fs.inotify.max_user_watches` if the recursive watcher fails. That does not fix zero watches on NFS.
+
+### Health endpoint
+
+`GET /alive` is liveness: the process is accepting HTTP (allowed during first-run). Docker
+Compose and the image `HEALTHCHECK` probe this path every 5s. `Now listening on :7080` in
+the logs is Kestrel binding. The container becomes `healthy` on the next successful `/alive`
+probe (not instantly). The 60s `start_period` only ignores failures while migrations and
+`chown` of `/data` still run. A success during that window marks the container healthy.
+
+`GET /health` is readiness: `/alive` plus an EF Core Postgres `CanConnect` check. Helm uses
+`/alive` for liveness and `/health` for readiness. A slow or blocked database makes `/health`
+fail while `/alive` still succeeds.

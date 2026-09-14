@@ -1,0 +1,147 @@
+/**
+ * K7 Theme initializer - runs before first Blazor render to avoid flash.
+ * Reads the saved theme from localStorage and applies it to <html>.
+ */
+(function () {
+    var theme = localStorage.getItem('k7-theme')
+        || window.__K7_DEFAULT_THEME__
+        || 'default-dark';
+    document.documentElement.setAttribute('data-theme', theme);
+
+    var themeColor = theme === 'default-light' ? '#e4e3d9' : '#0d0907';
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+        meta.setAttribute('content', themeColor);
+    }
+
+    var customCss = localStorage.getItem('k7-custom-css');
+    if (customCss) {
+        var style = document.createElement('style');
+        style.setAttribute('data-k7-custom', '');
+        style.textContent = customCss;
+        document.head.appendChild(style);
+    }
+})();
+
+window.K7 = window.K7 || {};
+
+window.K7.dismissPreload = function () {
+    var el = document.getElementById('preload');
+    if (!el) return;
+    el.style.opacity = '0';
+    el.style.pointerEvents = 'none';
+    setTimeout(function () { el.remove(); }, 400);
+};
+
+window.K7.getSavedTheme = function () {
+    return localStorage.getItem('k7-theme');
+};
+
+window.K7.clearSavedTheme = function () {
+    localStorage.removeItem('k7-theme');
+};
+
+window.K7.applyTheme = function (dataAttribute) {
+    document.documentElement.setAttribute('data-theme', dataAttribute);
+    localStorage.setItem('k7-theme', dataAttribute);
+    var themeColor = dataAttribute === 'default-light' ? '#e4e3d9' : '#0d0907';
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+        meta.setAttribute('content', themeColor);
+    }
+};
+
+window.K7.applyCustomCss = function (css) {
+    var existing = document.querySelector('style[data-k7-custom]');
+    if (existing) {
+        existing.textContent = css || '';
+    } else if (css) {
+        var style = document.createElement('style');
+        style.setAttribute('data-k7-custom', '');
+        style.textContent = css;
+        document.head.appendChild(style);
+    }
+    if (css) {
+        localStorage.setItem('k7-custom-css', css);
+    } else {
+        localStorage.removeItem('k7-custom-css');
+    }
+};
+
+window.K7.getBoundingRect = function (el) {
+    var r = el.getBoundingClientRect();
+    return { left: r.left, top: r.top, width: r.width, height: r.height };
+};
+
+window.K7.getViewportWidth = function () {
+    return window.innerWidth;
+};
+
+window.K7.clickById = function (id) {
+    var el = document.getElementById(id);
+    if (el) el.click();
+};
+
+window.K7.clickElement = function (el) {
+    if (el) el.click();
+};
+
+window.K7.decodeLoadedImage = function (img) {
+    if (!img) return Promise.resolve(false);
+    if (typeof img.decode !== 'function')
+        return Promise.resolve(true);
+    return img.decode().then(function () { return true; }).catch(function () { return true; });
+};
+
+window.K7.markImageDecoded = function (img) {
+    if (!img || img.dataset.k7Decoded === '1')
+        return;
+    var ready = function () {
+        if (img.dataset.k7Decoded === '1')
+            return;
+        img.dataset.k7Decoded = '1';
+        img.classList.add('k7-img-decoded');
+    };
+    var finish = function () {
+        window.K7.decodeLoadedImage(img).then(ready);
+    };
+    if (img.complete && img.naturalWidth > 0) {
+        finish();
+        return;
+    }
+    img.addEventListener('load', finish, { once: true });
+    img.addEventListener('error', ready, { once: true });
+};
+
+window.K7.preloadImage = function (url) {
+    if (!url) return Promise.resolve();
+    return new Promise(function (resolve) {
+        var img = new Image();
+        img.decoding = 'async';
+        var done = false;
+        var finish = function () {
+            if (done) return;
+            done = true;
+            resolve();
+        };
+        var afterLoad = function () {
+            window.K7.decodeLoadedImage(img).then(finish);
+        };
+        img.onload = afterLoad;
+        img.onerror = finish;
+        img.src = url;
+        if (img.complete && img.naturalWidth > 0)
+            afterLoad();
+    });
+};
+
+window.K7.preloadImages = function (urls) {
+    if (!urls || !urls.length) return Promise.resolve();
+    return Promise.all(urls.map(window.K7.preloadImage));
+};
+
+window.K7.openExternalUrl = function (url) {
+    if (!url) return false;
+    var opened = window.open(url, '_blank', 'noopener,noreferrer');
+    return !!opened;
+};

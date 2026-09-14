@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>K7.Tests.Helpers</RootNamespace>
+        <AssemblyName>K7.Tests.Helpers</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="NSubstitute" />
+        <PackageReference Include="NSubstitute.Analyzers.CSharp">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="nunit" />
+        <PackageReference Include="NUnit.Analyzers">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="NUnit3TestAdapter" />
+        <PackageReference Include="coverlet.collector" />
+        <PackageReference Include="AwesomeAssertions" />
+        <PackageReference Include="Respawn" />
+        <PackageReference Include="Testcontainers.PostgreSql" />
+        <!-- Force patched SSH.NET; Testcontainers still resolves an older vulnerable transitive. -->
+        <PackageReference Include="SSH.NET" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\src\Server\Application\K7.Server.Application.csproj" />
+      <ProjectReference Include="..\..\src\Server\Infrastructure\Database\Context\K7.Server.Infrastructure.Database.Context.csproj" />
+      <ProjectReference Include="..\..\src\Server\Web\K7.Server.Web.csproj" />
+    </ItemGroup>
+
+</Project>

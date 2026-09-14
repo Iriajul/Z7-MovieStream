@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="SeasonEpisode" xml:space="preserve"><value>S{0} E{1}</value></data>
+  <data name="Previous" xml:space="preserve"><value>Précédent</value></data>
+  <data name="Next" xml:space="preserve"><value>Suivant</value></data>
+  <data name="CastingAndCrew" xml:space="preserve"><value>Casting et equipe</value></data>
+  <data name="MoreEpisodes" xml:space="preserve"><value>Autres &#233;pisodes</value></data>
+  <data name="BackToSerie" xml:space="preserve"><value>Retour &#224; la s&#233;rie</value></data>
+  <data name="BackToSeason" xml:space="preserve"><value>Retour &#224; la saison</value></data>
+  <data name="MoreActions" xml:space="preserve"><value>Plus d'actions</value></data>
+  <data name="Overview" xml:space="preserve"><value>Synopsis</value></data>
+  <data name="ReIdentifyFileDialogTitle" xml:space="preserve"><value>Ré-identifier le fichier</value></data>
+  <data name="ReIdentifyFileSent" xml:space="preserve"><value>Ré-identification du fichier envoyée et en cours de traitement par le serveur en tâche de fond.</value></data>
+  <data name="NotFound" xml:space="preserve"><value>Épisode introuvable</value></data>
+</root>

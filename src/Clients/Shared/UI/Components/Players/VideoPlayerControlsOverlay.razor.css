@@ -1,0 +1,382 @@
+﻿.video-controls-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: auto;
+    touch-action: none;
+    /* Default transparent so Android/iOS MediaElement shows through the WebView.
+       Windows Video.js hit-testing alpha is applied via app.css (.windows-web-video). */
+    background-color: transparent;
+    color: white;
+    z-index: 100000;
+    outline: none;
+}
+
+.video-loading-indicator {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 100005;
+}
+
+/* Hide Video.js built-in spinner - K7 overlay owns buffering UX. */
+::deep .video-js .vjs-loading-spinner,
+::deep .video-js .vjs-big-play-button,
+::deep .video-js .vjs-loading-spinner:before,
+::deep .video-js .vjs-loading-spinner:after,
+::deep .vjs-waiting .vjs-loading-spinner,
+::deep .vjs-seeking .vjs-loading-spinner,
+::deep .vjs-loading-spinner {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+    .video-controls-overlay.controls-hidden::before {
+        opacity: 0;
+    }
+
+.hud-indicator {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(var(--hud-scale, 1));
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: var(--text-4xl);
+    font-weight: 600;
+    color: white;
+    background: rgba(0, 0, 0, 0.55);
+    padding: 0.6rem 1.4rem;
+    border-radius: 0.75rem;
+    z-index: 100010;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+    will-change: transform;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .hud-indicator {
+        transition: transform 0.12s linear;
+    }
+}
+
+.double-tap-ripple {
+    position: fixed;
+    top: 0;
+    width: 50%;
+    height: 100%;
+    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.15) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 100009;
+    animation: ripple-fade 0.4s ease-out forwards;
+}
+
+    .double-tap-ripple.left {
+        left: 0;
+    }
+
+    .double-tap-ripple.right {
+        right: 0;
+        left: auto;
+    }
+
+@keyframes ripple-fade {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+.brightness-overlay {
+    position: fixed;
+    inset: 0;
+    background: black;
+    pointer-events: none;
+    z-index: 100008;
+}
+
+.swipe-indicator {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 0.75rem;
+    color: white;
+    font-size: var(--text-base);
+    font-weight: 600;
+    z-index: 100010;
+    pointer-events: none;
+}
+
+    .swipe-indicator.left {
+        left: 1.5rem;
+    }
+
+    .swipe-indicator.right {
+        right: 1.5rem;
+    }
+
+.swipe-bar-container {
+    width: 4px;
+    height: 100px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+}
+
+.swipe-bar-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: white;
+    border-radius: 2px;
+}
+
+    .video-controls-overlay::before {
+        content: '';
+        --gradient-steps: hsl(0 0% 0% / 0) 0%, hsl(0 0% 0% / 0.013) 8.1%, hsl(0 0% 0% / 0.049) 15.5%, hsl(0 0% 0% / 0.104) 22.5%, hsl(0 0% 0% / 0.175) 29%, hsl(0 0% 0% / 0.259) 35.3%, hsl(0 0% 0% / 0.352) 41.2%, hsl(0 0% 0% / 0.45) 47.1%, hsl(0 0% 0% / 0.55) 52.9%, hsl(0 0% 0% / 0.648) 58.8%, hsl(0 0% 0% / 0.741) 64.7%, hsl(0 0% 0% / 0.825) 71%, hsl(0 0% 0% / 0.896) 77.5%, hsl(0 0% 0% / 0.951) 84.5%, hsl(0 0% 0% / 0.987) 91.9%, hsl(0 0% 0%) 100%;
+        position: absolute;
+        inset: 0;
+        opacity: 0.7;
+        transition: opacity 0.3s ease-in-out;
+        background: linear-gradient(to bottom, var(--gradient-steps));
+        z-index: 99999;
+        pointer-events: none;
+    }
+
+.controls-bar {
+    position: absolute;
+    color: white;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    transition: opacity 0.3s ease-in-out;
+    pointer-events: auto;
+    z-index: 100005;
+    overflow: visible;
+}
+
+    .video-controls-overlay.controls-hidden .controls-bar {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    /* While seekbar scrub is active, keep the bottom bar painted even if Blazor has not
+       flipped controls-visible yet (JS forces the class; avoid opacity:0 scrub previews). */
+    .video-controls-overlay.controls-hidden.seekbar-scrubbing .controls-bar.bottom {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .controls-bar.top {
+        top: 0;
+        justify-content: flex-start;
+        padding-top: calc(0.5rem + var(--k7-safe-top));
+        padding-left: calc(0.5rem + var(--k7-safe-left));
+        padding-right: calc(0.5rem + var(--k7-safe-right));
+    }
+
+.controls-bar-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.video-player-media-title {
+    font-size: var(--text-lg);
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    flex: 1;
+    min-width: 0;
+}
+
+    .controls-bar.bottom {
+        bottom: 0;
+        padding-bottom: calc(0.5rem + var(--k7-safe-bottom));
+        padding-left: calc(0.5rem + var(--k7-safe-left));
+        padding-right: calc(0.5rem + var(--k7-safe-right));
+    }
+
+    .controls-bar select {
+        background: var(--video-controls-btn-bg, #ffffff22);
+        border: none;
+        color: var(--player-text-color, white);
+        padding: 0.3rem 0.6rem;
+        border-radius: 0.3rem;
+    }
+
+/* ::deep .controls-bar .k7-btn:focus-visible,
+::deep .controls-bar .k7-btn:focus,
+::deep .controls-bar .k7-icon-btn:focus-visible,
+::deep .controls-bar .k7-icon-btn:focus,
+::deep .controls-bar .k7-toggle-btn:focus-visible,
+::deep .controls-bar .k7-toggle-btn:focus {
+    outline: 2px solid white;
+    outline-offset: 2px;
+    background-color: rgba(255, 255, 255, 0.15);
+} */
+
+::deep .controls-bar .seekbar-container:focus,
+::deep .controls-bar .seekbar-container:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 2px;
+}
+
+::deep .controls-bar .k7-icon-btn:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.video-controls-overlay:focus-visible {
+    outline: none;
+    box-shadow: none;
+}
+
+.time-display {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    min-width: max-content;
+}
+
+.volume-control {
+    position: relative;
+}
+
+.volume-slider-popover {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0;
+    border-radius: 1rem;
+    background: rgba(30, 30, 30, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    touch-action: none;
+    user-select: none;
+    z-index: 100010;
+    overflow: hidden;
+}
+
+.volume-slider-container {
+    position: relative;
+    height: min(15rem, 30vh);
+    width: 3rem;
+    touch-action: none;
+    user-select: none;
+}
+
+    .volume-slider-container::before, .volume-slider-container::after {
+        display: block;
+        position: absolute;
+        z-index: 99;
+        color: #fff;
+        width: 100%;
+        text-align: center;
+        font-size: var(--text-2xl);
+        line-height: 1;
+        padding: 0.75rem 0;
+        pointer-events: none;
+    }
+
+    .volume-slider-container::before {
+        content: "+";
+    }
+
+    .volume-slider-container::after {
+        content: "−";
+        bottom: 0;
+    }
+
+.controls-bar-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.controls-bar-left,
+.controls-bar-right {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.controls-bar-seek {
+    flex: 1;
+    min-width: 0;
+    overflow: visible;
+}
+
+/* K7Slider range input (.k7-range, from K7Slider.razor): rotated and repositioned to act as
+   a vertical volume slider. Only -webkit-appearance needs !important here, to reliably defeat
+   Safari/WebKit's native input[type=range] chrome; the rest just need to beat the plain
+   .k7-range rule in components.css, which this two-class selector already outranks. */
+::deep .volume-slider .k7-range {
+    -webkit-appearance: none !important;
+    background-color: rgba(255, 255, 255, 0.2);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin: 0;
+    padding: 0;
+    width: min(15rem, 30vh);
+    height: 3rem;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    border-radius: 1rem;
+    cursor: row-resize;
+}
+
+::deep .k7-slider-wrap.volume-slider {
+    position: absolute;
+    inset: 0;
+    contain: paint;
+    overflow: hidden;
+    border-radius: 1rem;
+}
+
+/* Track/thumb pseudo-elements: !important is intentional here to fully suppress the
+   browser's native input[type=range] track and thumb rendering (WebKit/Firefox will
+   otherwise keep drawing their own groove and handle on top of these styles). */
+::deep .volume-slider .k7-range::-webkit-slider-runnable-track {
+    background: transparent !important;
+    height: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+::deep .volume-slider .k7-range::-moz-range-track {
+    background: transparent !important;
+    height: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+::deep .volume-slider .k7-range::-webkit-slider-thumb {
+    -webkit-appearance: none !important;
+    width: 0 !important;
+    box-shadow: calc(-1 * min(15rem, 50vh)) 0 0 min(15rem, 50vh) rgba(255, 255, 255, 0.2) !important;
+}
+
+::deep .volume-slider .k7-range::-moz-range-thumb {
+    border: none !important;
+    width: 0 !important;
+    box-shadow: calc(-1 * min(15rem, 50vh)) 0 0 min(15rem, 50vh) rgba(255, 255, 255, 0.2) !important;
+}

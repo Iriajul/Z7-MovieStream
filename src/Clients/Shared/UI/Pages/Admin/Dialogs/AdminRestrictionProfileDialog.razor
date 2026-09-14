@@ -1,0 +1,31 @@
+@using K7.Shared.Dtos.Rules
+@using K7.Clients.Shared.UI.Components.Dialogs
+@inject IUserAdminService K7ServerService
+@inject IMediaService MediaService
+@inject IK7Snackbar Snackbar
+@inject IStringLocalizer<AdminRestrictionProfileDialog> L
+@inject IStringLocalizer<DynamicPlaylistDialog> SpL
+@inject IStringLocalizer<LibraryBrowseFilters> BrowseL
+@inject IStringLocalizer<SharedResource> S
+
+<div class="k7-dialog-content">
+    <div class="d-flex flex-col">
+        <K7TextField @bind-Value="_name" Label="@L["NameLabel"]" Required="true" Variant="outlined" />
+        <K7TextField @bind-Value="_description" Label="@L["DescriptionLabel"]" Variant="outlined" Lines="2" />
+
+        <p class="text-subtitle2 mt-2">@L["RulesHelper"]</p>
+
+        <K7RuleEditor Value="_ruleFilter"
+                      ValueChanged="OnRuleFilterChanged"
+                      FieldDescriptors="_fieldDescriptors"
+                      SearchSuggestionsAsync="SearchSuggestionsAsync" />
+    </div>
+</div>
+<div class="k7-dialog-actions">
+    <K7Button OnClick="Cancel">@S["Cancel"]</K7Button>
+    <K7Button Color="primary" Variant="filled" OnClick="SubmitAsync"
+               Disabled="@(string.IsNullOrWhiteSpace(_name) || _ruleFilter.Items.Count == 0 || _saving)">
+        @if (_saving) { <K7Spinner Size="sm" /> }
+        @S["Save"]
+    </K7Button>
+</div>

@@ -1,0 +1,9 @@
+@page "/settings/track-selection"
+@inject NavigationManager NavigationManager
+
+@code {
+    protected override void OnInitialized()
+    {
+        NavigationManager.NavigateTo("/settings/video-playback#tracks", replace: true);
+    }
+}

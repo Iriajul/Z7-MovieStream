@@ -1,0 +1,58 @@
+.k7-virtual-list {
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    flex: 1;
+    padding: 0 16px 16px;
+}
+
+.k7-virtual-list-item {
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: var(--radius-sm);
+}
+
+.k7-virtual-list-item--alt {
+    background: var(--color-surface-variant, color-mix(in srgb, var(--color-text) 3%, transparent));
+}
+
+.k7-virtual-list-item:hover,
+.k7-virtual-list-item--alt:hover {
+    background: var(--color-surface-hover);
+}
+
+.k7-virtual-list-item:focus-within {
+    outline: none;
+}
+
+.k7-virtual-list-placeholder {
+    position: relative;
+    background: transparent;
+    border-radius: var(--radius-sm);
+}
+
+.k7-virtual-list-placeholder-focus {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    outline: none;
+}
+
+.k7-virtual-list-placeholder-focus:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+@media (max-width: 599.98px) {
+    .k7-virtual-list {
+        padding: var(--space-3);
+    }
+}
+
+:global(html.platform-tv) .k7-virtual-list-item:hover {
+    background: none;
+}
+
+:global(html.platform-tv) .k7-virtual-list-item--alt:hover {
+    background: var(--color-surface-variant, color-mix(in srgb, var(--color-text) 3%, transparent));
+}

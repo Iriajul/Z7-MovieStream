@@ -1,0 +1,72 @@
+@page "/explore"
+@layout ExploreLayout
+@using K7.Clients.Shared.Helpers
+@using K7.Clients.Shared.Interfaces
+@using K7.Server.Domain.Enums
+@inject ILibraryService LibraryService
+@inject IStringLocalizer<ExplorePage> L
+@inject NavigationManager NavigationManager
+
+<PageTitle>@PageTitleText</PageTitle>
+
+@if (LibraryGroupId.HasValue)
+{
+    @* Group feed content is hosted by FeedHubPageHost (keep-alive). *@
+}
+else if (_loading)
+{
+    <div class="explore-page page-scrollable">
+        <div class="d-flex flex-col pa-16">
+            <K7Spinner />
+        </div>
+    </div>
+}
+else if (_libraryGroups.Count == 0)
+{
+    <div class="explore-page page-scrollable">
+        <K7EmptyState Icon="@Phosphor.FilmSlate" Title="@L["EmptyStateTitle"]" Subtitle="@L["EmptyStateSubtitle"]" />
+    </div>
+}
+else
+{
+    <div class="explore-page page-scrollable">
+        <section class="explore-groups">
+            @foreach (var group in _libraryGroups)
+            {
+                var (gs, ge, ic) = LibraryGroupCardColors.GetRgbaColors(group);
+                var icon = !string.IsNullOrEmpty(group.Icon) ? group.Icon : GetLibraryIconName(group.MediaType);
+                var imageUrl = group.CoverPictureId.HasValue ? $"/api/metadata-pictures/{group.CoverPictureId}?size=Medium" : null;
+                <K7CategoryCard @key="group.Id"
+                                Title="@group.Title"
+                                Description="@(group.Description ?? "")"
+                                Icon="@icon"
+                                GradientStart="@gs"
+                                IconColor="@ic"
+                                ImageUrl="@imageUrl"
+                                CardColor="@group.CardColor"
+                                Class="k7-category-card--lg"
+                                ContextMenuTitle="@group.Title"
+                                OnClick="@(() => OnCategoryClick(group.Id))">
+                    <ContextMenu>
+                        <K7MenuItem Icon="rows" OnClick="@(() => NavigateToGroup(group.Id, ExploreTapAction.Suggestions))">
+                            @L["ExploreTapSuggestions"]
+                        </K7MenuItem>
+                        <K7MenuItem Icon="squares-four" OnClick="@(() => NavigateToGroup(group.Id, ExploreTapAction.Browse))">
+                            @L["ExploreTapBrowse"]
+                        </K7MenuItem>
+                    </ContextMenu>
+                </K7CategoryCard>
+            }
+            @if (_showSocialDirectory)
+            {
+                <K7CategoryCard Title="@L["OtherUsers"]"
+                                Description="@L["OtherUsersDesc"]"
+                                Icon="users"
+                                GradientStart="rgba(60,40,80,0.85)"
+                                IconColor="rgba(120,80,160,0.6)"
+                                Class="k7-category-card--lg"
+                                OnClick="@(() => NavigationManager.NavigateTo("/users"))" />
+            }
+        </section>
+    </div>
+}

@@ -1,0 +1,54 @@
+@page "/settings/social"
+@layout SettingsLayout
+@using K7.Server.Domain.Enums
+@using K7.Shared.Dtos.Federation.Social
+@inject IStringLocalizer<SettingsSocialPage> L
+@inject IStringLocalizer<SharedResource> S
+@inject IReviewService ReviewService
+@inject IK7Snackbar Snackbar
+
+<PageTitle>@L["Title"]</PageTitle>
+
+<h4>@L["Title"]</h4>
+
+@if (_loading)
+{
+    <K7ProgressBar Indeterminate="true" />
+}
+else
+{
+    <div class="settings-form-page">
+        <div class="settings-form-page__body pa-4 d-flex flex-col gap-4">
+            <K7Alert Severity="K7Severity.Info" Variant="outlined" NoIcon="true">
+                @L["FederationDirectPeersNote"]
+            </K7Alert>
+
+            <section class="settings-section d-flex flex-col gap-3">
+                <h6 class="mb-0">@L["ShareTitle"]</h6>
+                <FederationPrivacyScopeField Label="@L["Reviews"]" ContentType="@FederationContentType.Reviews" Value="_privacy.Share.Reviews" ValueChanged="@(v => SetShareScope(FederationContentType.Reviews, v, share: true))" Grants="_shareGrants" GrantsChanged="OnShareGrantsChanged" FormChanged="OnFormChanged" />
+                <FederationPrivacyScopeField Label="@L["Collections"]" ContentType="@FederationContentType.Collections" Value="_privacy.Share.Collections" ValueChanged="@(v => SetShareScope(FederationContentType.Collections, v, share: true))" Grants="_shareGrants" GrantsChanged="OnShareGrantsChanged" FormChanged="OnFormChanged" />
+                <FederationPrivacyScopeField Label="@L["Playlists"]" ContentType="@FederationContentType.Playlists" Value="_privacy.Share.Playlists" ValueChanged="@(v => SetShareScope(FederationContentType.Playlists, v, share: true))" Grants="_shareGrants" GrantsChanged="OnShareGrantsChanged" FormChanged="OnFormChanged" />
+                <FederationPrivacyScopeField Label="@L["DynamicPlaylists"]" ContentType="@FederationContentType.DynamicPlaylists" Value="_privacy.Share.DynamicPlaylists" ValueChanged="@(v => SetShareScope(FederationContentType.DynamicPlaylists, v, share: true))" Grants="_shareGrants" GrantsChanged="OnShareGrantsChanged" FormChanged="OnFormChanged" />
+                <FederationPrivacyScopeField Label="@L["PlaybackHistory"]" ContentType="@FederationContentType.PlaybackHistory" Value="_privacy.Share.PlaybackHistory" ValueChanged="@(v => SetShareScope(FederationContentType.PlaybackHistory, v, share: true))" Grants="_shareGrants" GrantsChanged="OnShareGrantsChanged" FormChanged="OnFormChanged" />
+            </section>
+
+            <hr class="k7-divider" />
+
+            <section class="settings-section d-flex flex-col gap-3">
+                <h6 class="mb-0">@L["ViewTitle"]</h6>
+                <K7Switch @bind-Value="_reviewPreferences.BlurReviewsForUnwatchedMedia" Label="@L["BlurReviewsForUnwatchedMedia"]" />
+                <FederationPrivacyScopeField Label="@L["Reviews"]" ContentType="@FederationContentType.Reviews" Value="_privacy.View.Reviews" ValueChanged="@(v => SetShareScope(FederationContentType.Reviews, v, share: false))" Grants="_viewGrants" GrantsChanged="OnViewGrantsChanged" FormChanged="OnFormChanged" />
+                <FederationPrivacyScopeField Label="@L["Collections"]" ContentType="@FederationContentType.Collections" Value="_privacy.View.Collections" ValueChanged="@(v => SetShareScope(FederationContentType.Collections, v, share: false))" Grants="_viewGrants" GrantsChanged="OnViewGrantsChanged" FormChanged="OnFormChanged" />
+                <FederationPrivacyScopeField Label="@L["Playlists"]" ContentType="@FederationContentType.Playlists" Value="_privacy.View.Playlists" ValueChanged="@(v => SetShareScope(FederationContentType.Playlists, v, share: false))" Grants="_viewGrants" GrantsChanged="OnViewGrantsChanged" FormChanged="OnFormChanged" />
+                <FederationPrivacyScopeField Label="@L["DynamicPlaylists"]" ContentType="@FederationContentType.DynamicPlaylists" Value="_privacy.View.DynamicPlaylists" ValueChanged="@(v => SetShareScope(FederationContentType.DynamicPlaylists, v, share: false))" Grants="_viewGrants" GrantsChanged="OnViewGrantsChanged" FormChanged="OnFormChanged" />
+                <FederationPrivacyScopeField Label="@L["PlaybackHistory"]" ContentType="@FederationContentType.PlaybackHistory" Value="_privacy.View.PlaybackHistory" ValueChanged="@(v => SetShareScope(FederationContentType.PlaybackHistory, v, share: false))" Grants="_viewGrants" GrantsChanged="OnViewGrantsChanged" FormChanged="OnFormChanged" />
+            </section>
+        </div>
+
+        <K7SettingsActionBar IsDirty="IsDirty"
+                             IsSaving="_saving"
+                             ShowResetToDefaults="false"
+                             OnSave="SaveAsync"
+                             OnCancel="CancelChanges" />
+    </div>
+}

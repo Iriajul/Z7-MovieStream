@@ -1,0 +1,60 @@
+{
+  "profiles": {
+    "K7.Server.Web": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:7443;http://localhost:7080"
+    },
+    "K7.Server.Web.Wasm": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "https://localhost:7443",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "dotnetRunMessages": true,
+      "inspectUri": "{wsProtocol}://{url.hostname}:{url.port}/_framework/debug/ws-proxy?browser={browserInspectUri}",
+      "applicationUrl": "https://localhost:7443;http://localhost:7080",
+      "nativeDebugging": false
+    },
+    "IIS Express": {
+      "commandName": "IISExpress",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "Docker": {
+      "commandName": "Docker",
+      "launchBrowser": true,
+      "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_HTTPS_PORTS": "7443",
+        "ASPNETCORE_HTTP_PORTS": "7080",
+        "Database__Provider": "Postgres",
+        "Database__UserID": "postgres",
+        "Database__Password": "postgres",
+        "Database__Server": "host.docker.internal",
+        "Database__Port": "5432",
+        "Database__Name": "K7",
+        "Paths__Metadatas": "/k7/metadatas",
+        "Paths__Logs": "/k7/logs",
+        "Paths__Transcoding": "/k7/transcoding"
+      },
+      "publishAllPorts": true,
+      "useSSL": true
+    }
+  },
+  "iisSettings": {
+    "windowsAuthentication": false,
+    "anonymousAuthentication": true,
+    "iisExpress": {
+      "applicationUrl": "http://localhost:61846",
+      "sslPort": 44312
+    }
+  }
+}

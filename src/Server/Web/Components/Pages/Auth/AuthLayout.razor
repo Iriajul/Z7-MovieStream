@@ -1,0 +1,29 @@
+@inherits LayoutComponentBase
+@using K7.Clients.Shared.UI
+@using K7.Clients.Shared.UI.Components
+@inject NavigationManager Navigation
+
+<div class="auth-layout @(IsWelcome ? "auth-layout--welcome" : null)">
+    @if (!IsWelcome)
+    {
+        <AuthBackdrop />
+    }
+    <div class="auth-layout__content">
+        @if (!IsWelcome)
+        {
+            <div class="auth-layout__logo">
+                <K7Icon Icon="@K7Brand.Logo" aria-hidden="true" />
+            </div>
+        }
+        @Body
+    </div>
+</div>
+
+<HeadContent>
+    <link rel="modulepreload" href="@Assets["_framework/blazor.web.js"]" />
+</HeadContent>
+
+@code {
+    // The welcome page draws its own full-bleed header and logo.
+    private bool IsWelcome => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("welcome", StringComparison.OrdinalIgnoreCase);
+}

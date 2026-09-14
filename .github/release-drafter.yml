@@ -1,0 +1,81 @@
+name-template: 'K7 v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+version-template: '$MAJOR.$MINOR.$PATCH'
+change-template: '- $TITLE @$AUTHOR ([#$NUMBER]($URL))'
+no-changes-template: '- No changes'
+no-new-contributor-template: 'No new contributors'
+template: |
+  ## Breaking changes
+
+  _None listed in this draft. Move any breaking items here if needed, or replace with "None"._
+
+  ## Highlights
+
+  <!-- Add 1-3 highlight bullets before publishing -->
+
+  ## Changes
+
+  $CHANGES
+
+  ## Artifacts
+
+  - **Docker:** `z7-server:$RESOLVED_VERSION` (build locally)
+  - **Android:** `K7-$RESOLVED_VERSION-android.apk`
+  - **Windows:** `K7-$RESOLVED_VERSION-win-x64.zip`
+  - **iOS:** `K7-$RESOLVED_VERSION-ios-sideload.ipa` (AltStore source: `apps.json`)
+
+  ## New contributors
+
+  $NEW_CONTRIBUTORS
+
+categories:
+  - title: 'Breaking Changes'
+    labels:
+      - 'breaking-change'
+  - title: 'Features'
+    labels:
+      - 'enhancement'
+  - title: 'Bug Fixes'
+    labels:
+      - 'bug'
+  - title: 'Documentation'
+    labels:
+      - 'documentation'
+  - title: 'Miscellaneous'
+    labels:
+      - 'chore'
+
+exclude-labels:
+  - 'skip-changelog'
+
+version-resolver:
+  major:
+    labels:
+      - 'breaking-change'
+  minor:
+    labels:
+      - 'enhancement'
+  patch:
+    labels:
+      - 'bug'
+      - 'chore'
+      - 'documentation'
+
+autolabeler:
+  - label: 'breaking-change'
+    title:
+      - '/^.+!(\(.+\))?:/i'
+    body:
+      - '/BREAKING CHANGE:/i'
+  - label: 'enhancement'
+    title:
+      - '/^feat(\(.+\))?:/i'
+  - label: 'bug'
+    title:
+      - '/^fix(\(.+\))?:/i'
+  - label: 'documentation'
+    title:
+      - '/^docs(\(.+\))?:/i'
+  - label: 'chore'
+    title:
+      - '/^(chore|ci|build|refactor|perf|test)(\(.+\))?:/i'

@@ -1,0 +1,29 @@
+using K7.Shared.Dtos;
+
+namespace K7.Server.Application.Common.Interfaces;
+
+public record MusicIntelligenceConnectionResult(bool Success, string? Version = null, string? Error = null);
+
+public interface IMusicIntelligenceService
+{
+    Task<MusicIntelligenceConnectionResult> TestConnectionAsync(
+        MusicIntelligenceSettingsDto? draftSettings = null,
+        CancellationToken cancellationToken = default);
+    /// <summary>True when music intelligence is configured and enabled in settings.</summary>
+    Task<bool> IsEnabledAsync(CancellationToken cancellationToken = default);
+    /// <summary>True when enabled and AudioMuse is currently reachable.</summary>
+    Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default);
+    Task<MusicIntelligenceStatusDto> GetStatusAsync(CancellationToken cancellationToken = default);
+    Task<List<MusicIntelligenceTrackMatchDto>> GetSimilarTracksAsync(Guid trackId, int count = 20, string? title = null, string? artist = null, CancellationToken cancellationToken = default);
+    Task<List<Guid>> GetMoodTracksAsync(string moodKey, int centroidIndex, int count = 50, CancellationToken cancellationToken = default);
+    Task<List<Guid>> GetDiscoveryTracksAsync(int count = 50, CancellationToken cancellationToken = default);
+    Task<List<Guid>> GetSonicPathAsync(Guid fromId, Guid toId, CancellationToken cancellationToken = default);
+    Task<List<Guid>> CreatePlaylistFromPromptAsync(string prompt, int count = 30, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MusicSimilarArtistMatchDto>> GetSimilarArtistsAsync(
+        Guid artistId,
+        string? artistName,
+        int count = 12,
+        CancellationToken cancellationToken = default);
+    Task<List<Guid>> SearchTracksBySonicTextAsync(string query, int count = 50, CancellationToken cancellationToken = default);
+    Task<List<Guid>> SearchTracksByLyricsAsync(string query, int count = 50, CancellationToken cancellationToken = default);
+}

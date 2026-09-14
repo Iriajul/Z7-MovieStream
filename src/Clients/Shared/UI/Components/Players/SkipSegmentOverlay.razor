@@ -1,0 +1,19 @@
+@inject IStringLocalizer<SkipSegmentOverlay> L
+
+@if (_visible && _activeSegment is not null)
+{
+    <div @key="@($"{_loadedMediaId}:{_activeSegment.StartMs}:{_activeSegment.Type}")"
+         class="skip-overlay @(ControlsVisible ? "persistent" : "")">
+        <K7Button Color="primary" OnClick="SkipSegment" StartIcon="@Phosphor.SkipForward">
+            @(_activeSegment.Type == K7.Shared.Enums.MediaSegmentType.Intro ? L["SkipIntro"] : L["SkipOutro"])
+        </K7Button>
+    </div>
+}
+
+@if (_showSkippedNotification)
+{
+    <div class="skip-notification">
+        <K7Icon Name="@Phosphor.SkipForward"  IconSize="@K7IconSize.Sm" />
+        <span>@(_skippedSegmentType == K7.Shared.Enums.MediaSegmentType.Intro ? L["IntroSkipped"] : L["OutroSkipped"])</span>
+    </div>
+}

@@ -1,0 +1,49 @@
+@using K7.Server.Domain.Enums
+@inject IStringLocalizer<LibraryProcessingSettingsSection> L
+
+@if (ShowAny)
+{
+    <div class="d-flex flex-col gap-3">
+        @if (ShowSectionTitle)
+        {
+            <h6 class="edit-library-section__title">@(SectionTitle ?? L["SectionTitle"])</h6>
+        }
+
+        @if (LibraryProcessingSettingsDto.ShowIntroDetection(MediaType))
+        {
+            <K7Switch Label="@L["IntroDetection"]" Value="IntroDetectionEnabled" ValueChanged="OnIntroDetectionChangedAsync" Disabled="Disabled" />
+            <span class="text-caption" style="color: var(--color-text-muted);">@L["IntroDetectionDescription"]</span>
+        }
+
+        @if (LibraryProcessingSettingsDto.ShowThemeSongGeneration(MediaType))
+        {
+            <K7Switch Label="@L["ThemeSongGeneration"]"
+                      Value="ThemeSongGenerationEnabled && IntroDetectionEnabled"
+                      ValueChanged="OnThemeSongGenerationChangedAsync"
+                      Disabled="Disabled || !IntroDetectionEnabled" />
+            <span class="text-caption" style="color: var(--color-text-muted);">@L["ThemeSongGenerationDescription"]</span>
+        }
+
+        @if (LibraryProcessingSettingsDto.ShowSeekbarThumbnails(MediaType))
+        {
+            <K7Switch Label="@L["SeekbarThumbnails"]" @bind-Value="SeekbarThumbnailGenerationEnabled" Disabled="Disabled" />
+        }
+
+        @if (LibraryProcessingSettingsDto.ShowChapterExtraction(MediaType))
+        {
+            <K7Switch Label="@L["ChapterExtraction"]" @bind-Value="ChapterExtractionEnabled" Disabled="Disabled" />
+            <span class="text-caption" style="color: var(--color-text-muted);">@L["ChapterExtractionDescription"]</span>
+        }
+
+        @if (LibraryProcessingSettingsDto.ShowMusicAudioAnalysis(MediaType))
+        {
+            <K7Switch Label="@L["MusicAudioAnalysis"]" @bind-Value="MusicAudioAnalysisEnabled" Disabled="Disabled" />
+        }
+
+        @if (LibraryProcessingSettingsDto.ShowTranscodeOptions(MediaType))
+        {
+            <K7Switch Label="@L["Transcoding"]" @bind-Value="TranscodingEnabled" Disabled="Disabled" />
+            <K7Switch Label="@L["Transmuxing"]" @bind-Value="TransmuxingEnabled" Disabled="Disabled" />
+        }
+    </div>
+}

@@ -1,0 +1,224 @@
+@using K7.Clients.Shared.Enums
+@using K7.Clients.Shared.Mappings
+@using K7.Clients.Shared.UI.Helpers
+@using K7.Server.Domain.Enums
+@using K7.Shared.Dtos.Entities.Medias
+@inject IMediaService k7ServerService
+@inject IK7ServerService apiClient
+@inject IStringLocalizer<LibraryGroup> L
+@inject IStringLocalizer<SharedResource> S
+
+<PageTitle>@string.Format(L["PageTitle"].Value, Id)</PageTitle>
+
+<BrowseView TItem="LiteMediaDto"
+            ItemsProvider="ProvideMediasAsync"
+            TotalItemCount="EffectiveTotalCount"
+            Loading="_loading || _intelligentSearchLoading"
+            @ref="_browseView"
+            PersistenceKey="@($"library-{Id}")"
+            DefaultItemWidth="@GridItemWidth"
+            DefaultSpacing="24"
+            GridFooterHeight="GridFooterHeight"
+            DefaultMode="_browseViewMode"
+            DisableViewModePersistence="true"
+            ViewModeChanged="OnBrowseViewModeChanged"
+            Class="library-group-browse"
+            GridItemAspectRatio="GridAspectRatio"
+            GridCardVariant="GridCardVariant"
+            OverscanCount="_overscanCount"
+            MaxColumnCount="TvMaxColumnCount"
+            JumpIndexLabels="JumpLabels"
+            OnJumpRequested="OnJumpRequested"
+            OnColumnPickerRequested="OnColumnPickerRequested">
+    <ToolbarContent>
+        <div class="library-toolbar-filters">
+            @if (_availableMediaTypes.Count > 1)
+            {
+                <div class="library-toolbar-media-type">
+                    <K7ButtonGroup TValue="MediaType"
+                                   Options="_mediaTypeOptions"
+                                   Value="_selectedMediaType"
+                                   ValueChanged="OnMediaTypeFilterChanged"
+                                   AriaLabel="@L["MediaTypeFilter"]" />
+                </div>
+            }
+            <div class="library-toolbar-selects">
+                <K7Select TValue="MediaOrderingOption" Class="library-toolbar-sort" Value="_selectedSort" ValueChanged="OnSortChanged">
+                    @foreach (var opt in SortOptions)
+                    {
+                        <K7SelectItem Value="@opt" Text="@GetSortLabel(opt)">@GetSortLabel(opt)</K7SelectItem>
+                    }
+                </K7Select>
+                <LibraryBrowseFilters Tags="_tags"
+                                       LibraryIds="_libraryIds?.ToArray()"
+                                       LibraryGroupIds="_libraryGroupIds"
+                                       Filter="_filter"
+                                       FilterChanged="OnFilterChanged"
+                                       ActiveIntelligentSearch="_intelligentSearch"
+                                       IntelligentSearchChanged="OnIntelligentSearchChanged"
+                                       MediaType="_selectedMediaType"
+                                       ShowWatchFilters="_showWatchFilters"
+                                       ShowContentSourceFilter="_showContentSourceFilter"
+                                       ContentSourceOptions="_contentSourceOptions"
+                                       SelectedContentSource="_selectedContentSource"
+                                       ContentSourceChanged="OnContentSourceChanged" />
+            </div>
+        </div>
+        <div class="library-toolbar-meta">
+            @if (_showMusicPlaybackActions || _showCreateDynamicPlaylist)
+            {
+                <div class="library-toolbar-trailing">
+                    @if (_showMusicPlaybackActions)
+                    {
+                        <div class="library-toolbar-playback">
+                            <K7IconButton Icon="@Phosphor.Play"
+                                          Class="library-toolbar-playback__btn"
+                                          Disabled="!_canPlayMusic"
+                                          OnClick="PlayAllAsync"
+                                          AriaLabel="@S["PlayAll"]" />
+                            <K7IconButton Icon="@Phosphor.Shuffle"
+                                          Class="library-toolbar-playback__btn"
+                                          Disabled="!_canPlayMusic"
+                                          OnClick="ShuffleAllAsync"
+                                          AriaLabel="@S["Shuffle"]" />
+                        </div>
+                    }
+                    @if (_showCreateDynamicPlaylist)
+                    {
+                        <K7Button Variant="outlined"
+                                  Class="library-toolbar-smart-playlist"
+                                  StartIcon="@Phosphor.Sparkle"
+                                  OnClick="CreateDynamicPlaylistFromBrowseAsync"
+                                  AdditionalAttributes="CreateDynamicPlaylistButtonAttributes" />
+                    }
+                </div>
+            }
+            <K7ResultCount Count="_totalCount" />
+        </div>
+    </ToolbarContent>
+    <GridTemplate Context="item">
+        @{
+            var vm = GetGridCardViewModel(item);
+        }
+        @if (item is UnloadedBrowseItem unloaded)
+        {
+            <div class="k7-virtual-grid-placeholder-focus focusable"
+                 tabindex="0"
+                 role="presentation"
+                 aria-busy="true"
+                 @onfocus="@CreateUnloadedSlotFocusCallback(unloaded.SlotIndex)"></div>
+        }
+        else if (vm is not null)
+        {
+            <MediaCard Model="vm"
+                       ElementId="@GetCardElementId(item)"
+                       Variant="@GetVariant(item)"
+                       Href="@GetItemHref(item)"
+                       OverlayEnabled="true"
+                       ProgressEnabled="true"
+                       WatchedStatusEnabled="true"
+                       WatchStateMenuEnabled="_canSetWatchState"
+                       FooterVisible="true"
+                       ImageLoading="lazy"
+                       PlaceholderIcon="@GetGridPlaceholderIcon(item)"
+                       OnFocused="@CreateSilentCardFocusCallback(item)" />
+        }
+    </GridTemplate>
+    <TableContent>
+        <K7DataTable TItem="LiteMediaDto"
+                     @key="_tableScopeKey"
+                     ServerData="LoadTableDataAsync"
+                     ActiveSortKey="@_activeSortKey"
+                     ActiveSortDirection="@_activeSortDirection"
+                     OnSortChanged="OnTableSortChanged"
+                     OnRowClick="NavigateToItem"
+                     RowHeight="56"
+                     ShowToolbar="false"
+                     Surface="false"
+                     @ref="_dataTable">
+            <K7DataColumn TItem="LiteMediaDto" Title="@L["Title"]" SortKey="title" Hideable="false">
+                <CellTemplate Context="item">
+                    <LibraryTableMediaTitle ImageUrl="@GetTableThumbUrl(item)"
+                                            MediaType="@_selectedMediaType.ToString()"
+                                            Title="@item.Title" />
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="LiteMediaDto" Title="@L["Year"]" SortKey="releaseDate" Width="80px" VisibleOnMobile="false" Property="item => item.ReleaseDate?.Year" />
+            <K7DataColumn TItem="LiteMediaDto" Title="@L["Rating"]" SortKey="localRating" Width="120px" VisibleOnMobile="false">
+                <CellTemplate Context="item">
+                    <div class="library-table-stars" @onclick:stopPropagation="true">
+                        <RatingStars MediaId="item.Id" Value="item.UserRating" Size="xs" ReadOnly="true" />
+                    </div>
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="LiteMediaDto" Title="@L["Status"]" VisibleOnMobile="true">
+                <CellTemplate Context="item">
+                    @if (item.UserState?.ProgressPercentage is > 0 and < 100)
+                    {
+                        <K7ProgressBar Value="@(item.UserState.ProgressPercentage)" />
+                    }
+                    else if (item.UserState?.IsCompleted ?? false)
+                    {
+                        <K7Icon Icon="@Phosphor.CheckCircle" Color="success"  IconSize="@K7IconSize.Sm" />
+                    }
+                    else
+                    {
+                        <span class="text-muted">-</span>
+                    }
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="LiteMediaDto" Title="@L["PlayCount"]" SortKey="playCount" Width="100px" VisibleOnMobile="false" Visible="false">
+                <CellTemplate Context="item">
+                    <span>@(item.UserState?.PlayCount > 0 ? item.UserState.PlayCount.ToString() : "-")</span>
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="LiteMediaDto" Title="@L["DateAdded"]" SortKey="created" Width="120px" VisibleOnMobile="false" Visible="false">
+                <CellTemplate Context="item">
+                    <span>@(item.Created?.ToString("d") ?? "-")</span>
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="LiteMediaDto" Title="@S["Actions"]" Width="88px" Hideable="false">
+                <CellTemplate Context="item">
+                    @{
+                        var vm = GetCardViewModel(item);
+                    }
+                    @if (vm is not null)
+                    {
+                        <div @onclick:stopPropagation="true">
+                            <LibraryBrowseRowActions Model="vm"
+                                                      Href="@GetItemHref(item)"
+                                                      OverlayEnabled="true"
+                                                      ExcludeMenuEnabled="_canExclude"
+                                                      WatchStateMenuEnabled="_canSetWatchState"
+                                                      IsAdmin="_isAdmin"
+                                                      OnExcludeForSelf="() => ExcludeForSelf(vm)"
+                                                      OnExcludeForOthers="() => ExcludeForOthers(vm)"
+                                                      OnWatchStateChanged="StateHasChanged" />
+                        </div>
+                    }
+                </CellTemplate>
+            </K7DataColumn>
+        </K7DataTable>
+    </TableContent>
+    <ListTemplate Context="item">
+        @{
+            var vm = GetCardViewModel(item);
+        }
+        <LibraryListItem Item="item" Href="@GetItemHref(item)" ElementId="@GetCardElementId(item)" OnFocused="@CreateSilentCardFocusCallback(item)">
+            <Actions>
+                @if (vm is not null)
+                {
+                    <LibraryBrowseRowActions Model="vm"
+                                              Href="@GetItemHref(item)"
+                                              OverlayEnabled="true"
+                                              ExcludeMenuEnabled="_canExclude"
+                                              WatchStateMenuEnabled="_canSetWatchState"
+                                              IsAdmin="_isAdmin"
+                                              OnExcludeForSelf="() => ExcludeForSelf(vm)"
+                                              OnExcludeForOthers="() => ExcludeForOthers(vm)"
+                                              OnWatchStateChanged="StateHasChanged" />
+                }
+            </Actions>
+        </LibraryListItem>
+    </ListTemplate>
+</BrowseView>

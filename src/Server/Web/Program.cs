@@ -1,0 +1,153 @@
+using K7.Clients.Shared.UI.Pages.Utils;
+using K7.Server.Application;
+using K7.Server.Domain.Constants;
+using K7.Server.Infrastructure.Configuration;
+using K7.Server.Infrastructure.Database.Context;
+using K7.Server.Infrastructure.Database.Context.Data;
+using K7.Server.Infrastructure.Database.Context.Oidc;
+using K7.Server.Infrastructure.ExternalServices;
+using K7.Server.Infrastructure.FileSystem;
+using K7.Server.Infrastructure.MediaProcessing;
+using K7.Server.Web;
+using K7.Server.Web.Components;
+using K7.Server.Web.Components.Account;
+using K7.Server.Web.Endpoints.Hubs;
+using K7.Server.Web.Infrastructure;
+using K7.Server.Web.Middleware;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Scalar.AspNetCore;
+using Serilog;
+using Serilog.Events;
+
+try
+{
+    var builder = WebApplication.CreateBuilder(args);
+
+    if (OpenApiSetup.IsRequested)
+    {
+        builder.RunOpenApiGeneration();
+        return;
+    }
+
+    builder.Configuration.AddFileSecretOverrides();
+
+    builder.AddServiceDefaults();
+
+    builder.Services.AddConfigurations(builder.Configuration);
+    builder.Services.EnsurePathsExist(builder.Configuration);
+    builder.Services.AddApplicationServices();
+    builder.Services.AddInfrastructureServices(builder.Configuration);
+    builder.Services.AddMediaProcessingServices();
+    builder.Services.AddExternalServices();
+    builder.Services.AddWebServices(builder.Configuration, builder.Environment);
+    builder.Services.AddEndpoints();
+    builder.Services.ConfigureCors(builder.Configuration, builder.Environment);
+    builder.Host.UseSerilog();
+    builder.Configuration.ConfigureSerilog();
+
+    var app = builder.Build();
+    app.InitializeMediaProcessing();
+    app.UseSerilogRequestLogging(options =>
+    {
+        options.GetLevel = (httpContext, _, ex) =>
+        {
+            // Health probes are polled frequently and drown useful request logs.
+            if (httpContext.Request.Path.StartsWithSegments(HealthProbePaths.Readiness)
+                || httpContext.Request.Path.StartsWithSegments(HealthProbePaths.Liveness))
+                return LogEventLevel.Verbose;
+
+            return ex is not null || httpContext.Response.StatusCode > 499
+                ? LogEventLevel.Error
+                : LogEventLevel.Information;
+        };
+        options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+        {
+            var query = httpContext.Request.Query;
+            if (query.ContainsKey(EphemeralStreamTokenDefaults.QueryParameterName)
+                || query.ContainsKey("access_token")
+                || query.ContainsKey("apiKey")
+                || query.ContainsKey("p")
+                || query.ContainsKey("t"))
+                diagnosticContext.Set("QueryString", "[Redacted]");
+        };
+    });
+    app.MapDefaultEndpoints();
+
+    await app.InitializeDatabaseAsync();
+    await app.InitializeOidcClientsAsync();
+
+    app.UseForwardedHeaders();
+    app.UseExceptionHandler(_ => { });
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseWebAssemblyDebugging();
+    }
+    else
+    {
+        app.UseHsts();
+    }
+
+    app.UseSecurityHeaders();
+    app.UseRateLimiter();
+    app.UseHealthChecks(HealthProbePaths.Readiness);
+    app.UseHealthChecks(HealthProbePaths.Liveness, new HealthCheckOptions
+    {
+        Predicate = r => r.Tags.Contains(HealthProbePaths.LiveTag)
+    });
+    // Kestrel serves HTTP :7080 in Docker; TLS belongs on the reverse proxy.
+    // Redirect only when this process itself listens on HTTPS (local Development).
+    if (app.Environment.IsDevelopment())
+        app.UseHttpsRedirection();
+    app.UseAuthLegacyRedirects();
+
+    app.UseRequestLocalization(RequestLocalizationSetup.CreateOptions());
+
+    app.MapStaticAssets();
+
+    app.UseSetupRequired();
+
+    app.UseCors();
+    app.UseMiddleware<SignalRAccessTokenMiddleware>();
+    app.UseAuthentication();
+    // Before UseAuthorization: Blazor [Authorize] pages 302 crawlers to /sign-in,
+    // so Discord would scrape the login shell instead of the media preview.
+    app.UseLinkPreviewDocuments();
+    app.UseAuthorization();
+    app.UseAuthFlowLogging();
+    app.UseNativeAuthorizationLanding();
+    app.UseAntiforgery();
+    app.UseMiddleware<FederationGuardMiddleware>();
+
+    app.MapEndpoints();
+    app.MapAdditionalIdentityEndpoints();
+    app.MapHub<K7Hub>("/hub").RequireAuthorization(Policies.GuestOrAbove);
+    app.MapRazorComponents<App>()
+        .WithStaticAssets()
+        .AddInteractiveServerRenderMode()
+        .AddInteractiveWebAssemblyRenderMode()
+        .AddAdditionalAssemblies(
+            typeof(K7.Clients.Web._Imports).Assembly,
+            typeof(ISharedPagesPointer).Assembly);
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapScalarApiReference(o =>
+        {
+            o.WithOpenApiRoutePattern("/openapi/specification.json");
+        });
+    }
+
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
+
+public partial class Program { }

@@ -1,0 +1,18 @@
+@namespace K7.Clients.Shared.UI.Components
+
+<div class="k7-color-picker @Class">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label class="k7-color-picker__label" for="@_id">@Label</label>
+    }
+    <div class="k7-color-picker__row">
+        <input type="color"
+               id="@_id"
+               class="k7-color-picker__input focusable"
+               tabindex="0"
+               value="@Value"
+               @oninput="OnInput"
+               @onkeydown="OnKeyDown" />
+        <span class="k7-color-picker__value">@Value</span>
+    </div>
+</div>

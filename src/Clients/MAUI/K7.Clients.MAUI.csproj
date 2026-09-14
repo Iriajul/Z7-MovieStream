@@ -1,0 +1,157 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup>
+    <!-- Workaround to not get Directory.Build.props TargetFramework on this project -->
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+    <!-- CI single-platform publish: set on this project only via -p:K7PublishPlatform=...
+         Do not pass global -p:TargetFrameworks= (poisons ProjectReference restore / NETSDK1005). -->
+    <TargetFrameworks Condition="'$(K7PublishPlatform)' == 'android'">net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="'$(K7PublishPlatform)' == 'windows'">net10.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(K7PublishPlatform)' == 'ios'">net10.0-ios</TargetFrameworks>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Uncomment to also build the tizen app. You will need to install tizen by following this: https://github.com/Samsung/Tizen.NET -->
+    <!-- <TargetFrameworks>$(TargetFrameworks);net9.0-tizen</TargetFrameworks> -->
+
+    <!-- Note for MacCatalyst:
+      The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
+      When specifying both architectures, use the plural <RuntimeIdentifiers> instead of the singular <RuntimeIdentifier>.
+      The Mac App Store will NOT accept apps with ONLY maccatalyst-arm64 indicated;
+      either BOTH runtimes must be indicated or ONLY macatalyst-x64. -->
+    <!-- For example: <RuntimeIdentifiers>maccatalyst-x64;maccatalyst-arm64</RuntimeIdentifiers> -->
+    
+    <OutputType>Exe</OutputType>
+    <RootNamespace>K7.Clients.MAUI</RootNamespace>
+		<AssemblyName>K7.Clients.MAUI</AssemblyName>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCssItems>false</EnableDefaultCssItems>
+    <Nullable>enable</Nullable>
+
+    <!-- Display name -->
+    <ApplicationTitle>Z7</ApplicationTitle>
+
+    <!-- App Identifier -->
+    <ApplicationId>com.k7.maui</ApplicationId>
+
+    <!-- Versions: Resizetizer requires ApplicationDisplayVersion as 3-part numeric semver
+         (no prerelease label). System.Version also rejects labels, so parse the core only. -->
+    <_VersionCore>$([System.String]::Copy('$(Version)').Split('-')[0])</_VersionCore>
+    <ApplicationDisplayVersion>$(_VersionCore)</ApplicationDisplayVersion>
+    <ApplicationVersion>$([MSBuild]::Add($([MSBuild]::Add($([MSBuild]::Multiply($([System.Version]::Parse('$(_VersionCore)').Major), 10000)), $([MSBuild]::Multiply($([System.Version]::Parse('$(_VersionCore)').Minor), 100)))), $([System.Version]::Parse('$(_VersionCore)').Build)))</ApplicationVersion>
+
+    <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <!-- Mono win-x64 runtime packs are not published for .NET 10; CoreCLR is required for RID publish. -->
+    <UseMonoRuntime Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">false</UseMonoRuntime>
+
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">26.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'tizen'">6.5</SupportedOSPlatformVersion>
+    <DefaultLanguage>en</DefaultLanguage>
+    <NoWarn>$(NoWarn);NU1608</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0-android|AnyCPU'">
+    <AndroidCreatePackagePerAbi>True</AndroidCreatePackagePerAbi>
+    <RuntimeIdentifiers>android-arm;android-arm64</RuntimeIdentifiers>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net10.0-android|AnyCPU'">
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidUseAapt2>True</AndroidUseAapt2>
+    <AndroidCreatePackagePerAbi>False</AndroidCreatePackagePerAbi>
+    <RuntimeIdentifiers>android-arm;android-arm64</RuntimeIdentifiers>
+    <!-- EF Core 10.0 trimmer bug: IL2037 on ExecuteUpdateAsync -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <NoWarn>$(NoWarn);IL2037</NoWarn>
+    <TrimMode>partial</TrimMode>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <!-- App Icon -->
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0d0907" />
+
+    <!-- Splash Screen -->
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#0d0907" BaseSize="256,256" />
+
+    <!-- Images -->
+    <MauiImage Include="Resources\Images\*" />
+
+    <!-- Custom Fonts -->
+    <MauiFont Include="Resources\Fonts\*" />
+
+    <!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
+    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    <MauiAsset Include="..\Shared\UI\wwwroot\animations\splash.json" LogicalName="splash.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Maui.MediaElement" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <PackageReference Include="SkiaSharp.Extended.UI.Maui" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+    <PackageReference Include="Microsoft.Maui.Essentials" />
+    <PackageReference Include="OpenIddict.Client.SystemIntegration" />
+    <PackageReference Include="OpenIddict.Client.SystemNetHttp" />
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <PackageReference Include="LibVLCSharp.MAUI" />
+    <PackageReference Include="NAudio" />
+    <PackageReference Include="SharpDX.Direct3D11" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <PackageReference Include="Xamarin.GooglePlayServices.Basement" />
+    <PackageReference Include="Xamarin.GooglePlayServices.Cast" />
+    <PackageReference Include="Xamarin.GooglePlayServices.Cast.Framework" />
+    <PackageReference Include="SkiaSharp.Skottie" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\K7.Clients.Shared.csproj" />
+    <ProjectReference Include="..\Shared\UI\K7.Clients.Shared.UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="BlazorPage.xaml.cs">
+      <DependentUpon>BlazorPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Platforms\iOS\Services\CodecService.cs">
+      <ExcludeFromCurrentConfiguration>false</ExcludeFromCurrentConfiguration>
+    </Compile>
+    <Compile Update="Platforms\Windows\MauiProgram.Windows.cs">
+      <ExcludeFromCurrentConfiguration>false</ExcludeFromCurrentConfiguration>
+    </Compile>
+    <Compile Update="SetupPage.xaml.cs">
+      <DependentUpon>SetupPage.xaml</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiXaml Update="SetupPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="K7.Clients.MAUI.SmokeTests" />
+  </ItemGroup>
+
+  <Import Project="Platforms\Windows\LibVlcWindowsNative.targets" />
+
+</Project>

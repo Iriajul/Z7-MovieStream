@@ -1,0 +1,95 @@
+# Renovate dependency updates (NuGet including MAUI, Docker, GitHub Actions, devcontainers).
+# Runs on the host runner (not the Mend cloud app) so maui-android workloads are available
+# and android-arm / Fire Stick RIDs restore correctly.
+#
+# Uses the workflow GITHUB_TOKEN for git push and PR creation.
+# GitHub does not start workflows from GITHUB_TOKEN push/PR events, so this job
+# dispatches Build on renovate/* PRs that have no checks. Integration tests and
+# CodeQL are jobs in that workflow and start only after build-and-test succeeds.
+# See docs/dev/developing.md#dependency-updates
+
+name: Renovate
+
+on:
+  schedule:
+    # Mondays 05:00 UTC (~07:00 Europe/Paris in winter)
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Setup Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install MAUI Android workload
+        run: dotnet workload install maui-android --skip-manifest-update
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          # Renovate 44+ requires Node ^24.11 (uses RegExp.escape).
+          node-version: '24'
+
+      - name: Run Renovate
+        env:
+          RENOVATE_TOKEN: ${{ github.token }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_BINARY_SOURCE: global
+          LOG_LEVEL: info
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "schedule" ]; then
+            export RENOVATE_SCHEDULE='["* 5-9 * * 1"]'
+            export RENOVATE_TIMEZONE="Europe/Paris"
+          else
+            export RENOVATE_SCHEDULE='["at any time"]'
+          fi
+          npx --yes renovate@44.46.4 2>&1 | tee renovate.log
+          if grep -qE "^(ERROR| WARN: Error updating branch)|Pull request creation error" renovate.log; then
+            echo "::error::Renovate reported branch or PR creation errors"
+            grep -E "^(ERROR| WARN: Error updating branch)|Pull request creation error" renovate.log || true
+            exit 1
+          fi
+
+      - name: Trigger CI on Renovate PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh pr list --author "app/github-actions" --state open --limit 50 \
+            --json number,headRefName,headRefOid \
+            --jq '.[] | select(.headRefName | startswith("renovate/")) | [.number, .headRefName, .headRefOid] | @tsv' \
+            | while IFS=$'\t' read -r number branch sha; do
+                count="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${sha}/check-runs" --jq '.total_count')"
+                if [ "${count}" -gt 0 ]; then
+                  echo "Skip #${number} (${branch}): ${count} check-runs already"
+                  continue
+                fi
+                echo "Dispatch CI for #${number} (${branch})"
+                gh workflow run Build --ref "${branch}"
+              done

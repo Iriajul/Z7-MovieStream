@@ -1,0 +1,424 @@
+﻿.media-card {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    container-type: inline-size;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.media-card-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    width: 100%;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--color-border-subtle);
+    transform: scale(var(--k7-tween-scale, 1));
+    will-change: transform;
+}
+
+.media-card-container[data-longpress] {
+    -webkit-touch-callout: none;
+    user-select: none;
+}
+
+.media-card-link:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-lg);
+}
+
+.media-card-container ::deep .k7-skeleton {
+    position: absolute;
+    inset: 0;
+}
+
+.media-card--poster .media-card-container {
+    aspect-ratio: 2 / 3;
+}
+
+.media-card--cover .media-card-container {
+    aspect-ratio: 1 / 1;
+}
+
+.media-card--backdrop .media-card-container {
+    aspect-ratio: 16 / 9;
+}
+
+.media-card-link ::deep .k7-image,
+.media-card-link ::deep .media-card-mosaic {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.media-card-link ::deep .media-card-mosaic {
+    aspect-ratio: auto;
+    border-radius: var(--radius-lg);
+}
+
+.media-card-link {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+
+.media-card-link:focus-visible {
+    outline: none !important;
+}
+
+.media-card:focus-within .media-card-overlay,
+.media-card-link:focus-visible .media-card-overlay,
+.media-card--menu-open .media-card-overlay,
+.media-card--selected .media-card-overlay {
+    display: flex;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .media-card:hover .media-card-overlay {
+        display: flex;
+    }
+}
+
+.media-card-watched {
+    position: absolute;
+    top: var(--space-1);
+    right: var(--space-1);
+    z-index: 2;
+    background-color: color-mix(in srgb, var(--color-overlay) 85%, var(--color-success) 15%);
+    border-radius: var(--radius-2xl);
+    border: 1px solid var(--color-border-subtle);
+    pointer-events: none;
+}
+
+.media-card:focus-within .media-card-watched,
+.media-card-link:focus-visible .media-card-watched,
+.media-card--menu-open .media-card-watched,
+.media-card--selected .media-card-watched {
+    z-index: 5;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .media-card:hover .media-card-watched {
+        z-index: 5;
+    }
+}
+
+.media-card-type-badge {
+    position: absolute;
+    top: var(--space-1);
+    right: var(--space-1);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background-color: color-mix(in srgb, var(--color-overlay) 85%, var(--color-surface) 15%);
+    border-radius: var(--radius-2xl);
+    border: 1px solid var(--color-border-subtle);
+    pointer-events: none;
+}
+
+.media-card-group-count {
+    position: absolute;
+    top: var(--space-1);
+    left: var(--space-1);
+    display: flex;
+    z-index: 2;
+    pointer-events: none;
+    border-radius: var(--radius-2xl);
+    border: 1px solid var(--color-border-subtle);
+}
+
+.media-card-progress-bar {
+    width: 100%;
+    position: absolute;
+    bottom: 0;
+    z-index: 3;
+}
+
+.media-card:focus-within .media-card-progress-bar,
+.media-card-link:focus-visible .media-card-progress-bar,
+.media-card--menu-open .media-card-progress-bar,
+.media-card--selected .media-card-progress-bar {
+    visibility: hidden;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .media-card:hover .media-card-progress-bar {
+        visibility: hidden;
+    }
+}
+
+.media-card-overlay {
+    background-color: var(--color-overlay);
+    position: absolute;
+    border: 2px solid var(--color-accent);
+    display: none;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    border-radius: var(--radius-lg);
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+    z-index: 4;
+}
+
+.media-card-overlay-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    align-items: stretch;
+}
+
+.media-card-overlay-progress-label {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: white;
+    text-align: center;
+    line-height: 1.2;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.media-card-overlay-progress ::deep .k7-progress {
+    height: 3px;
+    background: color-mix(in srgb, var(--color-surface-2) 55%, transparent);
+}
+
+::deep .media-card-overlay .k7-fab {
+    pointer-events: auto;
+}
+
+.media-card-menu {
+    position: absolute;
+    bottom: var(--space-1);
+    right: var(--space-1);
+    z-index: 5;
+    display: none;
+}
+
+.media-card:focus-within .media-card-menu,
+.media-card-menu--open,
+.media-card--menu-open .media-card-menu {
+    display: block;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .media-card:hover .media-card-menu {
+        display: block;
+    }
+}
+
+.media-card--menu-open {
+    z-index: 2;
+}
+
+.media-card--menu-open,
+.media-card--menu-open .media-card-footer {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.media-card-link ::deep .k7-img-wrap {
+    position: absolute;
+    inset: 0;
+}
+
+.media-card-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-gray);
+}
+
+.media-card-placeholder-icon {
+    font-size: var(--text-5xl);
+    opacity: 0.3;
+}
+
+.media-card-footer {
+    width: 100%;
+}
+
+.media-card-footer-skeleton {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    padding-top: var(--space-2);
+}
+
+.media-card-footer-skeleton ::deep .media-card-skeleton-title {
+    height: 0.7rem;
+    border-radius: var(--radius-sm);
+}
+
+.media-card-footer-skeleton ::deep .media-card-skeleton-subtitle {
+    height: 0.6rem;
+    border-radius: var(--radius-sm);
+}
+
+::deep .media-card-title {
+    width: 100%;
+    height: 1lh;
+    text-align: center;
+    overflow: hidden;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    margin-top: 8px;
+    font-weight: 500;
+}
+
+::deep .media-card-subtitle {
+    width: 100%;
+    height: 1lh;
+    text-align: center;
+    overflow: hidden;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.media-card-subtitle-inner {
+    display: block;
+    width: 100%;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    will-change: transform;
+}
+
+.media-card-title-inner {
+    display: block;
+    width: 100%;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    will-change: transform;
+}
+
+.media-card:hover .media-card-title,
+.media-card:focus-within .media-card-title,
+.media-card--selected .media-card-title,
+.media-card:hover .media-card-subtitle,
+.media-card:focus-within .media-card-subtitle,
+.media-card--selected .media-card-subtitle {
+    overflow: visible;
+}
+
+.media-card:hover .media-card-title-inner,
+.media-card:focus-within .media-card-title-inner,
+.media-card--selected .media-card-title-inner,
+.media-card:hover .media-card-subtitle-inner,
+.media-card:focus-within .media-card-subtitle-inner,
+.media-card--selected .media-card-subtitle-inner {
+    display: inline-block;
+    width: auto;
+    overflow: visible;
+    animation: media-card-title-scroll 3s linear 0.5s infinite alternate;
+}
+
+@keyframes media-card-title-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(min(0px, calc(100cqw - 100%))); }
+}
+
+@media (max-width: 599.98px) {
+    .media-card--poster,
+    .media-card--cover,
+    .media-card--backdrop {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .media-card--poster .media-card-container,
+    .media-card--cover .media-card-container,
+    .media-card--backdrop .media-card-container {
+        width: 100%;
+    }
+
+    .media-card--poster .media-card-footer,
+    .media-card--cover .media-card-footer,
+    .media-card--backdrop .media-card-footer {
+        width: 100%;
+    }
+
+    .media-card--poster .media-card-title,
+    .media-card--poster .media-card-subtitle,
+    .media-card--cover .media-card-title,
+    .media-card--cover .media-card-subtitle,
+    .media-card--backdrop .media-card-title,
+    .media-card--backdrop .media-card-subtitle {
+        width: 100%;
+        max-width: none;
+    }
+
+    ::deep .media-card-subtitle {
+        white-space: normal;
+    }
+
+    ::deep .media-card-subtitle-inner {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: unset;
+    }
+
+    .media-card:hover .media-card-title-inner,
+    .media-card:focus-within .media-card-title-inner,
+    .media-card:hover .media-card-subtitle-inner,
+    .media-card:focus-within .media-card-subtitle-inner {
+        display: block;
+        width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        animation: none;
+        transform: none;
+    }
+
+    .media-card-overlay {
+        display: none !important;
+    }
+
+    .media-card:hover .media-card-overlay,
+    .media-card:focus-within .media-card-overlay,
+    .media-card-link:focus-visible .media-card-overlay {
+        display: none !important;
+    }
+
+    /* Overlay is hidden on small screens; keep the idle progress track visible. */
+    .media-card:focus-within .media-card-progress-bar,
+    .media-card-link:focus-visible .media-card-progress-bar,
+    .media-card--menu-open .media-card-progress-bar,
+    .media-card--selected .media-card-progress-bar,
+    .media-card:hover .media-card-progress-bar {
+        visibility: visible;
+    }
+
+    /* Visually hidden but kept in DOM so K7Menu can portal backdrop/dropdown to body. */
+    .media-card-menu {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+        pointer-events: none;
+    }
+}

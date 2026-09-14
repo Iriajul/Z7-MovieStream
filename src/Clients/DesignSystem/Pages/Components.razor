@@ -1,0 +1,856 @@
+@page "/components"
+@using K7.Clients.Shared.UI.Components.Dialogs
+@using K7.Shared.Dtos.Entities.Medias
+@using K7.Clients.Shared.Enums
+@inject IK7DialogService DialogService
+@inject IK7Snackbar Snackbar
+
+<PageTitle>Components - K7 Design System</PageTitle>
+
+<div class="ds-page">
+    <header class="ds-page-header">
+        <h1>Components</h1>
+        <p class="ds-lead">All UI components used throughout K7.</p>
+    </header>
+
+    <section id="k7-alert" class="ds-section">
+        <h2>K7Alert</h2>
+        <div class="ds-preview ds-preview--column">
+            <K7Alert Severity="K7Severity.Info" Icon="@Phosphor.Info">This is an informational alert.</K7Alert>
+            <K7Alert Severity="K7Severity.Success" Icon="@Phosphor.CheckCircle">Operation completed successfully.</K7Alert>
+            <K7Alert Severity="K7Severity.Warning" Icon="@Phosphor.WarningCircle">Please review this warning.</K7Alert>
+            <K7Alert Severity="K7Severity.Error" Icon="@Phosphor.ExclamationMark">An error occurred.</K7Alert>
+            <K7Alert Severity="K7Severity.Info" NoIcon="true">Alert without icon.</K7Alert>
+        </div>
+    </section>
+
+    <section id="k7-button" class="ds-section">
+        <h2>K7Button</h2>
+        <div class="ds-preview">
+            <K7Button>Default (filled)</K7Button>
+            <K7Button Color="primary">Primary</K7Button>
+            <K7Button Color="error">Error</K7Button>
+            <K7Button Color="success">Success</K7Button>
+            <K7Button Variant="outlined">Outlined</K7Button>
+            <K7Button Variant="outlined" Color="primary">Outlined Primary</K7Button>
+            <K7Button Variant="text">Text</K7Button>
+            <K7Button Variant="text" Color="primary">Text Primary</K7Button>
+            <K7Button Disabled="true">Disabled</K7Button>
+            <K7Button Size="sm">Small</K7Button>
+            <K7Button Size="lg">Large</K7Button>
+            <K7Button StartIcon="@Phosphor.Plus">With Icon</K7Button>
+        </div>
+    </section>
+
+    <section id="k7-chip" class="ds-section">
+        <h2>K7Chip</h2>
+        <div class="ds-preview">
+            <K7Chip>Default</K7Chip>
+            <K7Chip Color="primary">Primary</K7Chip>
+            <K7Chip Color="success">Success</K7Chip>
+            <K7Chip Color="warning">Warning</K7Chip>
+            <K7Chip Color="error">Error</K7Chip>
+            <K7Chip Size="sm">Small</K7Chip>
+            <K7Chip Size="lg">Large</K7Chip>
+        </div>
+    </section>
+
+    <section id="k7-icon" class="ds-section">
+        <h2>K7Icon</h2>
+
+        <h3>Icons</h3>
+        <div class="ds-preview">
+            <K7Icon Icon="@Phosphor.House" />
+            <K7Icon Icon="@Phosphor.PlayCircle" />
+            <K7Icon Icon="@Phosphor.MusicNote" />
+            <K7Icon Icon="@Phosphor.FilmStrip" />
+            <K7Icon Icon="@Phosphor.Television" />
+            <K7Icon Icon="@Phosphor.Gear" />
+            <K7Icon Icon="@Phosphor.MagnifyingGlass" />
+            <K7Icon Icon="@Phosphor.Star" />
+            <K7Icon Icon="@Phosphor.Heart" />
+            <K7Icon Icon="@Phosphor.Bell" />
+        </div>
+
+        <h3>Sizes</h3>
+        <div class="ds-preview ds-preview--align-end">
+            <div class="ds-labeled-item">
+                <K7Icon Icon="@Phosphor.House"  IconSize="@K7IconSize.Sm" />
+                <span class="ds-label">sm</span>
+            </div>
+            <div class="ds-labeled-item">
+                <K7Icon Icon="@Phosphor.House" />
+                <span class="ds-label">md</span>
+            </div>
+            <div class="ds-labeled-item">
+                <K7Icon Icon="@Phosphor.House"  IconSize="@K7IconSize.Lg" />
+                <span class="ds-label">lg</span>
+            </div>
+            <div class="ds-labeled-item">
+                <K7Icon Icon="@Phosphor.House"  IconSize="@K7IconSize.Xl" />
+                <span class="ds-label">xl</span>
+            </div>
+        </div>
+
+        <h3>Variants</h3>
+        <div class="ds-preview">
+            <div class="ds-labeled-item">
+                <K7Icon Icon="@Phosphor.House"  IconSize="@K7IconSize.Lg" />
+                <span class="ds-label">Regular</span>
+            </div>
+            <div class="ds-labeled-item">
+                <K7Icon Icon="@Phosphor.Fill.House"  IconSize="@K7IconSize.Lg" />
+                <span class="ds-label">Fill</span>
+            </div>
+            <div class="ds-labeled-item">
+                <K7Icon Icon="@Phosphor.Bold.House"  IconSize="@K7IconSize.Lg" />
+                <span class="ds-label">Bold</span>
+            </div>
+            <div class="ds-labeled-item">
+                <K7Icon Icon="@Phosphor.Thin.House"  IconSize="@K7IconSize.Lg" />
+                <span class="ds-label">Thin</span>
+            </div>
+            <div class="ds-labeled-item">
+                <K7Icon Icon="@Phosphor.Light.House"  IconSize="@K7IconSize.Lg" />
+                <span class="ds-label">Light</span>
+            </div>
+            <div class="ds-labeled-item">
+                <K7Icon Icon="@Phosphor.Duotone.House"  IconSize="@K7IconSize.Lg" />
+                <span class="ds-label">Duotone</span>
+            </div>
+        </div>
+    </section>
+
+    <section id="k7-avatar" class="ds-section">
+        <h2>K7Avatar</h2>
+        <div class="ds-preview">
+            <K7Avatar />
+            <K7Avatar>AB</K7Avatar>
+            <K7Avatar Image="https://picsum.photos/seed/avatar1/64/64" Alt="User" />
+            <K7Avatar Size="sm">SM</K7Avatar>
+            <K7Avatar Size="lg">LG</K7Avatar>
+        </div>
+    </section>
+
+    <section id="k7-avatar-group" class="ds-section">
+        <h2>K7AvatarGroup</h2>
+        <div class="ds-preview">
+            <K7AvatarGroup Members="@(new K7AvatarGroupItem[] {
+                new() { UserId = Guid.Parse("11111111-1111-1111-1111-111111111111"), Letter = "A" },
+                new() { UserId = Guid.Parse("22222222-2222-2222-2222-222222222222"), Letter = "B" },
+                new() { UserId = Guid.Parse("33333333-3333-3333-3333-333333333333"), Letter = "C" }
+            })" />
+            <K7AvatarGroup Size="sm" Members="@(new K7AvatarGroupItem[] {
+                new() { Image = "https://picsum.photos/seed/g1/64/64", Letter = "A" },
+                new() { Image = "https://picsum.photos/seed/g2/64/64", Letter = "B" }
+            })" />
+            <K7AvatarGroup Size="lg" Members="@(new K7AvatarGroupItem[] {
+                new() { UserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Letter = "X" },
+                new() { UserId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), Letter = "Y" },
+                new() { UserId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), Letter = "Z" }
+            })" />
+        </div>
+    </section>
+
+    <section id="k7-divider" class="ds-section">
+        <h2>K7Divider</h2>
+        <div class="ds-preview ds-preview--column">
+            <p>Content above</p>
+            <K7Divider />
+            <p>Content below</p>
+            <K7Divider />
+            <p>Content after second divider</p>
+        </div>
+    </section>
+
+    <section id="k7-empty-state" class="ds-section">
+        <h2>K7EmptyState</h2>
+        <div class="ds-preview ds-preview--column">
+            <K7EmptyState Icon="@Phosphor.Globe" Title="No peers configured" Subtitle="Add a peer server to share and access media between your K7 instances." />
+            <K7Divider />
+            <K7EmptyState Icon="@Phosphor.Bell" Title="No notifications" Subtitle="Create a rule to receive notifications when events occur on your server.">
+                <ActionContent>
+                    <K7Button Variant="filled" Color="primary" StartIcon="@Phosphor.Plus">Create rule</K7Button>
+                </ActionContent>
+            </K7EmptyState>
+            <K7Divider />
+            <K7EmptyState Title="Nothing here yet" />
+            <K7Divider />
+            <K7EmptyState Icon="@Phosphor.ChartBar" Title="No data" Compact="true" />
+        </div>
+    </section>
+
+    <section id="k7-progress-bar" class="ds-section">
+        <h2>K7ProgressBar</h2>
+        <div class="ds-preview ds-preview--column">
+            <K7ProgressBar Value="25" />
+            <K7ProgressBar Value="50" />
+            <K7ProgressBar Value="75" />
+            <K7ProgressBar Value="100" />
+            <K7ProgressBar Indeterminate="true" />
+        </div>
+    </section>
+
+    <section id="k7-skeleton" class="ds-section">
+        <h2>K7Skeleton</h2>
+        <div class="ds-preview">
+            <K7Skeleton Width="120px" Height="16px" />
+            <K7Skeleton Width="80px" Height="80px" />
+            <K7Skeleton Width="200px" Height="120px" />
+        </div>
+    </section>
+
+    <section id="media-hero-skeleton" class="ds-section">
+        <h2>MediaHeroSkeleton</h2>
+        <p class="ds-description">Page-shell placeholder for movie, serie, season, episode, and person detail. Matches the hero plus cast layout so TV does not flash a spinner. DetailLayout sizes the logo like Movie/Serie (up to 500 x 180). SeasonLayout matches the desktop season page (compact logo, icon actions, episode rows). PortraitLayout uses a 2:3 portrait beside the bio. The person page itself reuses the person hero shell so phone, desktop, and TV breakpoints apply while loading.</p>
+        <div class="ds-preview ds-preview--column" style="min-height: 420px; width: 100%;">
+            <MediaHeroSkeleton DetailLayout="true" />
+        </div>
+        <p class="ds-description">SeasonLayout for the desktop season page.</p>
+        <div class="ds-preview ds-preview--column" style="min-height: 640px; width: 100%;">
+            <MediaHeroSkeleton SeasonLayout="true" ShowCast="false" />
+        </div>
+        <p class="ds-description">PortraitLayout for the person catalog preview (the live person page uses the person hero shell).</p>
+        <div class="ds-preview ds-preview--column" style="min-height: 420px; width: 100%;">
+            <MediaHeroSkeleton PortraitLayout="true" ShowCast="false" />
+        </div>
+    </section>
+
+    <section id="k7-spinner" class="ds-section">
+        <h2>K7Spinner</h2>
+        <div class="ds-preview">
+            <K7Spinner />
+            <K7Spinner Size="sm" />
+            <K7Spinner Size="lg" />
+        </div>
+    </section>
+
+    <section id="k7-fab-button" class="ds-section">
+        <h2>K7FabButton</h2>
+        <div class="ds-preview">
+            <K7FabButton Icon="@Phosphor.Plus" AriaLabel="Add" />
+            <K7FabButton Icon="@Phosphor.PencilSimple" AriaLabel="Edit" Color="surface" />
+            <K7FabButton Icon="@Phosphor.Trash" AriaLabel="Delete" Color="error" />
+            <K7FabButton Icon="@Phosphor.Play" AriaLabel="Play" Size="sm" />
+            <K7FabButton Icon="@Phosphor.Plus" AriaLabel="Add large" Size="lg" />
+        </div>
+    </section>
+
+    <section id="k7-icon-button" class="ds-section">
+        <h2>K7IconButton</h2>
+        <div class="ds-preview">
+            <K7IconButton Icon="@Phosphor.House" AriaLabel="Home" />
+            <K7IconButton Icon="@Phosphor.Gear" AriaLabel="Settings" />
+            <K7IconButton Icon="@Phosphor.Heart" AriaLabel="Like" Color="primary" />
+            <K7IconButton Icon="@Phosphor.Trash" AriaLabel="Delete" Color="error" />
+            <K7IconButton Icon="@Phosphor.MagnifyingGlass" AriaLabel="Search" Size="sm" />
+            <K7IconButton Icon="@Phosphor.PlayCircle" AriaLabel="Play" Size="lg" />
+        </div>
+    </section>
+
+    <section id="k7-icon-toggle" class="ds-section">
+        <h2>K7IconToggleButton</h2>
+        <p class="ds-description">Toggle button with distinct icons for each state. Binds to a boolean value.</p>
+        <div class="ds-preview">
+            <K7IconToggleButton Icon="@Phosphor.Heart" ActiveIcon="@Phosphor.Fill.Heart"
+                                @bind-Value="_liked"
+                                AriaLabel="Like" ActiveAriaLabel="Unlike" />
+            <K7IconToggleButton Icon="@Phosphor.SpeakerSlash" ActiveIcon="@Phosphor.SpeakerHigh"
+                                @bind-Value="_muted"
+                                AriaLabel="Unmute" ActiveAriaLabel="Mute" />
+            <K7IconToggleButton Icon="@Phosphor.Star" ActiveIcon="@Phosphor.Fill.Star"
+                                @bind-Value="_starred"
+                                AriaLabel="Star" ActiveAriaLabel="Unstar" />
+            <K7IconToggleButton @bind-Value="_custom" AriaLabel="Toggle" Icon="@Phosphor.Heart" ActiveIcon="@Phosphor.Fill.Heart" />
+        </div>
+        <p style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:var(--spacing-2)">
+            Liked: @_liked | Muted: @_muted | Starred: @_starred | Custom: @_custom
+        </p>
+    </section>
+
+    <section id="k7-paper" class="ds-section">
+        <h2>K7Paper</h2>
+        <p class="ds-description">Surface container with configurable elevation and optional border.</p>
+        <div class="ds-preview ds-preview--bare">
+            <K7Paper Elevation="0" Style="padding:var(--space-4);width:120px;text-align:center">Flat (e0)</K7Paper>
+            <K7Paper Elevation="1" Style="padding:var(--space-4);width:120px;text-align:center">Shadow e1</K7Paper>
+            <K7Paper Elevation="2" Style="padding:var(--space-4);width:120px;text-align:center">Shadow e2</K7Paper>
+            <K7Paper Elevation="3" Style="padding:var(--space-4);width:120px;text-align:center">Shadow e3</K7Paper>
+            <K7Paper Elevation="4" Style="padding:var(--space-4);width:120px;text-align:center">Shadow e4</K7Paper>
+            <K7Paper Outlined="true" Elevation="0" Style="padding:var(--space-4);width:120px;text-align:center">Outlined</K7Paper>
+            <K7Paper Outlined="true" Square="true" Style="padding:var(--space-4);width:120px;text-align:center">Square</K7Paper>
+        </div>
+    </section>
+
+    <section id="k7-image" class="ds-section">
+        <h2>K7Image</h2>
+        <div class="ds-preview">
+            <K7Image Src="https://picsum.photos/seed/img1/160/240" Alt="Poster" Width="160" Height="240" />
+            <K7Image Src="https://picsum.photos/seed/img2/320/180" Alt="Backdrop" Width="320" Height="180" />
+            <K7Image Alt="Missing image fallback" Width="160" Height="120" />
+        </div>
+    </section>
+
+    <section id="k7-textfield" class="ds-section">
+        <h2>K7TextField</h2>
+        <div class="ds-preview ds-preview--column ds-preview--narrow">
+            <K7TextField TValue="string" Label="Default" @bind-Value="_text1" />
+            <K7TextField TValue="string" Label="With placeholder" Placeholder="Enter value..." @bind-Value="_text2" />
+            <K7TextField TValue="string" Label="Disabled" Value="@("Disabled value")" Disabled="@true" />
+            <K7TextField TValue="string" Label="Password" Type="password" @bind-Value="_text4" />
+            <K7TextField TValue="string" Label="With adornment" Placeholder="Search..." @bind-Value="_textAdornment" AdornmentIcon="@Phosphor.MagnifyingGlass" />
+            <K7TextField TValue="string" Label="Clearable" Placeholder="Type something..." @bind-Value="_textClearable" Clearable="true" />
+        </div>
+    </section>
+
+    <section id="k7-select" class="ds-section">
+        <h2>K7Select</h2>
+        <div class="ds-preview ds-preview--column ds-preview--narrow">
+            <K7Select TValue="string" Label="Genre" @bind-Value="_genre">
+                <K7SelectItem Value="@("action")" Text="Action">Action</K7SelectItem>
+                <K7SelectItem Value="@("drama")" Text="Drama">Drama</K7SelectItem>
+                <K7SelectItem Value="@("comedy")" Text="Comedy">Comedy</K7SelectItem>
+                <K7SelectItem Value="@("thriller")" Text="Thriller">Thriller</K7SelectItem>
+            </K7Select>
+            <K7Select TValue="string" Label="Clearable" Clearable="true" @bind-Value="_genre2">
+                <K7SelectItem Value="@("a")" Text="Option A">Option A</K7SelectItem>
+                <K7SelectItem Value="@("b")" Text="Option B">Option B</K7SelectItem>
+            </K7Select>
+            <K7Select TValue="string" Label="Disabled" Disabled="true">
+                <K7SelectItem Value="@("x")" Text="Disabled option">Disabled option</K7SelectItem>
+            </K7Select>
+        </div>
+    </section>
+
+    <section id="k7-date-range-picker" class="ds-section">
+        <h2>K7DateRangePicker</h2>
+        <p class="ds-description">Calendar-based date range picker with popover dropdown. Click to select start date, then end date.</p>
+        <div class="ds-preview">
+            <K7DateRangePicker @bind-From="_dateFrom" @bind-To="_dateTo" Label="Pick a date range" HintSelectEnd="Select end date" />
+        </div>
+        <p style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:var(--space-2)">
+            From: @(_dateFrom?.ToString("yyyy-MM-dd") ?? "none") | To: @(_dateTo?.ToString("yyyy-MM-dd") ?? "none")
+        </p>
+    </section>
+
+    <section id="k7-slider" class="ds-section">
+        <h2>K7Slider</h2>
+        <div class="ds-preview ds-preview--column ds-preview--narrow">
+            <div>
+                <label style="font-size:var(--text-sm);color:var(--color-text-secondary)">Volume: @_volume%</label>
+                <K7Slider TValue="double" @bind-Value="_volume" Min="@((double)0)" Max="@((double)100)" />
+            </div>
+            <div>
+                <label style="font-size:var(--text-sm);color:var(--color-text-secondary)">Brightness: @_brightness%</label>
+                <K7Slider TValue="double" @bind-Value="_brightness" Min="@((double)0)" Max="@((double)100)" />
+            </div>
+            <div>
+                <label style="font-size:var(--text-sm);color:var(--color-text-secondary)">Disabled</label>
+                <K7Slider TValue="double" Value="@((double)40)" Min="@((double)0)" Max="@((double)100)" Disabled="true" />
+            </div>
+        </div>
+    </section>
+
+    <section id="k7-switch" class="ds-section">
+        <h2>K7Switch</h2>
+        <div class="ds-preview ds-preview--column">
+            <K7Switch @bind-Value="_switch1" Label="Enable notifications" />
+            <K7Switch @bind-Value="_switch2" Label="Auto-play" />
+            <K7Switch Value="true" Label="Always on" Disabled="true" />
+            <K7Switch Value="false" Label="Always off" Disabled="true" />
+        </div>
+    </section>
+
+    <section id="k7-checkbox-list" class="ds-section">
+        <h2>K7CheckboxList</h2>
+        <p class="ds-description">Zebra-striped scrollable checkbox list for multi-selection scenarios (permissions, library access, event selection).</p>
+
+        <h3>With ItemLabel</h3>
+        <div class="ds-preview ds-preview--column ds-preview--narrow">
+            <K7CheckboxList TItem="string"
+                            Items="_checkboxListItems"
+                            IsChecked="@(item => _selectedItems.Contains(item))"
+                            CheckedChanged="@(e => ToggleCheckboxItem(e.Item, e.Checked))"
+                            ItemLabel="@(item => item)" />
+        </div>
+
+        <h3>With disabled items</h3>
+        <div class="ds-preview ds-preview--column ds-preview--narrow">
+            <K7CheckboxList TItem="string"
+                            Items="_checkboxListItems"
+                            IsChecked="@(item => _selectedItems.Contains(item) || item == _checkboxListItems[0])"
+                            IsDisabled="@(item => item == _checkboxListItems[0])"
+                            CheckedChanged="@(e => ToggleCheckboxItem(e.Item, e.Checked))"
+                            ItemLabel="@(item => item)" />
+        </div>
+
+        <h3>With ItemTemplate</h3>
+        <div class="ds-preview ds-preview--column ds-preview--narrow">
+            <K7CheckboxList TItem="string"
+                            Items="_checkboxListItems"
+                            IsChecked="@(item => _selectedItems.Contains(item))"
+                            CheckedChanged="@(e => ToggleCheckboxItem(e.Item, e.Checked))">
+                <ItemTemplate>
+                    <K7Icon Icon="@Phosphor.MusicNote"  IconSize="@K7IconSize.Sm" />
+                    <span>@context</span>
+                </ItemTemplate>
+            </K7CheckboxList>
+        </div>
+    </section>
+
+    <section id="k7-grouped-list" class="ds-section">
+        <h2>K7GroupedList</h2>
+        <p class="ds-description">Searchable catalog with sticky group headers. Used for notification parameters, rule fields, and other pickers.</p>
+
+        <div class="ds-preview ds-preview--column ds-preview--narrow">
+            <K7GroupedList TItem="string"
+                           Groups="_groupedListGroups"
+                           Searchable="true"
+                           SearchPlaceholder="Search parameters"
+                           ItemLabel="@(item => item)"
+                           ItemDescription="@(item => "{{" + item + "}}")"
+                           ItemClicked="OnGroupedListClicked" />
+            @if (!string.IsNullOrWhiteSpace(_lastGroupedClick))
+            {
+                <p class="text-caption">Last click: @_lastGroupedClick</p>
+            }
+        </div>
+    </section>
+
+    <section id="k7-expansion" class="ds-section">
+        <h2>K7ExpansionPanel</h2>
+        <div class="ds-preview ds-preview--block">
+            <K7ExpansionPanel Text="Audio settings">
+                <p style="padding:var(--spacing-4)">Content of the audio settings panel. Adjust equalizer, normalization, crossfade settings here.</p>
+            </K7ExpansionPanel>
+            <K7ExpansionPanel Text="Video settings" Expanded="true">
+                <p style="padding:var(--spacing-4)">Content of the video settings panel. Resolution, subtitles, and audio tracks.</p>
+            </K7ExpansionPanel>
+            <K7ExpansionPanel Text="Advanced settings">
+                <p style="padding:var(--spacing-4)">Advanced configuration options for power users.</p>
+            </K7ExpansionPanel>
+            <p class="text-caption" style="margin-top:var(--space-2)">Chevron at the start rotates when expanded. Focus the header and press Enter or Space to toggle.</p>
+        </div>
+    </section>
+
+    <section id="k7-table" class="ds-section">
+        <h2>K7Table</h2>
+        <div class="ds-preview ds-preview--block">
+            <K7Table TItem="TrackRow" Items="_tracks" Hover="true" Dense="true">
+                <HeaderContent>
+                    <th>#</th>
+                    <th>Title</th>
+                    <th>Artist</th>
+                    <th>Album</th>
+                    <th>Duration</th>
+                </HeaderContent>
+                <RowTemplate Context="row">
+                    <td>@row.Track</td>
+                    <td>@row.Title</td>
+                    <td>@row.Artist</td>
+                    <td>@row.Album</td>
+                    <td>@row.Duration</td>
+                </RowTemplate>
+            </K7Table>
+        </div>
+    </section>
+
+    <section id="k7-menu" class="ds-section">
+        <h2>K7Menu</h2>
+        <div class="ds-preview">
+            <K7Menu>
+                <ActivatorContent>
+                    <button type="button" class="k7-icon-btn focusable" aria-label="Options"><i class="ph ph-dots-three-vertical"></i></button>
+                </ActivatorContent>
+                <ChildContent>
+                    <K7MenuItem Icon="pencil-simple">Edit</K7MenuItem>
+                    <K7MenuItem Icon="share-network">Share</K7MenuItem>
+                    <K7MenuItem Icon="plus">Add to queue</K7MenuItem>
+                    <K7MenuItem Icon="playlist">Add to playlist</K7MenuItem>
+                    <K7MenuItem Icon="trash" Class="color-error">Delete</K7MenuItem>
+                </ChildContent>
+            </K7Menu>
+
+            <K7Menu>
+                <ActivatorContent>
+                    <K7Button StartIcon="sort-ascending">Sort by</K7Button>
+                </ActivatorContent>
+                <ChildContent>
+                    <K7MenuItem>Title</K7MenuItem>
+                    <K7MenuItem>Artist</K7MenuItem>
+                    <K7MenuItem>Year</K7MenuItem>
+                    <K7MenuItem>Rating</K7MenuItem>
+                </ChildContent>
+            </K7Menu>
+        </div>
+    </section>
+
+    <section id="k7-dialog" class="ds-section">
+        <h2>K7Dialog</h2>
+        <div class="ds-preview">
+            <K7Button OnClick="ShowInfoDialog">Show info dialog</K7Button>
+        </div>
+    </section>
+
+    <section id="k7-snackbar" class="ds-section">
+        <h2>K7Snackbar</h2>
+        <div class="ds-preview">
+            <K7Button OnClick='() => Snackbar.Add("Operation completed.", K7Severity.Success)'>Success</K7Button>
+            <K7Button OnClick='() => Snackbar.Add("Something went wrong.", K7Severity.Error)'>Error</K7Button>
+            <K7Button OnClick='() => Snackbar.Add("Please note this warning.", K7Severity.Warning)'>Warning</K7Button>
+            <K7Button OnClick='() => Snackbar.Add("Here is some info.", K7Severity.Info)'>Info</K7Button>
+        </div>
+    </section>
+
+    <section id="k7-category-card" class="ds-section">
+        <h2>K7CategoryCard</h2>
+        <p class="ds-description">Full-width card with gradient background, bold italic title, description, and icon badge. Optional long-press / right-click menu for alternate destinations.</p>
+        <div class="ds-preview ds-preview--block" style="max-width:480px">
+            <div style="display:flex;flex-direction:column;gap:var(--space-3)">
+                <K7CategoryCard Title="Films"
+                                Description="Cinematic wonders"
+                                Icon="@Phosphor.FilmSlate"
+                                GradientStart="rgba(110,25,25,0.92)"
+                                IconColor="rgba(0,0,0,0.55)"
+                                ContextMenuTitle="Films">
+                    <ContextMenu>
+                        <K7MenuItem Icon="rows">Suggestions</K7MenuItem>
+                        <K7MenuItem Icon="squares-four">Browse</K7MenuItem>
+                    </ContextMenu>
+                </K7CategoryCard>
+                <K7CategoryCard Title="Series"
+                                Description="Binge-worthy stories"
+                                Icon="@Phosphor.MonitorPlay"
+                                GradientStart="rgba(10,70,75,0.92)"                                IconColor="rgba(0,0,0,0.55)" />
+                <K7CategoryCard Title="Anime"
+                                Description="Art in motion"
+                                Icon="@Phosphor.MaskHappy"
+                                GradientStart="rgba(65,20,80,0.92)"                                IconColor="rgba(0,0,0,0.55)" />
+                <K7CategoryCard Title="Music"
+                                Description="Sonic journeys"
+                                Icon="@Phosphor.MusicNote"
+                                GradientStart="rgba(10,65,65,0.92)"                                IconColor="rgba(0,0,0,0.55)" />
+            </div>
+        </div>
+    </section>
+
+    <section id="media-card" class="ds-section">
+        <h2>MediaCard</h2>
+        <p class="ds-description">Supports three variants: Poster (portrait), Backdrop (wide), and Cover (square).</p>
+        <h3 class="ds-sub-heading">Poster</h3>
+        <div class="ds-preview">
+            @foreach (var card in _posterCards)
+            {
+                <div style="width:160px"><MediaCard Model="card" Variant="MediaCardVariant.Poster" /></div>
+            }
+            <div style="width:160px"><MediaCard Skeleton="true" Variant="MediaCardVariant.Poster" Model="_skeletonCard" /></div>
+        </div>
+        <h3 class="ds-sub-heading">Hover overlay</h3>
+        <p class="ds-description">Progress label and watched badge stay readable on the hover overlay.</p>
+        <div class="ds-preview">
+            <div style="width:160px">
+                <MediaCard Model="_watchedCard"
+                           Variant="MediaCardVariant.Poster"
+                           OverlayEnabled="true"
+                           WatchedStatusEnabled="true"
+                           Href="/components#media-card" />
+            </div>
+            <div style="width:160px">
+                <MediaCard Model="_inProgressCard"
+                           Variant="MediaCardVariant.Poster"
+                           OverlayEnabled="true"
+                           ProgressEnabled="true"
+                           Href="/components#media-card" />
+            </div>
+        </div>
+
+        <h3 class="ds-sub-heading">Backdrop</h3>
+        <div class="ds-preview">
+            @foreach (var card in _backdropCards)
+            {
+                <div style="width:280px"><MediaCard Model="card" Variant="MediaCardVariant.Backdrop" /></div>
+            }
+        </div>
+
+        <h3 class="ds-sub-heading">Cover</h3>
+        <div class="ds-preview">
+            @foreach (var card in _coverCards)
+            {
+                <div style="width:160px"><MediaCard Model="card" Variant="MediaCardVariant.Cover" /></div>
+            }
+        </div>
+    </section>
+
+    <section id="carousel" class="ds-section">
+        <h2>Carousel</h2>
+        <div class="ds-preview ds-preview--block">
+            <Carousel Title="Recently Added">
+                @foreach (var card in _posterCards)
+                {
+                    <CarouselItem>
+                        <MediaCard Model="card" Variant="MediaCardVariant.Poster" />
+                    </CarouselItem>
+                }
+            </Carousel>
+        </div>
+    </section>
+
+    <section id="rating-stars" class="ds-section">
+        <h2>RatingStars</h2>
+        <p class="ds-description">10-point scale shown as 0-5 stars with half-star steps. Drag (or click) to set; drag left to clear.</p>
+        <div class="ds-preview">
+            <div class="d-flex flex-col gap-2">
+                <div class="d-flex align-center gap-3">
+                    <span style="font-size:var(--text-sm);width:60px">No rating</span>
+                    <RatingStars MediaId="@Guid.NewGuid()" Value="null" Size="md" />
+                </div>
+                <div class="d-flex align-center gap-3">
+                    <span style="font-size:var(--text-sm);width:60px">1/10</span>
+                    <RatingStars MediaId="@Guid.NewGuid()" Value="1" Size="md" />
+                </div>
+                <div class="d-flex align-center gap-3">
+                    <span style="font-size:var(--text-sm);width:60px">4/10</span>
+                    <RatingStars MediaId="@Guid.NewGuid()" Value="4" Size="md" />
+                </div>
+                <div class="d-flex align-center gap-3">
+                    <span style="font-size:var(--text-sm);width:60px">7/10</span>
+                    <RatingStars MediaId="@Guid.NewGuid()" Value="7" Size="md" />
+                </div>
+                <div class="d-flex align-center gap-3">
+                    <span style="font-size:var(--text-sm);width:60px">10/10</span>
+                    <RatingStars MediaId="@Guid.NewGuid()" Value="10" Size="md" />
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="episode-list-item" class="ds-section">
+        <h2>EpisodeListItem</h2>
+        <div class="ds-preview ds-preview--block">
+            @foreach (var episode in _episodes)
+            {
+                <EpisodeListItem Episode="episode" StillUrl="@($"https://picsum.photos/seed/{episode.Id}/320/180")" />
+            }
+        </div>
+    </section>
+
+    <section id="person-role" class="ds-section">
+        <h2>PersonRole</h2>
+        <p class="ds-description">Displays a person's role in a production - actor, crew member, or music artist. Supports skeleton state.</p>
+        <div class="ds-preview">
+            @foreach (var role in _personRoles)
+            {
+                <PersonRole LitePersonRoleDto="role" />
+            }
+            <PersonRole Skeleton="true" LitePersonRoleDto="@_skeletonRole" />
+        </div>
+    </section>
+
+    <section id="browse-view" class="ds-section">
+        <h2>BrowseView</h2>
+        <p class="ds-description">Switchable grid / list / table view with virtual scrolling and persistent layout preferences.</p>
+        <div class="ds-preview ds-preview--block" style="height:400px">
+            <BrowseView TItem="MediaCardViewModel" Items="_allCards" PersistenceKey="ds-browse" DefaultMode="BrowseViewMode.Grid" DefaultItemWidth="160" GridItemAspectRatio="1.5f">
+                <GridTemplate Context="item">
+                    <MediaCard Model="item" Variant="MediaCardVariant.Poster" />
+                </GridTemplate>
+                <ListTemplate Context="item">
+                    <div style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-3)">
+                        <K7Image Src="@item.PictureUrl" Alt="@item.Title" />
+                        <span style="font-size:var(--text-sm)">@item.Title</span>
+                    </div>
+                </ListTemplate>
+                <TableHeaderContent>
+                    <th>Title</th>
+                    <th>Type</th>
+                </TableHeaderContent>
+                <TableRowTemplate Context="row">
+                    <td>@row.Item.Title</td>
+                    <td>@row.Item.Kind</td>
+                </TableRowTemplate>
+            </BrowseView>
+        </div>
+    </section>
+
+    <section id="k7-data-table" class="ds-section">
+        <h2>K7DataTable</h2>
+        <p class="ds-description">Virtualized data table with sortable columns, column picker, and row click support.</p>
+        <div class="ds-preview ds-preview--block" style="height:300px">
+            <K7DataTable TItem="TrackRow" Items="_tracks">
+                <K7DataColumn TItem="TrackRow" Title="#" Property="@(t => t.Track)" Width="60px" />
+                <K7DataColumn TItem="TrackRow" Title="Title" SortKey="title">
+                    <CellTemplate>
+                        <strong>@context.Title</strong>
+                    </CellTemplate>
+                </K7DataColumn>
+                <K7DataColumn TItem="TrackRow" Title="Artist" Property="@(t => t.Artist)" SortKey="artist" />
+                <K7DataColumn TItem="TrackRow" Title="Album" Property="@(t => t.Album)" Hideable="true" />
+                <K7DataColumn TItem="TrackRow" Title="Duration" Property="@(t => t.Duration)" Width="80px" />
+            </K7DataTable>
+        </div>
+    </section>
+
+    <section id="k7-back-to-top" class="ds-section">
+        <h2>K7BackToTop</h2>
+        <p class="ds-description">Floating button that appears after scrolling past a threshold. Scrolls the nearest scroll container back to top.</p>
+        <div class="ds-preview ds-preview--block" style="height:200px; overflow-y:auto; position:relative;">
+            <div style="height:800px; padding:16px;">
+                <p>Scroll down to see the back-to-top button appear.</p>
+            </div>
+            <K7BackToTop Threshold="100" />
+        </div>
+    </section>
+
+    <section id="k7-jump-index" class="ds-section">
+        <h2>K7JumpIndex</h2>
+        <p class="ds-description">Vertical alphabet rail for quick navigation. Supports click and drag. Integrates with BrowseView for scrolling to letter positions.</p>
+        <div class="ds-preview ds-preview--block" style="height:300px; position:relative; overflow-y:auto;">
+            <div style="padding: 16px; padding-right: 32px;">
+                @foreach (var letter in _jumpLabels)
+                {
+                    <div id="jump-@letter" style="padding: 8px 0; border-bottom: 1px solid var(--color-border);">
+                        <strong>@letter</strong> - Items starting with @letter
+                    </div>
+                }
+            </div>
+            <K7JumpIndex Labels="_jumpLabels" OnJumpRequested="OnJumpDemoRequested" />
+        </div>
+    </section>
+</div>
+
+@code {
+    // Base
+    private bool _liked;
+    private bool _muted = true;
+    private bool _starred;
+    private bool _custom;
+
+    // Forms
+    private string? _text1, _text2, _text4, _textAdornment, _textClearable;
+    private string? _genre, _genre2;
+    private DateOnly? _dateFrom, _dateTo;
+    private double _volume = 70;
+    private double _brightness = 100;
+    private bool _switch1 = true;
+    private bool _switch2;
+
+    // CheckboxList
+    private static readonly IReadOnlyList<string> _checkboxListItems =
+        ["Movies", "TV Shows", "Music", "Podcasts", "Audiobooks", "Live TV"];
+    private readonly HashSet<string> _selectedItems = ["Movies", "Music"];
+
+    private void ToggleCheckboxItem(string item, bool isChecked)
+    {
+        if (isChecked)
+            _selectedItems.Add(item);
+        else
+            _selectedItems.Remove(item);
+    }
+
+    private string? _lastGroupedClick;
+    private static readonly IReadOnlyList<K7GroupedListGroup<string>> _groupedListGroups =
+    [
+        new() { Key = "Media", Label = "Media", Items = ["Media.Title", "Media.Year", "Media.Type"] },
+        new() { Key = "Session", Label = "Session", Items = ["Session.State", "Session.ProgressPercent"] },
+        new() { Key = "Server", Label = "Server", Items = ["Server.Name", "Server.Url"] }
+    ];
+
+    private void OnGroupedListClicked(string item) => _lastGroupedClick = item;
+
+    private readonly List<TrackRow> _tracks =
+    [
+        new(1, "Bohemian Rhapsody", "Queen", "A Night at the Opera", "5:54"),
+        new(2, "Hotel California", "Eagles", "Hotel California", "6:30"),
+        new(3, "Stairway to Heaven", "Led Zeppelin", "Led Zeppelin IV", "8:02"),
+        new(4, "Comfortably Numb", "Pink Floyd", "The Wall", "6:23"),
+        new(5, "Wish You Were Here", "Pink Floyd", "Wish You Were Here", "5:40"),
+    ];
+
+    private record TrackRow(int Track, string Title, string Artist, string Album, string Duration);
+
+    private async Task ShowInfoDialog()
+    {
+        var parameters = new K7DialogParameters<K7MessageBoxDialog>();
+        parameters.Add(x => x.Message, "This is a dialog shown from the K7 design system demo page.");
+        await DialogService.ShowAsync<K7MessageBoxDialog>("Example dialog", parameters);
+    }
+
+    // Media
+
+    private static readonly MediaCardViewModel _skeletonCard = new() { Id = "skeleton" };
+
+    private static readonly MediaCardViewModel _watchedCard = new()
+    {
+        Id = Guid.NewGuid().ToString(),
+        Title = "Dune",
+        PictureUrl = "https://picsum.photos/seed/dune-watched/200/300",
+        Kind = MediaCardKind.Poster,
+        Watched = true
+    };
+
+    private static readonly MediaCardViewModel _inProgressCard = new()
+    {
+        Id = Guid.NewGuid().ToString(),
+        Title = "Oppenheimer",
+        PictureUrl = "https://picsum.photos/seed/opp-progress/200/300",
+        Kind = MediaCardKind.Poster,
+        Progress = 42,
+        RuntimeMinutes = 180
+    };
+
+    private static readonly List<MediaCardViewModel> _posterCards =
+    [
+        new() { Id = Guid.NewGuid().ToString(), Title = "Dune", PictureUrl = "https://picsum.photos/seed/dune/200/300", Kind = MediaCardKind.Poster },
+        new() { Id = Guid.NewGuid().ToString(), Title = "Oppenheimer", PictureUrl = "https://picsum.photos/seed/opp/200/300", Kind = MediaCardKind.Poster },
+        new() { Id = Guid.NewGuid().ToString(), Title = "The Revenant", PictureUrl = "https://picsum.photos/seed/rev/200/300", Kind = MediaCardKind.Poster },
+        new() { Id = Guid.NewGuid().ToString(), Title = "Interstellar", PictureUrl = "https://picsum.photos/seed/inter/200/300", Kind = MediaCardKind.Poster },
+    ];
+
+    private static readonly List<MediaCardViewModel> _backdropCards =
+    [
+        new() { Id = Guid.NewGuid().ToString(), Title = "Breaking Bad - S01E01", PictureUrl = "https://picsum.photos/seed/bb/320/180", Kind = MediaCardKind.Episode },
+        new() { Id = Guid.NewGuid().ToString(), Title = "The Witcher - S01E01", PictureUrl = "https://picsum.photos/seed/tw/320/180", Kind = MediaCardKind.Episode },
+    ];
+
+    private static readonly List<MediaCardViewModel> _coverCards =
+    [
+        new() { Id = Guid.NewGuid().ToString(), Title = "Random Access Memories", PictureUrl = "https://picsum.photos/seed/ram/200/200", Kind = MediaCardKind.Cover },
+        new() { Id = Guid.NewGuid().ToString(), Title = "Abbey Road", PictureUrl = "https://picsum.photos/seed/ar/200/200", Kind = MediaCardKind.Cover },
+        new() { Id = Guid.NewGuid().ToString(), Title = "Dark Side of the Moon", PictureUrl = "https://picsum.photos/seed/dsm/200/200", Kind = MediaCardKind.Cover },
+    ];
+
+    private static readonly List<MediaCardViewModel> _allCards =
+    [
+        new() { Id = Guid.NewGuid().ToString(), Title = "Dune", PictureUrl = "https://picsum.photos/seed/dune/200/300", Kind = MediaCardKind.Poster },
+        new() { Id = Guid.NewGuid().ToString(), Title = "Oppenheimer", PictureUrl = "https://picsum.photos/seed/opp/200/300", Kind = MediaCardKind.Poster },
+        new() { Id = Guid.NewGuid().ToString(), Title = "Interstellar", PictureUrl = "https://picsum.photos/seed/inter/200/300", Kind = MediaCardKind.Poster },
+        new() { Id = Guid.NewGuid().ToString(), Title = "The Revenant", PictureUrl = "https://picsum.photos/seed/rev/200/300", Kind = MediaCardKind.Poster },
+        new() { Id = Guid.NewGuid().ToString(), Title = "Arrival", PictureUrl = "https://picsum.photos/seed/arr/200/300", Kind = MediaCardKind.Poster },
+        new() { Id = Guid.NewGuid().ToString(), Title = "1917", PictureUrl = "https://picsum.photos/seed/1917/200/300", Kind = MediaCardKind.Poster },
+    ];
+
+    private static readonly LiteActorDto _skeletonRole = new() { Id = Guid.Empty, MediaId = Guid.Empty };
+
+    private static readonly List<LiteActorDto> _personRoles =
+    [
+        new() { Id = Guid.NewGuid(), MediaId = Guid.NewGuid(), CharacterName = "Walter White", Person = new() { Id = Guid.NewGuid(), Name = "Bryan Cranston" } },
+        new() { Id = Guid.NewGuid(), MediaId = Guid.NewGuid(), CharacterName = "Jesse Pinkman", Person = new() { Id = Guid.NewGuid(), Name = "Aaron Paul" } },
+        new() { Id = Guid.NewGuid(), MediaId = Guid.NewGuid(), CharacterName = "Gus Fring", Person = new() { Id = Guid.NewGuid(), Name = "Giancarlo Esposito" } },
+    ];
+
+    private static readonly List<LiteSerieEpisodeDto> _episodes =
+    [
+        new() { Id = Guid.NewGuid(), Title = "Pilot", EpisodeNumber = 1, SeasonNumber = 1, Duration = 47.5, SerieId = Guid.NewGuid(), SerieSeasonCount = 5 },
+        new() { Id = Guid.NewGuid(), Title = "The Cat's in the Bag", EpisodeNumber = 2, SeasonNumber = 1, Duration = 48.0, SerieId = Guid.NewGuid(), SerieSeasonCount = 5 },
+        new() { Id = Guid.NewGuid(), Title = "...And the Bag's in the River", EpisodeNumber = 3, SeasonNumber = 1, Duration = 50.2, SerieId = Guid.NewGuid(), SerieSeasonCount = 5 },
+    ];
+
+    // Jump Index
+    private static readonly IReadOnlyList<string> _jumpLabels =
+        ["#", ..Enumerable.Range('A', 26).Select(c => ((char)c).ToString())];
+
+    private void OnJumpDemoRequested(string label)
+    {
+        // Demo only - in real usage this scrolls a BrowseView
+    }
+}

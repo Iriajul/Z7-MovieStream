@@ -1,0 +1,36 @@
+﻿using K7.Server.Application.Features.IndexedFiles.Queries.GetHlsVideoStreamSegment;
+using K7.Server.Domain.Constants;
+using Microsoft.AspNetCore.Mvc;
+
+namespace K7.Server.Web.Endpoints.IndexedFiles;
+
+public class GetHlsVideoStreamSegment : IEndpoint
+{
+    public void Map(IEndpointRouteBuilder app)
+    {
+        app.MapMethods($"/api/indexed-files/{{id}}/hls-stream/video/{{quality}}/segments/{{segmentNumber}}.m4s", ["GET", "HEAD"],
+                async (
+                    [FromRoute] Guid id, 
+                    [FromRoute] string quality, 
+                    [FromRoute] string segmentNumber,
+                    [FromQuery] Guid streamSessionId,
+                    [FromQuery] string? TranscodingVideoCodec,
+                    [FromQuery] int? SubtitleBurnInStreamIndex,
+                    [FromServices] ISender sender, 
+                    CancellationToken cancellationToken) =>
+                {
+                    // Parse segmentNumber as int, or use -1 for init
+                    var segmentIndex = segmentNumber.ToLower() == "init" ? -1 : int.Parse(segmentNumber);
+                    return (await sender.Send(new GetHlsVideoStreamSegmentQuery(
+                        id, 
+                        quality, 
+                        segmentIndex,
+                        streamSessionId,
+                        TranscodingVideoCodec,
+                        SubtitleBurnInStreamIndex), cancellationToken)).ToIResult();
+                })
+            .RequireAuthorization(Policies.StreamAccess)
+            .WithName(nameof(GetHlsVideoStreamSegment))
+            .WithTags("IndexedFiles");
+    }
+}

@@ -1,0 +1,60 @@
+@namespace K7.Clients.Shared.UI.Components
+@typeparam TValue
+@implements IAsyncDisposable
+
+<div class="k7-field @Class" style="@(string.IsNullOrEmpty(Style) ? null : Style)">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label class="k7-label">@Label</label>
+    }
+    @if (_open)
+    {
+        <div class="k7-backdrop" @ref="_backdrop"
+             @onpointerdown:preventDefault="true"
+             @onpointerdown:stopPropagation="true"
+             @onclick="CloseAsync"
+             @onclick:preventDefault="true"
+             @onclick:stopPropagation="true"></div>
+    }
+    <div class="k7-select-wrap @(_open ? "k7-select-wrap--open" : "")" @ref="_root">
+        @* Items must render before the trigger so DisplayText can resolve labels on first paint. *@
+        <div class="k7-select-dropdown @(_open ? "k7-select-dropdown--open" : "") @(_dropdownPlaced ? "k7-select-dropdown--placed" : "") @(_dropdownTeleported ? "k7-select-dropdown--teleported" : "")" role="listbox" @ref="_dropdown" @onclick:stopPropagation="true"
+             data-sn-layer="@(_open ? "popover" : null)">
+            <CascadingValue Value="this" IsFixed="true">
+                @ChildContent
+            </CascadingValue>
+        </div>
+        <button type="button"
+                class="k7-select focusable"
+                disabled="@Disabled"
+                aria-haspopup="listbox"
+                aria-expanded="@_open"
+                @ref="_button"
+                @onclick="Toggle"
+                @onclick:stopPropagation="true">
+            <span class="k7-select-text">
+                @if (SelectedContent is not null)
+                {
+                    @SelectedContent
+                }
+                else
+                {
+                    @DisplayText
+                }
+            </span>
+            @if (Clearable && Value is not null)
+            {
+                <button type="button" class="k7-select-clear" tabindex="-1"
+                        @onclick="ClearAsync" @onclick:stopPropagation="true"
+                        aria-label="Clear">
+                    <K7Icon Icon="@Phosphor.X"  IconSize="@K7IconSize.Xs"></K7Icon>
+                </button>
+            }
+            <K7Icon Icon="@Phosphor.CaretDown" Class="k7-select-icon"></K7Icon>
+        </button>
+    </div>
+    @if (!string.IsNullOrEmpty(HelperText))
+    {
+        <span class="k7-field-helper">@HelperText</span>
+    }
+</div>

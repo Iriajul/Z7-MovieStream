@@ -1,0 +1,12 @@
+::deep .cursor-pointer {
+    cursor: pointer;
+}
+
+.track-link {
+    text-decoration: none;
+}
+
+.track-link:hover,
+.track-link:focus-visible {
+    text-decoration: underline;
+}

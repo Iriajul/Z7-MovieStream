@@ -1,0 +1,96 @@
+﻿.task-name-cell {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.background-tasks-page .data-page-body ::deep .k7-data-table-scroll {
+    overflow-x: auto;
+    overflow-y: auto;
+    scrollbar-gutter: auto;
+    padding: 0;
+}
+
+.background-tasks-page .data-page-body ::deep .k7-empty-state {
+    flex: 1;
+    width: 100%;
+}
+
+.background-tasks-table-host {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.background-tasks-table-host--hidden {
+    display: none;
+}
+
+.background-tasks-page .data-page-body ::deep .k7-data-table-el {
+    table-layout: auto;
+    min-width: 100%;
+}
+
+.task-name-label,
+.task-error-detail {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.task-error-detail {
+    margin: 0;
+}
+
+.background-tasks-toolbar .data-page-toolbar__end {
+    gap: var(--space-2);
+}
+
+.background-tasks-toolbar ::deep .background-tasks-toolbar__settings {
+    margin-right: var(--space-1);
+}
+
+.background-tasks-toolbar__primary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+@media (max-width: 599.98px) {
+    .background-tasks-page .data-page-body ::deep .k7-data-table-el {
+        min-width: max-content;
+    }
+
+    .background-tasks-page .data-page-body ::deep .k7-data-table-el th,
+    .background-tasks-page .data-page-body ::deep .k7-data-table-el td {
+        white-space: nowrap;
+    }
+
+    .task-name-cell {
+        max-width: 16rem;
+    }
+
+    .background-tasks-toolbar__primary {
+        flex: 1 1 100%;
+        width: 100%;
+    }
+
+    .background-tasks-toolbar__primary ::deep .k7-filter-menu {
+        flex: 0 0 auto;
+    }
+
+    .background-tasks-toolbar__primary ::deep .data-toolbar-sort {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+        max-width: none;
+        height: 40px;
+    }
+
+    .background-tasks-toolbar__primary ::deep .data-toolbar-sort .k7-select {
+        min-width: 0;
+        font-size: var(--text-xs);
+    }
+}

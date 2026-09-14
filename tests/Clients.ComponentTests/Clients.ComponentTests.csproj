@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup>
+        <RootNamespace>K7.Clients.ComponentTests</RootNamespace>
+        <AssemblyName>K7.Clients.ComponentTests</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="bunit" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="nunit" />
+        <PackageReference Include="NUnit.Analyzers">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="NUnit3TestAdapter" />
+        <PackageReference Include="coverlet.collector" />
+        <PackageReference Include="AwesomeAssertions" />
+        <PackageReference Include="NSubstitute" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Clients\Shared\UI\K7.Clients.Shared.UI.csproj" />
+        <ProjectReference Include="..\..\src\Clients\Shared\K7.Clients.Shared.csproj" />
+        <ProjectReference Include="..\..\src\Clients\Web\K7.Clients.Web.csproj" />
+    </ItemGroup>
+
+</Project>

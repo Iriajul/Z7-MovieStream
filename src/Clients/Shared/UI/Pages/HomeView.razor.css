@@ -1,0 +1,64 @@
+.home-page {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    gap: 24px;
+    padding-top: var(--space-6);
+    padding-bottom: 32px;
+    --carousel-margin-start: 40px;
+}
+
+:global(html.platform-tv) .home-page,
+.home-page--tv {
+    height: 100%;
+    max-height: 100%;
+    padding-top: 0;
+    padding-bottom: 0;
+    gap: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.home-page--tv ::deep .vertical-carousel {
+    flex: 0 0 auto;
+    margin-top: auto;
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: 32px;
+}
+
+@media (max-width: 599.98px) {
+    .home-page {
+        margin-top: calc(-1 * var(--k7-safe-top));
+        --carousel-margin-start: 16px;
+        gap: 16px;
+        padding-top: calc(var(--space-3) + var(--k7-safe-top));
+    }
+}
+
+.home-offline-banner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 80px 16px;
+    text-align: center;
+}
+
+.home-offline-banner__title {
+    margin: 0;
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.home-offline-banner__subtitle {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    max-width: 300px;
+}

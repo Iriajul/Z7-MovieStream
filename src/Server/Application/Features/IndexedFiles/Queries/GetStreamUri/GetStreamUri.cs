@@ -1,0 +1,485 @@
+using K7.Server.Application.Common;
+using K7.Server.Application.Common.Interfaces;
+using K7.Server.Application.Common.Mappings;
+using K7.Server.Application.Common.Services;
+using K7.Server.Application.Features.IndexedFiles.Queries.GetHlsStreamManifest;
+using K7.Server.Application.Features.TrackSelectionPreferences.Queries.GetEffectiveTrackSelectionPreferences;
+using K7.Server.Application.Helpers;
+using K7.Server.Application.Services;
+using K7.Server.Domain.Common;
+using K7.Server.Domain.Constants;
+using K7.Server.Domain.Entities;
+using K7.Server.Domain.Entities.Devices;
+using K7.Server.Domain.Entities.MediaFormats;
+using K7.Server.Domain.Entities.Metadatas.Files;
+using K7.Server.Domain.Entities.Metadatas.Files.Tracks;
+using K7.Server.Domain.Enums;
+using K7.Shared.Dtos;
+using K7.Shared.Enums;
+using OperatingSystem = K7.Server.Domain.Enums.OperatingSystem;
+using K7.Shared.QueryBuilders;
+using Microsoft.Extensions.Logging;
+
+namespace K7.Server.Application.Features.IndexedFiles.Queries.GetStreamUri;
+
+public record GetStreamUriQuery : IRequest<IndexedFileStreamUri>
+{
+    public required Guid Id { get; set; }
+    public Guid? DeviceId { get; set; }
+    public Guid StreamSessionId { get; set; }
+    public int? AudioTrackIndex { get; set; }
+    public int? SubtitleTrackIndex { get; set; }
+    /// <summary>
+    /// Device-local HDMI bitstream preference for this play. Default on.
+    /// When false, AC3/EAC3/DTS/TrueHD are not Direct Played.
+    /// </summary>
+    public bool AllowAudioPassthrough { get; set; } = true;
+};
+
+public class GetStreamUriQueryHandler(
+    IStreamPlaybackService streamPlaybackService) : IRequestHandler<GetStreamUriQuery, IndexedFileStreamUri>
+{
+    public async Task<IndexedFileStreamUri> Handle(GetStreamUriQuery request, CancellationToken cancellationToken)
+    {
+        return await streamPlaybackService.GetStreamUriAsync(request, cancellationToken);
+    }
+
+    public static (IndexedFileStreamUri Uri, StreamDecisionDto Decision) GetVideoFileStreamUri(Device device, IndexedFile indexedFile, VideoFileMetadata videoFileMetadata, GetStreamUriQuery request, bool hlsSegmentsAvailable, int? subtitleTrackIndex)
+    {
+        AudioFileTrack selectedAudioTrack;
+        if (request.AudioTrackIndex is int audioIdx)
+        {
+            selectedAudioTrack = videoFileMetadata.AudioTracks.FirstOrDefault(t => t.Index == audioIdx)
+                ?? throw new InvalidOperationException($"Audio track index '{audioIdx}' not found for indexed file '{indexedFile.Id}'.");
+        }
+        else
+        {
+            selectedAudioTrack = videoFileMetadata.AudioTracks
+                .OrderByDescending(x => x.IsDefault)
+                .FirstOrDefault()
+                ?? throw new InvalidOperationException($"Indexed file with id '{indexedFile.Id}' has no audio tracks.");
+        }
+
+        var selectedVideoTrack = videoFileMetadata.VideoTracks.FirstOrDefault()
+            ?? throw new InvalidOperationException($"Indexed file with id '{indexedFile.Id}' has no video tracks.");
+
+        var supportedAudioFormats = device.PlaybackCapabilities.SupportedMediaFormats.OfType<AudioMediaFormat>().ToList();
+        var supportedVideoFormats = device.PlaybackCapabilities.SupportedMediaFormats.OfType<VideoMediaFormat>().ToList();
+
+        var audioDirectSupported = supportedAudioFormats.Any(x =>
+            x.Container == videoFileMetadata.Container
+            && MediaCodecNames.EqualsCodec(x.Codec, selectedAudioTrack.Codec))
+            && (request.AllowAudioPassthrough
+                || !AudioPassthroughCodecs.IsPassthrough(selectedAudioTrack.Codec));
+
+        var videoDirectSupported = supportedVideoFormats.Any(x =>
+            x.Container == videoFileMetadata.Container
+            && MediaCodecNames.EqualsCodec(x.VideoCodec, selectedVideoTrack.Codec))
+            && VideoDecoderProfileMatching.AllowsDirectPlay(
+                device.PlaybackCapabilities.SupportedMediaFormatIds,
+                selectedVideoTrack);
+
+        var sourceResolution = selectedVideoTrack.Width > 0 && selectedVideoTrack.Height > 0
+            ? $"{selectedVideoTrack.Width}x{selectedVideoTrack.Height}"
+            : null;
+
+        var selectedSubtitle = subtitleTrackIndex.HasValue
+            ? videoFileMetadata.SubtitleTracks.FirstOrDefault(t => t.Index == subtitleTrackIndex.Value)
+            : null;
+
+        var subtitleBurnInStreamIndex = selectedSubtitle is { IsTextBased: false } ? selectedSubtitle.Index : (int?)null;
+        var defaultTextSubtitleTrackIndex = selectedSubtitle is { IsTextBased: true } ? selectedSubtitle.Index : (int?)null;
+
+        // Video.js cannot switch in-container audio/subs. Native LibVLC / AVPlayer can.
+        // Web always remux/encode so the HLS master keeps track choice.
+        // https://github.com/videojs/video.js/issues/6442
+        // https://docs.videojs.com/tutorial-audio-tracks.html
+        var allowsVideoDirectPlay = AllowsVideoDirectPlay(device);
+
+        // Browsers and native players scale. Do not refuse remux/Direct Play just because
+        // the file is taller than the screen. Encode output may still be capped later.
+        if (allowsVideoDirectPlay && audioDirectSupported && videoDirectSupported)
+        {
+            var mimeType = Constants.ContainerMimeTypeMapping.TryGetValue(videoFileMetadata.Container, out var directMime)
+                ? directMime
+                : "application/octet-stream";
+
+            var decision = new StreamDecisionDto
+            {
+                Mode = PlaybackMode.Direct,
+                SourceVideoCodec = selectedVideoTrack.Codec,
+                SourceAudioCodec = selectedAudioTrack.Codec,
+                StreamVideoCodec = selectedVideoTrack.Codec,
+                StreamAudioCodec = selectedAudioTrack.Codec,
+                SourceResolution = sourceResolution,
+                SelectedAudioTrackIndex = selectedAudioTrack.Index,
+                AudioTrackLanguage = selectedAudioTrack.Language,
+                AudioTrackTitle = selectedAudioTrack.Name,
+                AudioChannelLayout = selectedAudioTrack.ChannelLayout,
+                SubtitleTrackLanguage = selectedSubtitle?.Language,
+                SubtitleTrackTitle = selectedSubtitle?.Name,
+                SubtitleCodec = selectedSubtitle?.Codec,
+                SelectedSubtitleTrackIndex = selectedSubtitle?.Index,
+                IsSubtitleBurnIn = subtitleBurnInStreamIndex.HasValue
+            };
+
+            return (new IndexedFileStreamUri
+            {
+                Uri = new Uri(GetIndexedFileDirectStreamQueryUriBuilder.Build(indexedFile.Id), UriKind.Relative),
+                MimeType = mimeType
+            }, decision);
+        }
+
+        // Otherwise we go through HLS. Video.js MSE often accepts 8-bit hvc1 but rejects
+        // Main 10 (Heroes) and rejects video+audio packed into one CODECS type check.
+        var usesVideoJsHls = UsesVideoJsHlsManifest(device);
+        var videoCodecSupported = supportedVideoFormats.Any(x =>
+            MediaCodecNames.EqualsCodec(x.VideoCodec, selectedVideoTrack.Codec))
+            && VideoDecoderProfileMatching.AllowsDirectPlay(
+                device.PlaybackCapabilities.SupportedMediaFormatIds,
+                selectedVideoTrack);
+        if (usesVideoJsHls
+            && !IsVideoJsHlsCopyTrack(
+                selectedVideoTrack,
+                device.PlaybackCapabilities.SupportedMediaFormatIds))
+        {
+            videoCodecSupported = false;
+        }
+
+        var requiresVideoTranscoding = !videoCodecSupported;
+
+        // When HLS segments aren't available, force transcoding to avoid the "original"
+        // quality path which requires keyframe-based segments from the database
+        var forcedByMissingSegments = !hlsSegmentsAvailable && !requiresVideoTranscoding;
+        if (forcedByMissingSegments)
+        {
+            requiresVideoTranscoding = true;
+        }
+
+        VideoMediaFormat? videoTranscodingMediaFormat = null;
+
+        if (subtitleBurnInStreamIndex.HasValue)
+        {
+            requiresVideoTranscoding = true;
+        }
+
+        // Windows MAUI HLS uses Video.js in WebView2, not LibVLC remux. Always encode
+        // so MSE gets h264/aac. Direct Play keeps real codecs via /direct-stream.
+        // Web browsers on Windows remux like any other browser (ClientType.Web).
+        if (ForcesWindowsHlsEncode(device))
+            requiresVideoTranscoding = true;
+
+        if (requiresVideoTranscoding)
+        {
+            videoTranscodingMediaFormat = GetDeviceBestSupportedVideoMediaFormat([.. device.PlaybackCapabilities.SupportedMediaFormats.Where(x => x.Type == MediaFormatType.Video)]);
+        }
+
+        Dictionary<int, string>? audioTrackTranscodings = null;
+        // HLS uses fMP4 segments (ISO BMFF / mp4 container), so only audio codecs
+        // that the device supports inside mp4 can be stream-copied without transcoding.
+        var hlsCompatibleAudioCodecSet = supportedAudioFormats
+            .Where(x => x.Container == "mp4")
+            .Select(x => MediaCodecNames.Canonical(x.Codec))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var audioTrack in videoFileMetadata.AudioTracks)
+        {
+            var canonicalCodec = string.IsNullOrWhiteSpace(audioTrack.Codec)
+                ? null
+                : MediaCodecNames.Canonical(audioTrack.Codec);
+
+            if (ForcesWindowsHlsEncode(device))
+            {
+                if (canonicalCodec is null
+                    || !string.Equals(canonicalCodec, "aac", StringComparison.OrdinalIgnoreCase))
+                {
+                    audioTrackTranscodings ??= [];
+                    audioTrackTranscodings[audioTrack.Index] = "aac";
+                }
+
+                continue;
+            }
+
+            // DTS/TrueHD fMP4 remux still hangs on empty init.m4s. AC3/EAC3 remux only
+            // on Video.js when the browser probed those codecs inside mp4 (MSE ac-3 / ec-3).
+            // Native HLS (Android Exo) still encodes: copy often never finishes init.m4s.
+            if (canonicalCodec is "dts" or "truehd" or "dtshd" or "mlp")
+            {
+                audioTrackTranscodings ??= [];
+                audioTrackTranscodings[audioTrack.Index] = "aac";
+                continue;
+            }
+
+            if (canonicalCodec is "ac3" or "eac3"
+                && !(usesVideoJsHls && hlsCompatibleAudioCodecSet.Contains(canonicalCodec)))
+            {
+                audioTrackTranscodings ??= [];
+                audioTrackTranscodings[audioTrack.Index] = "aac";
+                continue;
+            }
+
+            if (canonicalCodec is null
+                || !hlsCompatibleAudioCodecSet.Contains(canonicalCodec))
+            {
+                audioTrackTranscodings ??= [];
+                var fallback = GetDeviceBestSupportedAudioMediaFormat([.. device.PlaybackCapabilities.SupportedMediaFormats.Where(x => x.Type == MediaFormatType.Audio)]);
+                audioTrackTranscodings[audioTrack.Index] = fallback.Codec;
+            }
+        }
+
+        // Build stream decision
+        var selectedAudioNeedsTranscode = audioTrackTranscodings?.ContainsKey(selectedAudioTrack.Index) == true;
+        var streamAudioCodec = selectedAudioNeedsTranscode
+            ? audioTrackTranscodings![selectedAudioTrack.Index]
+            : selectedAudioTrack.Codec;
+
+        var reason = BuildVideoTranscodeReason(
+            requiresVideoTranscoding,
+            forcedByMissingSegments,
+            videoCodecSupported,
+            selectedAudioNeedsTranscode,
+            subtitleBurnInStreamIndex.HasValue);
+        var mode = requiresVideoTranscoding ? PlaybackMode.Transcode : PlaybackMode.Transmux;
+
+        var hlsDecision = new StreamDecisionDto
+        {
+            Mode = mode,
+            Reason = reason,
+            SourceVideoCodec = selectedVideoTrack.Codec,
+            SourceAudioCodec = selectedAudioTrack.Codec,
+            StreamVideoCodec = requiresVideoTranscoding ? videoTranscodingMediaFormat?.VideoCodec : selectedVideoTrack.Codec,
+            StreamAudioCodec = streamAudioCodec,
+            SourceResolution = sourceResolution,
+            SelectedAudioTrackIndex = selectedAudioTrack.Index,
+            AudioTrackLanguage = selectedAudioTrack.Language,
+            AudioTrackTitle = selectedAudioTrack.Name,
+            AudioChannelLayout = selectedAudioTrack.ChannelLayout,
+            SubtitleTrackLanguage = selectedSubtitle?.Language,
+            SubtitleTrackTitle = selectedSubtitle?.Name,
+            SubtitleCodec = selectedSubtitle?.Codec,
+            SelectedSubtitleTrackIndex = selectedSubtitle?.Index,
+            IsSubtitleBurnIn = subtitleBurnInStreamIndex.HasValue
+        };
+
+        VideoResolution? displayEncodeQuality = null;
+        if (requiresVideoTranscoding)
+        {
+            displayEncodeQuality = DisplayEncodeCap.TryGetEncodeQuality(device, selectedVideoTrack.Height);
+            if (displayEncodeQuality is not null)
+            {
+                hlsDecision = StreamDecisionExtensions.ApplyQualityDownscale(
+                    hlsDecision,
+                    displayEncodeQuality,
+                    videoTranscodingMediaFormat?.VideoCodec,
+                    sourceResolution);
+            }
+        }
+
+        return (new IndexedFileStreamUri
+        {
+            Uri = new Uri(GetHlsStreamManifestQueryUriBuilder.Build(new GetHlsStreamManifestQuery()
+            {
+                Id = indexedFile.Id,
+                StreamSessionId = request.StreamSessionId,
+                TranscodingVideoCodec = videoTranscodingMediaFormat?.VideoCodec,
+                AudioTrackTranscodings = audioTrackTranscodings,
+                DefaultAudioTrackIndex = request.AudioTrackIndex,
+                DefaultSubtitleTrackIndex = defaultTextSubtitleTrackIndex,
+                SubtitleBurnInStreamIndex = subtitleBurnInStreamIndex,
+                Quality = displayEncodeQuality?.Name,
+                // Video.js (Web + Windows HLS) needs video-only CODECS on STREAM-INF.
+                VideoCodecsOnly = usesVideoJsHls
+            }), UriKind.Relative),
+            MimeType = "application/vnd.apple.mpegurl"
+        }, hlsDecision);
+    }
+
+    /// <summary>
+    /// Native clients can switch muxed tracks (LibVLC on Android/Windows, AVPlayer on
+    /// iOS/Mac). Web Video.js cannot.
+    /// </summary>
+    internal static bool AllowsVideoDirectPlay(Device device) =>
+        device.ClientType == ClientType.Native;
+
+    /// <summary>
+    /// HLS master is consumed by Video.js/VHS (Web WASM and Windows MAUI HLS fallback).
+    /// </summary>
+    internal static bool UsesVideoJsHlsManifest(Device device) =>
+        device.ClientType == ClientType.Web
+        || device.OperatingSystem == OperatingSystem.Windows;
+
+    /// <summary>
+    /// Native Windows HLS cannot remux: Video.js in WebView2 is the fallback after
+    /// Direct Play, and copy into fMP4 was unreliable. Web on Windows is a normal browser.
+    /// </summary>
+    internal static bool ForcesWindowsHlsEncode(Device device) =>
+        device.ClientType == ClientType.Native
+        && device.OperatingSystem == OperatingSystem.Windows;
+
+    /// <summary>
+    /// Video.js VHS calls MediaSource.isTypeSupported on the master CODECS tag.
+    /// Clients without profile tokens still block 10-bit HEVC/AV1: 8-bit hvc1 probes
+    /// advertise hevc, then VHS rejects the real Main 10 tag. Profile-aware Web
+    /// (vprofile:hevc:main10) already gated via <see cref="VideoDecoderProfileMatching"/>.
+    /// </summary>
+    internal static bool IsVideoJsHlsCopyTrack(
+        VideoFileTrack track,
+        IEnumerable<string>? formatIds = null)
+    {
+        var codec = MediaCodecNames.Canonical(track.Codec);
+        if (codec is not ("hevc" or "av1"))
+            return true;
+
+        if (VideoDecoderProfileTokens.IsProfileAware(formatIds))
+            return true;
+
+        return !VideoDecoderProfileMatching.IsTenBit(track);
+    }
+
+    private static TranscodeReason BuildVideoTranscodeReason(
+        bool requiresVideoTranscoding,
+        bool forcedByMissingSegments,
+        bool videoCodecSupported,
+        bool audioNeedsTranscode,
+        bool subtitlesBurnIn)
+    {
+        var reason = TranscodeReason.None;
+
+        if (requiresVideoTranscoding)
+        {
+            if (subtitlesBurnIn)
+                reason |= TranscodeReason.SubtitlesBurnIn;
+            else if (forcedByMissingSegments)
+                reason |= TranscodeReason.HlsSegmentsUnavailable;
+            else if (!videoCodecSupported)
+                reason |= TranscodeReason.VideoCodecNotSupported;
+        }
+
+        if (audioNeedsTranscode)
+            reason |= TranscodeReason.AudioCodecNotSupported;
+
+        if (reason != TranscodeReason.None)
+            return reason;
+
+        // Transmux copies codecs into HLS; do not label that as an unsupported container.
+        return requiresVideoTranscoding
+            ? TranscodeReason.ContainerNotSupported
+            : TranscodeReason.None;
+    }
+
+    // Codecs that work inside fMP4 segments (HLS with ISO BMFF), ordered by preference.
+    // MP3 is excluded: MSE does not support MP3 inside fMP4 containers.
+    private static readonly string[] HlsFmp4AudioCodecPriority = ["aac", "opus", "ac3", "eac3", "flac", "alac"];
+
+    public static AudioMediaFormat GetDeviceBestSupportedAudioMediaFormat(ICollection<BaseMediaFormat> supportedAudioCodecs)
+    {
+        var audioFormats = supportedAudioCodecs.OfType<AudioMediaFormat>().ToList();
+
+        foreach (var codec in HlsFmp4AudioCodecPriority)
+        {
+            var match = audioFormats.FirstOrDefault(f => string.Equals(f.Codec, codec, StringComparison.OrdinalIgnoreCase));
+            if (match is not null)
+                return match;
+        }
+
+        return audioFormats.FirstOrDefault()
+            ?? new AudioMediaFormat { Id = "audio-mp4-aac", Container = "mp4", Codec = "aac" };
+    }
+
+    // Codecs that work inside fMP4 segments (HLS with ISO BMFF), ordered by transcoding preference.
+    private static readonly string[] HlsFmp4VideoCodecPriority = ["h264", "hevc", "vp9", "av1", "mpeg4", "mpeg2"];
+
+    public static VideoMediaFormat GetDeviceBestSupportedVideoMediaFormat(ICollection<BaseMediaFormat> supportedVideoCodecs)
+    {
+        var videoFormats = supportedVideoCodecs.OfType<VideoMediaFormat>().ToList();
+
+        foreach (var codec in HlsFmp4VideoCodecPriority)
+        {
+            var mp4Match = videoFormats.FirstOrDefault(f =>
+                f.Container == "mp4" && string.Equals(f.VideoCodec, codec, StringComparison.OrdinalIgnoreCase));
+            if (mp4Match is not null)
+                return mp4Match;
+        }
+
+        foreach (var codec in HlsFmp4VideoCodecPriority)
+        {
+            var match = videoFormats.FirstOrDefault(f =>
+                string.Equals(f.VideoCodec, codec, StringComparison.OrdinalIgnoreCase));
+            if (match is not null)
+                return match;
+        }
+
+        // Empty device capabilities must not 500 stream-sessions; HLS encode can always target h264.
+        return videoFormats.FirstOrDefault()
+            ?? new VideoMediaFormat
+            {
+                Id = "video-mp4-aac-h264",
+                Container = "mp4",
+                AudioCodec = "aac",
+                VideoCodec = "h264"
+            };
+    }
+
+    public static (IndexedFileStreamUri Uri, StreamDecisionDto Decision) GetAudioFileStreamUri(Device device, IndexedFile indexedFile, AudioFileMetadata audioFileMetadata, GetStreamUriQuery request)
+    {
+        var audioTrack = audioFileMetadata.AudioTrack
+            ?? throw new InvalidOperationException($"Indexed file '{indexedFile.Id}' has no audio track metadata.");
+
+        var supportedAudioFormats = device.PlaybackCapabilities.SupportedMediaFormats.OfType<AudioMediaFormat>().ToList();
+
+        var directSupported = supportedAudioFormats.Any(x =>
+            x.Container == audioFileMetadata.Container
+            && MediaCodecNames.EqualsCodec(x.Codec, audioTrack.Codec));
+
+        if (directSupported)
+        {
+            var mimeType = Constants.ContainerMimeTypeMapping.TryGetValue(audioFileMetadata.Container, out var mime)
+                ? mime
+                : "application/octet-stream";
+
+            var decision = new StreamDecisionDto
+            {
+                Mode = PlaybackMode.Direct,
+                SourceAudioCodec = audioTrack.Codec,
+                StreamAudioCodec = audioTrack.Codec,
+                SelectedAudioTrackIndex = audioTrack.Index,
+                AudioTrackLanguage = audioTrack.Language,
+                AudioTrackTitle = audioTrack.Name,
+                AudioChannelLayout = audioTrack.ChannelLayout
+            };
+
+            return (new IndexedFileStreamUri
+            {
+                Uri = new Uri(GetIndexedFileDirectStreamQueryUriBuilder.Build(indexedFile.Id), UriKind.Relative),
+                MimeType = mimeType
+            }, decision);
+        }
+
+        // Transcode via HLS
+        var fallbackFormat = GetDeviceBestSupportedAudioMediaFormat(
+            [.. device.PlaybackCapabilities.SupportedMediaFormats.Where(x => x.Type == MediaFormatType.Audio)]);
+
+        var transcodeDecision = new StreamDecisionDto
+        {
+            Mode = PlaybackMode.Transcode,
+            Reason = TranscodeReason.AudioCodecNotSupported,
+            SourceAudioCodec = audioTrack.Codec,
+            StreamAudioCodec = fallbackFormat.Codec,
+            SelectedAudioTrackIndex = audioTrack.Index,
+            AudioTrackLanguage = audioTrack.Language,
+            AudioTrackTitle = audioTrack.Name,
+            AudioChannelLayout = audioTrack.ChannelLayout
+        };
+
+        return (new IndexedFileStreamUri
+        {
+            Uri = new Uri(GetHlsStreamManifestQueryUriBuilder.Build(new GetHlsStreamManifestQuery()
+            {
+                Id = indexedFile.Id,
+                StreamSessionId = request.StreamSessionId,
+                AudioTrackTranscodings = new Dictionary<int, string> { [audioTrack.Index] = fallbackFormat.Codec }
+            }), UriKind.Relative),
+            MimeType = "application/vnd.apple.mpegurl"
+        }, transcodeDecision);
+    }
+}

@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="ShowLess" xml:space="preserve"><value>Less</value></data>
+  <data name="ShowMore" xml:space="preserve"><value>More</value></data>
+  <data name="AlbumsSection" xml:space="preserve"><value>Albums</value></data>
+  <data name="SimilarArtists" xml:space="preserve"><value>Similar artists</value></data>
+  <data name="TracksSection" xml:space="preserve"><value>Tracks</value></data>
+  <data name="ViewPerson" xml:space="preserve"><value>View person</value></data>
+  <data name="ArtistType" xml:space="preserve"><value>Artist</value></data>
+  <data name="AlbumColumn" xml:space="preserve"><value>Album</value></data>
+  <data name="Biography" xml:space="preserve"><value>Biography</value></data>
+  <data name="MembersSection" xml:space="preserve"><value>Members</value></data>
+  <data name="RefreshMetadata" xml:space="preserve"><value>Refresh metadata</value></data>
+  <data name="RefreshMetadataSent" xml:space="preserve"><value>Metadata refresh started in background.</value></data>
+  <data name="EditMetadata" xml:space="preserve"><value>Edit metadata</value></data>
+  <data name="MoreActions" xml:space="preserve"><value>More actions</value></data>
+  <data name="ViewSimilarArtists" xml:space="preserve"><value>See similar artists</value></data>
+  <data name="TopTracks" xml:space="preserve"><value>Top tracks</value></data>
+</root>
+

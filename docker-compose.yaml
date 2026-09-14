@@ -1,0 +1,88 @@
+x-default-restart-security: &default-restart-security
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+
+volumes:
+  k7-postgres-data:
+  k7-data:
+  movies:
+
+services:
+  postgres:
+    <<: *default-restart-security
+    image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    container_name: k7-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-K7}
+    volumes:
+      - k7-postgres-data:/var/lib/postgresql
+    # Bind to loopback only - peers on the Docker network still reach postgres:5432.
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  k7-server:
+    <<: *default-restart-security
+    container_name: k7-server
+    # Build locally: docker build -t z7-server:latest .
+    image: z7-server:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "7080:7080/tcp"
+    # Optional: size for peak scan/transcode, not idle floor. See docs/admin/operating.md#memory-and-container-sizing
+    # mem_limit: 2g
+    # Hardware transcoding (optional). Stock image falls back to libx264/libx265.
+    # Intel/AMD VAAPI - see docs/admin/operating.md#hardware-acceleration
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # NVIDIA NVENC (requires nvidia-container-toolkit) - /dev/dri alone is not enough
+    # gpus: all
+    # NVIDIA_DRIVER_CAPABILITIES must include video or libnvidia-encode is not injected
+    volumes:
+      # Persist config keys, metadata artwork, logs, and transcoding cache across recreates.
+      - k7-data:/data
+      # Example library mount (Compose creates the named volume). For real media, prefer a bind mount:
+      # - /path/to/movies:/media/movies:ro
+      - movies:/media/movies:ro
+    environment:
+      Database__Provider: Postgres
+      Database__UserID: ${POSTGRES_USER:-postgres}
+      Database__Password: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      Database__Server: postgres
+      Database__Port: "5432"
+      Database__Name: ${POSTGRES_DB:-K7}
+      Security__ApiKeys__HashSecret: ${SECURITY__APIKEYS__HASHSECRET:?Set SECURITY__APIKEYS__HASHSECRET in .env}
+      Paths__Config: /data/config
+      Paths__Metadatas: /data/metadatas
+      Paths__Logs: /data/logs
+      Paths__Transcoding: /data/transcoding
+      PUID: ${PUID:-911}
+      PGID: ${PGID:-911}
+      # Sample stack is plain HTTP on :7080. Secure cookies (ForceHttps=true) break
+      # antiforgery on /setup over HTTP. For a TLS reverse proxy, set true; private
+      # Docker/LAN proxies are trusted by default - see docs/admin/configuration.md#reverse-proxy.
+      Security__ForceHttps: ${SECURITY__FORCEHTTPS:-false}
+      # Public URL of this instance (required for OIDC redirects and federation).
+      # BaseUrl: https://k7.example.com
+      # Optional display name used when inviting federation peers.
+      # Server__Name: Home
+      # NVIDIA NVENC (uncomment with gpus: all). video is required for NVENC.
+      # NVIDIA_VISIBLE_DEVICES: all
+      # NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
+    healthcheck:
+      # /alive is liveness (Kestrel up). /health also waits on Postgres CanConnect.
+      # interval 5s so healthy follows "Now listening on :7080" instead of the next 30s tick.
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7080/alive"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 60s

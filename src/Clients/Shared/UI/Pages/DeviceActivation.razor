@@ -1,0 +1,65 @@
+@page "/linkdevice"
+@layout EmptyLayout
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@inject IStringLocalizer<DeviceActivation> L
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<div class="device-activation">
+    <div class="device-activation__card">
+        @if (_loading)
+        {
+            <K7Icon Name="television"  IconSize="@K7IconSize.Lg" Color="primary" />
+            <h1 class="device-activation__title">@L["Title"]</h1>
+            <K7Spinner Size="lg" />
+            <p class="device-activation__timer">@L["Activating"]</p>
+        }
+        else if (_authorized)
+        {
+            <K7Icon Name="check-circle"  IconSize="@K7IconSize.Lg" Color="success" />
+        }
+        else if (_deviceCode is not null)
+        {
+            <h1 class="device-activation__title">@L["Title"]</h1>
+
+            <hr class="k7-divider" />
+
+            <div class="device-activation__columns">
+                <div class="device-activation__col">
+                    <p class="device-activation__qr-label">@L["ScanQrCode"]</p>
+                    <div id="device-qr" class="device-activation__qr-wrapper"></div>
+                </div>
+
+                <div class="device-activation__separator">
+                    <div class="device-activation__separator-line"></div>
+                    <span class="device-activation__separator-text">@L["Separator"]</span>
+                    <div class="device-activation__separator-line"></div>
+                </div>
+
+                <div class="device-activation__col">
+                    <p class="device-activation__instructions">@L["Instructions"]</p>
+                    <p class="device-activation__url">@_displayUri</p>
+                    <p class="device-activation__code-label">@L["CodeLabel"]</p>
+                    <div class="device-activation__code-box">
+                        <p class="device-activation__code">@_deviceCode.UserCode</p>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="k7-divider" />
+
+            <div class="device-activation__footer">
+                <K7ProgressBar Value="@_progress" />
+                <p class="device-activation__timer">@L["ExpiresIn", FormatTime()]</p>
+            </div>
+        }
+        else
+        {
+            <K7Icon Name="television"  IconSize="@K7IconSize.Lg" Color="primary" />
+            <h1 class="device-activation__title">@L["Title"]</h1>
+            <K7Button Variant="filled" Color="primary" OnClick="StartDeviceCodeFlowAsync">
+                @L["Activate"]
+            </K7Button>
+        }
+    </div>
+</div>

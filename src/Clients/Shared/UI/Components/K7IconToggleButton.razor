@@ -1,0 +1,7 @@
+@namespace K7.Clients.Shared.UI.Components
+
+    <K7IconButton Icon="@(Value ? ActiveIcon : Icon)"
+                  Class="@(Value ? $"{Class} {ActiveClass}" : Class)"
+                  Size="@Size" OnClick="Toggle" @attributes="AdditionalAttributes" Disabled="@Disabled"
+                  aria-label="@(Value ? ActiveAriaLabel ?? AriaLabel : AriaLabel)"
+                  aria-pressed="@Value" />

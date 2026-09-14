@@ -1,0 +1,45 @@
+@typeparam TItem
+
+<div class="k7-virtual-list" @ref="_listRef">
+    @if (Items is not null)
+    {
+        @if (Items.Count == 0 && EmptyContent is not null)
+        {
+            @EmptyContent
+        }
+        else
+        {
+            <Virtualize TItem="IndexedListItem" Items="_indexedItems" Context="row" ItemSize="ItemHeight"
+                        OverscanCount="OverscanCount" @ref="_virtualizeRef">
+                <div class="k7-virtual-list-item @(row.IsAlternate ? "k7-virtual-list-item--alt" : "")">
+                    @if (ItemTemplate is not null)
+                    {
+                        @ItemTemplate(row.Item)
+                    }
+                </div>
+            </Virtualize>
+        }
+    }
+    else if (ItemsProvider is not null)
+    {
+        <Virtualize TItem="IndexedListItem" ItemsProvider="ProvideIndexedItemsAsync" Context="row" ItemSize="ItemHeight"
+                    OverscanCount="OverscanCount" @ref="_virtualizeRef">
+            <ItemContent>
+                <div class="k7-virtual-list-item @(row.IsAlternate ? "k7-virtual-list-item--alt" : "")">
+                    @if (ItemTemplate is not null)
+                    {
+                        @ItemTemplate(row.Item)
+                    }
+                </div>
+            </ItemContent>
+            <Placeholder>
+                <div class="k7-virtual-list-placeholder" style="@PlaceholderStyle">
+                    <div class="k7-virtual-list-placeholder-focus focusable"
+                         tabindex="0"
+                         role="presentation"
+                         aria-hidden="true"></div>
+                </div>
+            </Placeholder>
+        </Virtualize>
+    }
+</div>

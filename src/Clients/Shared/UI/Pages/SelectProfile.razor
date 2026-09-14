@@ -1,0 +1,135 @@
+@page "/select-profile"
+@page "/select-user"
+@layout EmptyLayout
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@inject IStringLocalizer<SelectProfile> L
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<div class="select-profile-page">
+    @if (_loading)
+    {
+        <div class="d-flex flex-col align-center gap-4">
+            <K7Spinner />
+            @if (_showOfflineButton)
+            {
+                <K7Button Variant="text" Color="secondary" OnClick="ContinueOfflineAsync">
+                    <K7Icon Icon="@Phosphor.WifiSlash" Class="mr-2" />
+                    @L["ContinueOffline"]
+                </K7Button>
+            }
+        </div>
+    }
+    else
+    {
+        <section class="select-profile-section">
+            <Carousel @ref="_carousel" Title="@L["Prompt"]" ShowLoopBack="false">
+                @foreach (var user in _users)
+                {
+                    <CarouselItem @key="@($"user-{user.IdentityUserId}")">
+                        <button type="button"
+                                class="select-profile-card focusable my-2"
+                                @attributes="GetInitialFocusAttributes(user.IdentityUserId == _initialFocusUserId)"
+                                @onclick="() => SelectUserAsync(user)">
+                            <K7Avatar Class="ma-2" Size="xl" Color="primary"
+                                      Image="@user.AvatarUrl"
+                                      Letter="@GetInitial(user)"
+                                      UserId="@user.UserId">
+                                @if (NeedsReconnect(user))
+                                {
+                                    <span class="select-profile-reconnect-badge"
+                                          title="@L["NeedsReconnect"]"
+                                          aria-label="@L["NeedsReconnect"]">
+                                        <K7Icon Icon="@Phosphor.ArrowClockwise" IconSize="@K7IconSize.Sm" />
+                                    </span>
+                                }
+                            </K7Avatar>
+                            <div class="select-profile-name">
+                                <span class="select-profile-name-text">
+                                    <span class="select-profile-name-inner">@(user.DisplayName ?? user.UserName)</span>
+                                </span>
+                                @if (user.HasPin)
+                                {
+                                    <K7Icon Icon="@Phosphor.Lock" IconSize="@K7IconSize.Sm" Color="secondary" />
+                                }
+                            </div>
+                        </button>
+                    </CarouselItem>
+                }
+
+                @foreach (var group in _pinnedGroups)
+                {
+                    <CarouselItem @key="@($"group-{group.Id}")">
+                        <button type="button"
+                                class="select-profile-card select-profile-card--group focusable my-2"
+                                @attributes="GetInitialFocusAttributes(group.Id == _initialFocusGroupId)"
+                                @onclick="() => SelectGroupAsync(group)">
+                            <div class="select-profile-group-avatars">
+                                @if (!string.IsNullOrEmpty(group.AvatarUrl))
+                                {
+                                    <K7Avatar Class="ma-2" Size="xl"
+                                              Image="@group.AvatarUrl"
+                                              Letter="@(string.IsNullOrEmpty(group.Name) ? "?" : group.Name[..1].ToUpperInvariant())"
+                                              Alt="@group.Name">
+                                        @if (GroupHostNeedsReconnect(group))
+                                        {
+                                            <span class="select-profile-reconnect-badge"
+                                                  title="@L["NeedsReconnect"]"
+                                                  aria-label="@L["NeedsReconnect"]">
+                                                <K7Icon Icon="@Phosphor.ArrowClockwise" IconSize="@K7IconSize.Sm" />
+                                            </span>
+                                        }
+                                    </K7Avatar>
+                                }
+                                else
+                                {
+                                    <span class="select-profile-group-avatars-wrap">
+                                        <K7AvatarGroup Class="ma-2" Size="xl"
+                                                       Members="@(group.Members.Select(ToAvatarGroupItem).ToList())" />
+                                        @if (GroupHostNeedsReconnect(group))
+                                        {
+                                            <span class="select-profile-reconnect-badge"
+                                                  title="@L["NeedsReconnect"]"
+                                                  aria-label="@L["NeedsReconnect"]">
+                                                <K7Icon Icon="@Phosphor.ArrowClockwise" IconSize="@K7IconSize.Sm" />
+                                            </span>
+                                        }
+                                    </span>
+                                }
+                            </div>
+                            <div class="select-profile-name">
+                                <span class="select-profile-name-text">
+                                    <span class="select-profile-name-inner">@group.Name</span>
+                                </span>
+                                @if (group.HasPin)
+                                {
+                                    <K7Icon Icon="@Phosphor.Lock" IconSize="@K7IconSize.Sm" Color="secondary" />
+                                }
+                            </div>
+                        </button>
+                    </CarouselItem>
+                }
+
+                <CarouselItem>
+                    <button type="button"
+                            class="select-profile-card focusable my-2"
+                            @attributes="GetInitialFocusAttributes(_initialFocusAddCard)"
+                            @onclick="AddUserAsync">
+                        <K7Avatar Class="ma-2" Size="xl" Color="default">
+                            <K7Icon Icon="@Phosphor.Plus" IconSize="@K7IconSize.Lg" />
+                        </K7Avatar>
+                        <span class="select-profile-name">@L["AddServer"]</span>
+                    </button>
+                </CarouselItem>
+            </Carousel>
+        </section>
+
+        @if (_users.Count > 0)
+        {
+            <div class="select-profile-switch">
+                <K7Switch Value="_singleUserMode" ValueChanged="OnSingleUserModeChanged"
+                           Label="@L["SingleUserMode"]" />
+            </div>
+        }
+    }
+</div>

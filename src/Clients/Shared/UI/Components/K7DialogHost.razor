@@ -1,0 +1,52 @@
+@namespace K7.Clients.Shared.UI.Components
+@implements IDisposable
+
+@foreach (var entry in _openDialogs)
+{
+    <div class="k7-dialog-backdrop @(entry.Options?.FullScreen == true ? "k7-dialog-backdrop--fullscreen" : "") @entry.Options?.BackdropClass"
+         @key="entry.Id"
+         @ref="entry.BackdropRef"
+         data-sn-layer="dialog"
+         data-sn-layer-close="self"
+         @onpointerdown:preventDefault="true"
+         @onpointerdown:stopPropagation="true"
+         @onclick="() => OnBackdropClick(entry)"
+         @onclick:preventDefault="true"
+         @onclick:stopPropagation="true">
+        <div class="k7-dialog-paper @GetPaperClasses(entry)"
+             @onpointerdown:stopPropagation="true"
+             @onclick:stopPropagation="true">
+            @if (entry.Options?.FullScreen != true)
+            {
+                <div class="k7-dialog-header">
+                    <h6 class="k7-dialog-title">@entry.Title</h6>
+                    @if (entry.HeaderActions is not null)
+                    {
+                        @entry.HeaderActions
+                    }
+                    @if (entry.Options?.CloseButton != false)
+                    {
+                        <K7IconButton Icon="@Phosphor.X" Size="sm"
+                                      AriaLabel="Close"
+                                      OnClick="() => entry.Cancel()" />
+                    }
+                </div>
+            }
+            else if (entry.Options?.CloseButton != false)
+            {
+                <K7IconButton Icon="@Phosphor.X" Size="sm"
+                              AriaLabel="Close"
+                              Class="k7-dialog-close-floating"
+                              OnClick="() => entry.Cancel()" />
+            }
+            <CascadingValue Value="@((IK7DialogInstance)entry)" IsFixed="true">
+                <K7DialogErrorBoundary OnDialogError="() => entry.Cancel()">
+                    <ChildContent>
+                        <DynamicComponent Type="entry.Type" Parameters="entry.ComponentParameters" />
+                    </ChildContent>
+                    <ErrorContent></ErrorContent>
+                </K7DialogErrorBoundary>
+            </CascadingValue>
+        </div>
+    </div>
+}

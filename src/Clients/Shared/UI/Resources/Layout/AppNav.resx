@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="Home" xml:space="preserve"><value>Accueil</value></data>
+  <data name="Explore" xml:space="preserve"><value>Explorer</value></data>
+  <data name="MySpace" xml:space="preserve"><value>Mon espace</value></data>
+  <data name="Search" xml:space="preserve"><value>Recherche</value></data>
+  <data name="Profile" xml:space="preserve"><value>Profil</value></data>
+  <data name="Libraries" xml:space="preserve"><value>Bibliothèques</value></data>
+  <data name="Music" xml:space="preserve"><value>Musique</value></data>
+  <data name="Artists" xml:space="preserve"><value>Artistes</value></data>
+  <data name="Albums" xml:space="preserve"><value>Albums</value></data>
+  <data name="Tracks" xml:space="preserve"><value>Morceaux</value></data>
+  <data name="Playlists" xml:space="preserve"><value>Playlists</value></data>
+  <data name="Radio" xml:space="preserve"><value>Radio</value></data>
+  <data name="Stats" xml:space="preserve"><value>Statistiques</value></data>
+  <data name="Settings" xml:space="preserve"><value>Paramètres</value></data>
+  <data name="Admin" xml:space="preserve"><value>Administration</value></data>
+  <data name="Menu" xml:space="preserve"><value>Menu</value></data>
+  <data name="SwitchUser" xml:space="preserve"><value>Changer d'utilisateur</value></data>
+  <data name="Logout" xml:space="preserve"><value>Déconnexion</value></data>
+  <data name="Login" xml:space="preserve"><value>Connexion</value></data>
+  <data name="Connected" xml:space="preserve"><value>Connecté</value></data>
+  <data name="Reconnecting" xml:space="preserve"><value>Reconnexion...</value></data>
+  <data name="Disconnected" xml:space="preserve"><value>Déconnecté</value></data>
+  <data name="SyncPlay" xml:space="preserve"><value>SyncPlay</value></data>
+  <data name="CreateSyncPlay" xml:space="preserve"><value>Créer SyncPlay</value></data>
+  <data name="InviteUsers" xml:space="preserve"><value>Inviter des utilisateurs</value></data>
+  <data name="CopyInviteLink" xml:space="preserve"><value>Copier le lien d'invitation</value></data>
+  <data name="LeaveGroup" xml:space="preserve"><value>Quitter le groupe</value></data>
+  <data name="ViewingAsGroup" xml:space="preserve"><value>Profil partagé : {0}</value></data>
+  <data name="RejoinPlayback" xml:space="preserve"><value>Rejoindre la lecture</value></data>
+  <data name="SyncPlayGroupCreated" xml:space="preserve"><value>Groupe SyncPlay cree</value></data>
+  <data name="Chat" xml:space="preserve"><value>Chat</value></data>
+  <data name="SyncPlayEmpty" xml:space="preserve"><value>Aucune session SyncPlay en cours</value></data>
+  <data name="SyncPlayNoMedia" xml:space="preserve"><value>Rien en cours de lecture</value></data>
+  <data name="Members" xml:space="preserve"><value>Membres</value></data>
+  <data name="Playing" xml:space="preserve"><value>En lecture</value></data>
+  <data name="Paused" xml:space="preserve"><value>En pause</value></data>
+  <data name="Buffering" xml:space="preserve"><value>Chargement...</value></data>
+  <data name="Back" xml:space="preserve"><value>Retour</value></data>
+  <data name="Kick" xml:space="preserve"><value>Expulser</value></data>
+  <data name="PromoteLeader" xml:space="preserve"><value>Promouvoir leader</value></data>
+  <data name="SyncPlayKicked" xml:space="preserve"><value>Vous avez été expulsé du groupe</value></data>
+  <data name="SyncPlayDeviceNotRegistered" xml:space="preserve"><value>Appareil non connecté au hub. Rechargez la page puis réessayez.</value></data>
+  <data name="SyncPlayHubNotConnected" xml:space="preserve"><value>Connexion temps réel indisponible. Attendez la reconnexion puis réessayez.</value></data>
+</root>

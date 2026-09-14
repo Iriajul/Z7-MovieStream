@@ -1,0 +1,31 @@
+@using System.Reflection
+@using K7.Clients.Shared.UI.Pages.Utils
+@using Microsoft.AspNetCore.Components.Authorization
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(MauiSignIn).Assembly" AdditionalAssemblies="@_sharedAssemblies" NotFoundPage="typeof(K7.Clients.Shared.UI.Pages.NotFound)">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(K7.Clients.Shared.UI.Layout.MainLayout)">
+                <Authorizing>
+                    <div class="d-flex flex-col align-center justify-center h-screen">
+                        <K7Spinner />
+                    </div>
+                </Authorizing>
+                <NotAuthorized>
+                    @if (context.User.Identity?.IsAuthenticated == true)
+                    {
+                        <AccessDenied />
+                    }
+                    else
+                    {
+                        <RedirectToLogin />
+                    }
+                </NotAuthorized>
+            </AuthorizeRouteView>
+        </Found>
+    </Router>
+</CascadingAuthenticationState>
+
+@code {
+    private static readonly Assembly[] _sharedAssemblies = [typeof(ISharedPagesPointer).Assembly];
+}

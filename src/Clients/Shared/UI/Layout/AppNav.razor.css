@@ -1,0 +1,675 @@
+/* ============================================================
+   Backdrop
+   ============================================================ */
+.app-nav-backdrop {
+    position: fixed;
+    z-index: calc(var(--z-drawer) - 10);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--transition-normal), background var(--transition-normal);
+}
+
+.app-nav-backdrop.open {
+    pointer-events: all;
+    touch-action: none;
+    overscroll-behavior: none;
+}
+
+/* Desktop: covers area below nav bar, transparent (only intercepts clicks) */
+@media (min-width: 600px) {
+    .app-nav-backdrop {
+        inset: var(--nav-height) 0 0 0;
+    }
+}
+
+/* Mobile: covers content above bottom nav bar, with dim */
+@media (max-width: 599.98px) {
+    .app-nav-backdrop {
+        inset: 0 0 calc(var(--nav-height) + var(--k7-safe-bottom)) 0;
+        z-index: calc(var(--z-dropdown, 1000) - 1);
+    }
+    .app-nav-backdrop.open {
+        opacity: 1;
+        background: rgba(0, 0, 0, 0.5);
+    }
+}
+
+/* ============================================================
+   App nav bar
+   ============================================================ */
+.app-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: var(--z-drawer);
+    border-bottom: 1px solid var(--color-border);
+    height: calc(var(--nav-height) + var(--k7-safe-top));
+    padding-top: var(--k7-safe-top);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+@media (min-width: 600px) {
+    .app-nav {
+        border-bottom-color: transparent;
+        backdrop-filter: blur(12px);
+    }
+}
+
+.app-nav-bar {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0 var(--space-5);
+    gap: var(--space-1);
+    border-bottom: 1px solid var(--color-border-subtle);
+    background: var(--color-surface);
+    backdrop-filter: blur(8px);
+}
+
+@supports (background: color-mix(in srgb, white 50%, black)) {
+    .app-nav-bar {
+        background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+    }
+
+    html.platform-tv .app-nav-bar,
+    html.platform-tv .app-nav-bar:hover {
+        background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+    }
+}
+
+@media (min-width: 600px) {
+    .app-nav-bar {
+        padding: 0 var(--space-10);
+        gap: var(--space-2);
+    }
+}
+
+/* Logo (decorative only - not clickable / focusable) */
+.app-nav-logo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-accent);
+    font-weight: 700;
+    flex-shrink: 0;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    margin-right: var(--space-3);
+    pointer-events: none;
+    user-select: none;
+}
+
+.app-nav-logo ::deep .app-nav-wordmark {
+    width: 58px;
+    height: auto;
+    color: #f3ecde;
+}
+
+.app-nav-logo-text {
+    font-family: var(--font-heading);
+    font-size: var(--text-xl);
+}
+
+/* Spacer */
+.app-nav-spacer {
+    flex: 1;
+}
+
+@media (min-width: 600px) {
+    .app-nav-spacer {
+        display: none;
+    }
+}
+
+/* Base link */
+.app-nav-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast);
+    min-height: 36px;
+    background: transparent;
+    border: none;
+    font-family: var(--font-body);
+}
+
+::deep .app-nav-link:hover {
+    color: var(--color-text);
+    background: var(--color-surface-hover);
+}
+
+::deep .app-nav-link:focus-visible {
+    color: var(--color-text);
+    background: var(--color-surface-hover);
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
+    border-radius: var(--radius-md);
+}
+
+::deep .app-nav-link.active,
+::deep .app-nav-link.active:hover {
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+::deep .k7-btn.active {
+    color: var(--color-accent);
+}
+
+/* Desktop: more generous spacing on main nav links */
+.app-nav-main {
+    display: contents;
+}
+
+@media (min-width: 600px) {
+    .app-nav-main {
+        display: flex;
+        align-items: center;
+        gap: var(--space-8);
+    }
+    ::deep .app-nav-main .k7-btn {
+        font-weight: 600;
+        font-size: var(--text-base);
+    }
+}
+
+/* Avatar button */
+.app-nav-avatar-btn {
+    display: flex;
+    align-items: center;
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+.app-nav-avatar-btn:focus-visible {
+    outline: none;
+}
+
+.app-nav-avatar-btn:hover ::deep > .k7-avatar,
+.app-nav-avatar-btn:focus-visible ::deep > .k7-avatar,
+.app-nav-avatar-btn.active ::deep > .k7-avatar,
+.app-nav-avatar-btn:hover ::deep .k7-avatar-group,
+.app-nav-avatar-btn:focus-visible ::deep .k7-avatar-group,
+.app-nav-avatar-btn.active ::deep .k7-avatar-group {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+.app-nav-icon {
+    flex-shrink: 0;
+    font-size: var(--text-xl);
+    display: flex;
+    align-items: center;
+}
+
+.app-nav-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 1px;
+}
+
+.app-nav-avatar-btn ::deep .k7-avatar--sm {
+    width: 28px;
+    height: 28px;
+    font-size: var(--text-xs);
+}
+
+@media (min-width: 600px) {
+    .app-nav-avatar-btn ::deep .k7-avatar--sm {
+        width: 34px;
+        height: 34px;
+        font-size: var(--text-sm);
+    }
+}
+
+/* Desktop: text-only for left nav items; icon-only for search/profile */
+@media (min-width: 600px) {
+    .app-nav-item--home .app-nav-icon,
+    .app-nav-item--explore .app-nav-icon,
+    .app-nav-item--myspace .app-nav-icon {
+        display: none;
+    }
+
+    ::deep .app-nav-item--search .app-nav-label {
+        display: none;
+    }
+
+    ::deep .app-nav-item--search-mobile {
+        display: none;
+    }
+}
+
+/* ============================================================
+   Popovers (explore + profile)
+   ============================================================ */
+.app-nav-popover {
+    position: fixed;
+    z-index: calc(var(--z-drawer) + 10);
+    visibility: hidden;
+}
+
+/* Desktop: dropdown below nav bar */
+@media (min-width: 600px) {
+    .app-nav-popover {
+        top: calc(var(--nav-height) + var(--space-2));
+        min-width: 240px;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-xl);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+        opacity: 0;
+        transform: translateY(-6px);
+        pointer-events: none;
+        transition: opacity var(--transition-fast), transform var(--transition-fast), visibility var(--transition-fast);
+    }
+
+    .app-nav-popover.open {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: all;
+        transform: translateY(0);
+    }
+
+    .app-nav-popover--profile {
+        right: var(--space-5);
+    }
+
+    .app-nav-popover-inner {
+        padding: var(--space-2) 0;
+    }
+}
+
+/* Mobile: slide-up panel — fullscreen for explore, card for profile */
+@media (max-width: 599.98px) {
+    .app-nav-popover {
+        left: 0;
+        right: 0;
+        bottom: calc(var(--nav-height) + var(--k7-safe-bottom));
+        z-index: var(--z-dropdown, 1000);
+        max-height: 75dvh;
+        overflow-y: auto;
+        background: var(--color-surface);
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        border-top: 1px solid var(--color-border);
+        opacity: 0;
+        transform: translateY(100%);
+        transition: transform var(--transition-normal), opacity var(--transition-normal), visibility var(--transition-normal);
+    }
+
+    .app-nav-popover.open {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: all;
+        transform: translateY(0);
+    }
+
+    .app-nav-popover-inner {
+        padding: var(--space-2) 0 var(--space-4);
+    }
+
+    .app-nav-label {
+        display: none !important;
+    }
+}
+
+/* Profile header */
+.app-nav-popover-user {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4) var(--space-3);
+}
+
+.app-nav-popover-user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.app-nav-popover-username {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-nav-popover-viewing-group {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    height: 1lh;
+    overflow: hidden;
+    container-type: inline-size;
+}
+
+.app-nav-popover-viewing-group-inner {
+    display: block;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    will-change: transform;
+}
+
+.app-nav-popover-user:hover .app-nav-popover-viewing-group {
+    overflow: visible;
+}
+
+.app-nav-popover-user:hover .app-nav-popover-viewing-group-inner {
+    display: inline-block;
+    width: auto;
+    overflow: visible;
+    text-overflow: unset;
+    animation: app-nav-viewing-group-scroll 3s linear 0.5s infinite alternate;
+}
+
+@keyframes app-nav-viewing-group-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(min(0px, calc(100cqw - 100%))); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-nav-popover-user:hover .app-nav-popover-viewing-group-inner {
+        display: block;
+        width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        animation: none;
+        transform: none;
+    }
+}
+
+.app-nav-popover-status {
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+}
+
+/* Profile slot - transparent on desktop */
+.app-nav-item-slot--profile {
+    display: contents;
+}
+
+/* ============================================================
+   Mobile bottom nav
+   ============================================================ */
+@media (max-width: 599.98px) {
+    .app-nav {
+        top: auto;
+        bottom: 0;
+        border-top: 1px solid var(--color-border);
+        border-bottom: none;
+        height: calc(var(--nav-height) + var(--k7-safe-bottom));
+        padding-top: 0;
+        padding-bottom: var(--k7-safe-bottom);
+        margin-bottom: 0;
+    }
+
+    .app-nav-bar {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        align-items: stretch;
+        padding: 0;
+        gap: 0;
+        width: 100%;
+    }
+
+    .app-nav-logo,
+    .app-nav-spacer,
+    .app-nav-player {
+        display: none;
+    }
+
+    ::deep .app-nav-item--search-desktop {
+        display: none;
+    }
+
+    .app-nav-main {
+        display: contents;
+    }
+
+    @supports (grid-template-columns: subgrid) {
+        .app-nav-main {
+            display: grid;
+            grid-template-columns: subgrid;
+            grid-column: 1 / span 4;
+            align-items: stretch;
+        }
+    }
+
+    .app-nav-item-slot--profile {
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+        grid-column: 5;
+        min-width: 0;
+    }
+
+    .app-nav-main > a.k7-btn,
+    .app-nav-item-slot--profile .app-nav-avatar-btn,
+    .app-nav-item-slot--profile .app-nav-item--profile,
+    .app-nav-main ::deep .app-nav-item--search-mobile {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+    }
+
+    .app-nav-link {
+        flex-direction: column;
+        gap: 2px;
+        padding: var(--space-1) var(--space-2);
+        min-height: var(--nav-height);
+        justify-content: center;
+        align-items: center;
+        border-radius: 0;
+    }
+
+    ::deep .k7-btn {
+        flex-direction: column;
+        gap: 2px;
+        padding: var(--space-1) var(--space-2);
+        min-height: var(--nav-height);
+        justify-content: center;
+        align-items: center;
+        border-radius: 0;
+        font-size: var(--text-sm);
+        font-weight: 500;
+    }
+
+    /* Show icons for all items on mobile */
+    .app-nav-item--home .app-nav-icon,
+    .app-nav-item--explore .app-nav-icon,
+    .app-nav-item--myspace .app-nav-icon {
+        display: flex;
+    }
+
+    .app-nav-icon {
+        font-size: var(--text-lg);
+    }
+
+    .app-nav-label {
+        font-size: var(--text-2xs);
+    }
+
+    .app-nav-main ::deep .app-nav-item--search-mobile {
+        flex-direction: column;
+        gap: 2px;
+        padding: var(--space-1) var(--space-2);
+        min-height: var(--nav-height);
+        height: 100%;
+        justify-content: center;
+        align-items: center;
+        border-radius: 0;
+        width: 100%;
+        max-width: none;
+    }
+
+    .app-nav-item-slot--profile .app-nav-avatar-btn {
+        flex: 1;
+        width: 100%;
+        min-height: var(--nav-height);
+        justify-content: center;
+        align-items: center;
+        border-radius: 0;
+    }
+
+    .app-nav-main ::deep .app-nav-item--search-mobile .app-nav-label {
+        font-size: var(--text-2xs);
+    }
+}
+
+/* ============================================================
+   Navbar player (desktop only)
+   ============================================================ */
+.app-nav-player {
+    display: none;
+}
+
+@media (min-width: 600px) {
+    .app-nav-player {
+        display: flex;
+        flex: 1;
+        justify-content: flex-end;
+        align-items: center;
+        min-width: 0;
+    }
+
+    .app-nav-player ::deep .music-mini-player {
+        background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        box-shadow: none;
+        max-width: 560px;
+        width: auto;
+    }
+
+    .app-nav-player ::deep .mini-player-progress {
+        display: none;
+    }
+
+    .app-nav-player ::deep .mini-player-content {
+        display: flex;
+        padding: 4px 8px 4px 12px;
+        gap: 0;
+        min-height: auto;
+    }
+
+    .app-nav-player ::deep .mini-player-left,
+    .app-nav-player ::deep .mini-player-center,
+    .app-nav-player ::deep .mini-player-right {
+        all: unset;
+        display: contents;
+    }
+
+    .app-nav-player ::deep .mini-player-track-info {
+        flex: 1;
+        gap: 8px;
+        min-width: 0;
+        margin-right: 12px;
+    }
+
+    .app-nav-player ::deep .mini-player-cover {
+        width: 28px !important;
+        height: 28px !important;
+    }
+
+    .app-nav-player ::deep .mini-player-cover-placeholder {
+        width: 28px;
+        height: 28px;
+    }
+
+    .app-nav-player ::deep .mini-player-title {
+        font-size: var(--text-sm);
+    }
+
+    .app-nav-player ::deep .mini-player-artist {
+        font-size: var(--text-2xs);
+    }
+
+    .app-nav-player ::deep .mini-player-controls .k7-icon-btn {
+        width: 24px;
+        height: 24px;
+        min-width: 24px;
+        min-height: 24px;
+    }
+
+    .app-nav-player ::deep .mini-player-controls .k7-icon-btn .k7-icon {
+        font-size: var(--text-base);
+    }
+
+    .app-nav-player ::deep .k7-fab {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+        min-height: 30px;
+    }
+
+    .app-nav-player ::deep .k7-fab .k7-icon {
+        font-size: var(--text-base);
+    }
+
+    .app-nav-player ::deep .mini-player-time,
+    .app-nav-player ::deep .mini-player-rating,
+    .app-nav-player ::deep .mini-player-volume {
+        display: none;
+    }
+
+    .app-nav-player ::deep .mini-player-secondary-controls {
+        display: flex;
+        gap: 0;
+        margin-left: 0;
+    }
+
+    .app-nav-player ::deep .mini-player-secondary-controls .k7-icon-btn {
+        width: 24px;
+        height: 24px;
+        min-width: 24px;
+        min-height: 24px;
+    }
+
+    .app-nav-player ::deep .mini-player-secondary-controls .k7-icon {
+        font-size: var(--text-base);
+    }
+}
+
+/* Narrow desktop: collapse nav labels to icons only */
+@media (min-width: 600px) and (max-width: 899.98px) {
+    .app-nav-main {
+        gap: var(--space-2);
+    }
+
+    .app-nav-item--home .app-nav-label,
+    .app-nav-item--explore .app-nav-label,
+    .app-nav-item--myspace .app-nav-label {
+        display: none;
+    }
+
+    .app-nav-item--home .app-nav-icon,
+    .app-nav-item--explore .app-nav-icon,
+    .app-nav-item--myspace .app-nav-icon {
+        display: flex;
+    }
+
+    ::deep .app-nav-main .k7-btn {
+        padding: var(--space-2);
+        min-width: 36px;
+        justify-content: center;
+    }
+}

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="PageTitle" xml:space="preserve"><value>Mes collections</value></data>
+  <data name="All" xml:space="preserve"><value>Toutes</value></data>
+  <data name="New" xml:space="preserve"><value>Nouvelle collection</value></data>
+  <data name="None" xml:space="preserve"><value>Aucune collection</value></data>
+  <data name="EmptyHint" xml:space="preserve"><value>Créez votre première collection pour regrouper des films, séries ou albums.</value></data>
+  <data name="Items" xml:space="preserve"><value>éléments</value></data>
+  <data name="ItemsColumn" xml:space="preserve"><value>Éléments</value></data>
+  <data name="Public" xml:space="preserve"><value>Public</value></data>
+  <data name="Private" xml:space="preserve"><value>Privé</value></data>
+  <data name="Visibility" xml:space="preserve"><value>Visibilité</value></data>
+  <data name="ShowShared" xml:space="preserve"><value>Partagées avec moi</value></data>
+  <data name="Owner" xml:space="preserve"><value>Propriétaire</value></data>
+  <data name="SharedTitle" xml:space="preserve"><value>Collections partagées</value></data>
+  <data name="SharedEmpty" xml:space="preserve"><value>Aucune collection partagée avec vous.</value></data>
+  <data name="Select" xml:space="preserve"><value>Sélectionner</value></data>
+  <data name="SelectAll" xml:space="preserve"><value>Tout sélectionner</value></data>
+  <data name="DeselectAll" xml:space="preserve"><value>Tout désélectionner</value></data>
+  <data name="SelectedCount" xml:space="preserve"><value>{0} sélectionnée(s)</value></data>
+  <data name="DeleteSelected" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="DeleteSelectedTitle" xml:space="preserve"><value>Supprimer les collections</value></data>
+  <data name="DeleteSelectedMessage" xml:space="preserve"><value>Supprimer {0} collection(s) ? Cette action est irréversible.</value></data>
+  <data name="DeleteSelectedSuccess" xml:space="preserve"><value>{0} collection(s) supprimée(s)</value></data>
+  <data name="DeleteSelectedError" xml:space="preserve"><value>Impossible de supprimer les collections sélectionnées</value></data>
+  <data name="DeleteSelectedPartial" xml:space="preserve"><value>{0} supprimée(s), {1} en échec</value></data>
+</root>

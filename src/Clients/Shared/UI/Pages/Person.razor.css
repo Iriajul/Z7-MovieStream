@@ -1,0 +1,520 @@
+﻿/* Person page - viewport-locked hero with internal scroll */
+
+@property --media-dominant-color {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: transparent;
+}
+
+.person-page {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    transition: --media-dominant-color 1.2s var(--ease-out);
+}
+
+/* Hero section - fills first screen */
+
+.person-main {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+    flex-shrink: 0;
+    z-index: 2;
+}
+
+/* Content below hero (carousels) */
+
+.person-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+::deep .person-page-content {
+    z-index: 1;
+}
+
+.person-content ::deep .carousel-wrapper {
+    flex-shrink: 0;
+}
+
+.person-hero.media-hero {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    flex: 1;
+    min-height: 0;
+}
+
+@media (min-width: 600px) {
+    .person-hero.media-hero {
+        flex-direction: row;
+        align-items: flex-end;
+        gap: var(--space-10);
+        max-width: 1100px;
+        padding: 0 var(--space-10) var(--space-12);
+    }
+
+    .person-hero.media-hero .media-hero-body {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .person-hero.media-hero .media-hero-backdrop-zone {
+        flex-shrink: 0;
+    }
+}
+
+/* Portrait */
+
+.person-portrait {
+    flex-shrink: 0;
+    width: 260px;
+    aspect-ratio: 2 / 3;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
+    overflow: hidden;
+}
+
+.person-portrait ::deep .k7-img-wrap {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.person-portrait ::deep .k7-img-wrap--custom-fallback {
+    overflow: hidden;
+}
+
+.person-portrait ::deep .k7-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Info */
+
+.person-info {
+    flex: 1;
+    min-width: 0;
+    padding-bottom: var(--space-2);
+    max-width: 800px;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+}
+
+.person-name-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.person-name {
+    font-family: var(--font-heading);
+    font-weight: var(--font-extrabold);
+    letter-spacing: -0.5px;
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9);
+    margin: 0;
+}
+
+/* Metadata pills */
+
+.person-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.person-meta-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    background: rgba(255, 255, 255, 0.08);
+    font-size: var(--text-sm);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+::deep .person-meta-icon {
+    opacity: 0.6;
+}
+
+.person-meta-secondary {
+    opacity: 0.6;
+}
+
+/* Biography */
+
+.person-bio {
+    margin-top: var(--space-4);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    margin-left: calc(-1 * var(--space-2));
+    transition: background-color var(--duration-normal) var(--ease-out);
+}
+
+.person-bio:hover,
+.person-bio:focus-visible {
+    background-color: rgba(128, 128, 128, 0.15);
+}
+
+.person-bio:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+.person-bio-text {
+    opacity: 0.85;
+    line-height: 1.7;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Carousel section */
+
+::deep .carousel-wrapper {
+    --carousel-margin-start: 40px;
+}
+
+/* ============================================================
+   Responsive: Tablet (max-width: 960px)
+   ============================================================ */
+
+@media (max-width: 960px) {
+    .person-hero.media-hero {
+        padding: 0 var(--space-6) var(--space-8);
+    }
+
+    .person-portrait {
+        width: 200px;
+    }
+
+    .person-bio-text {
+        -webkit-line-clamp: 3;
+    }
+}
+
+/* ============================================================
+   Responsive: Mobile (max-width: 599.98px)
+   ============================================================ */
+
+@media (max-width: 599.98px) {
+    .person-main {
+        height: var(--media-hero-available-height);
+        min-height: var(--media-hero-available-height);
+        max-height: var(--media-hero-available-height);
+        overflow: hidden;
+    }
+
+    .person-hero.media-hero {
+        padding: 0;
+    }
+
+    .person-hero.media-hero .media-hero-backdrop-zone .person-portrait {
+        width: 50vw;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+    }
+
+    .person-info {
+        text-align: center;
+        padding-bottom: 0;
+        width: 100%;
+    }
+
+    .person-name-row {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-1);
+        max-width: 100%;
+    }
+
+    .person-name {
+        text-align: left;
+    }
+
+    .person-meta {
+        justify-content: center;
+    }
+
+    .person-bio {
+        margin-left: 0;
+    }
+
+    .person-bio-text {
+        -webkit-line-clamp: 3;
+    }
+
+    ::deep .carousel-wrapper {
+        --carousel-margin-start: 16px;
+    }
+}
+
+/* ============================================================
+   Responsive: Large / TV (min-width: 1280px)
+   ============================================================ */
+
+@media (min-width: 1280px) {
+    .person-hero.media-hero {
+        max-width: 1400px;
+        gap: var(--space-12);
+    }
+
+    .person-portrait {
+        width: 300px;
+    }
+
+    .person-name {
+        font-size: var(--text-4xl);
+    }
+
+    .person-bio-text {
+        -webkit-line-clamp: 5;
+    }
+
+    ::deep .carousel-wrapper {
+        --carousel-margin-start: 56px;
+    }
+}
+
+/* ============================================================
+   Responsive: Extra-large / 10-foot (min-width: 1920px)
+   ============================================================ */
+
+@media (min-width: 1920px) {
+    .person-hero.media-hero {
+        padding: 0 var(--space-16) var(--space-16);
+        max-width: 1800px;
+        gap: var(--space-16);
+    }
+
+    .person-portrait {
+        width: 340px;
+    }
+
+    .person-name {
+        font-size: var(--text-5xl);
+    }
+
+    .person-meta-item {
+        font-size: var(--text-base);
+        padding: var(--space-2) var(--space-4);
+    }
+
+    .person-bio-text {
+        font-size: var(--text-lg);
+        -webkit-line-clamp: 6;
+    }
+
+    ::deep .carousel-wrapper {
+        --carousel-margin-start: 80px;
+    }
+}
+
+/* Loading: reuse .person-hero / .person-portrait so phone, desktop, and TV breakpoints apply. */
+
+::deep .person-skeleton-portrait {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+}
+
+::deep .person-skeleton-name {
+    display: block;
+    width: min(42vw, 360px);
+    height: 1.15em;
+    min-height: 36px;
+    border-radius: var(--radius-md);
+}
+
+::deep .person-skeleton-chip {
+    display: block;
+    width: 88px;
+    height: 32px;
+    border-radius: var(--radius-full);
+}
+
+::deep .person-skeleton-chip--wide {
+    width: 148px;
+}
+
+.person-skeleton-bio {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+::deep .person-skeleton-line {
+    height: 18px;
+    width: 92%;
+}
+
+::deep .person-skeleton-line--mid {
+    width: 86%;
+}
+
+::deep .person-skeleton-line--short {
+    width: 70%;
+}
+
+@media (max-width: 599.98px) {
+    ::deep .person-skeleton-name {
+        width: 70%;
+        margin-inline: auto;
+    }
+}
+
+@media (min-width: 1920px) {
+    ::deep .person-skeleton-name {
+        width: min(36vw, 480px);
+        min-height: 48px;
+    }
+
+    ::deep .person-skeleton-chip {
+        height: 40px;
+        width: 104px;
+    }
+
+    ::deep .person-skeleton-chip--wide {
+        width: 168px;
+    }
+
+    ::deep .person-skeleton-line {
+        height: 20px;
+    }
+}
+
+/* TV WebView CSS px may not hit 1920. Keep the 10-foot hero even then. */
+:global(html.platform-tv) .person-hero.media-hero {
+    flex-direction: row;
+    align-items: flex-end;
+    padding: 0 var(--space-16) var(--space-16);
+    max-width: 1800px;
+    gap: var(--space-16);
+}
+
+:global(html.platform-tv) .person-hero.media-hero .media-hero-body {
+    flex: 1;
+    min-width: 0;
+}
+
+:global(html.platform-tv) .person-portrait {
+    width: 340px;
+}
+
+:global(html.platform-tv) .person-name {
+    font-size: var(--text-5xl);
+}
+
+:global(html.platform-tv) .person-meta-item {
+    font-size: var(--text-base);
+    padding: var(--space-2) var(--space-4);
+}
+
+:global(html.platform-tv) .person-bio-text {
+    font-size: var(--text-lg);
+    -webkit-line-clamp: 6;
+}
+
+:global(html.platform-tv) .person-info {
+    text-align: left;
+}
+
+:global(html.platform-tv) .person-name-row {
+    display: flex;
+    justify-content: flex-start;
+}
+
+:global(html.platform-tv) ::deep .person-skeleton-name {
+    width: min(36vw, 480px);
+    min-height: 48px;
+    margin-inline: 0;
+}
+
+:global(html.platform-tv) ::deep .person-skeleton-chip {
+    height: 40px;
+    width: 104px;
+}
+
+:global(html.platform-tv) ::deep .person-skeleton-chip--wide {
+    width: 168px;
+}
+
+:global(html.platform-tv) ::deep .carousel-wrapper {
+    --carousel-margin-start: 80px;
+}
+
+.person-page-scroll[data-tv-scroll] .person-main {
+    min-height: 100%;
+}
+
+.person-page-scroll[data-tv-scroll] .person-page-content {
+    padding-bottom: 64px;
+}
+
+/* Detail rows: footer text sits below the poster link focus target. */
+.person-page-scroll[data-tv-scroll] [data-tv-scroll-zone="below"] .media-card,
+.person-page-scroll[data-tv-scroll] [data-tv-scroll-zone="below"] .media-card-link {
+    scroll-margin-bottom: 64px;
+}
+
+/* Known For cards */
+.known-for-card {
+    display: flex;
+    flex-direction: column;
+    width: 150px;
+    gap: var(--space-2);
+}
+
+.known-for-poster {
+    width: 150px;
+    height: 225px;
+    border-radius: var(--k7-radius-md);
+    object-fit: cover;
+}
+
+.known-for-poster--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--k7-surface-variant);
+    color: var(--k7-on-surface-variant);
+    font-size: var(--text-3xl);
+}
+
+.known-for-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 var(--space-1);
+}
+
+.known-for-title {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.known-for-year {
+    font-size: var(--text-xs);
+    opacity: 0.6;
+}

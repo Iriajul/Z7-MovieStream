@@ -1,0 +1,22 @@
+@inject IStringLocalizer<LibraryBrowseRowActions> L
+
+<div class="library-browse-row-actions" @onclick:stopPropagation="true">
+    @if (HasMenu)
+    {
+        <div @ref="_triggerRef" class="library-browse-row-actions__menu">
+            <K7IconButton Icon="@Phosphor.DotsThreeVertical"
+                           Size="sm"
+                           Class="library-browse-row-actions__menu-trigger"
+                           AriaLabel="@L["MoreActions"]"
+                           OnClick="OpenSharedMenuAsync" />
+        </div>
+    }
+    @if (OnRemove.HasDelegate)
+    {
+        <K7IconButton Icon="@Phosphor.X"
+                       Size="sm"
+                       Color="error"
+                       OnClick="OnRemove"
+                       aria-label="@(RemoveAriaLabel ?? L["Remove"])" />
+    }
+</div>

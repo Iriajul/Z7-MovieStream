@@ -1,0 +1,80 @@
+@inherits LayoutComponentBase
+@layout MainLayout
+@inject IStringLocalizer<SettingsLayout> L
+@inject IDeviceService DeviceService
+
+<SidebarLayout Title="@L["Title"]">
+    <SidebarContent>
+        <nav class="page-sidebar-nav">
+            @if (!_isGuest)
+            {
+                <SidebarNavLink Href="/settings/account" Title="@L["Account"]" Icon="@Phosphor.UserCircle" />
+                <SidebarNavGroup Title="@L["SharedProfiles"]" Icon="@Phosphor.UsersThree" Routes="@WatchTogetherRoutes">
+                    <NavLink class="nav-link focusable" href="/settings/syncplay">
+                        <span class="nav-icon"><K7Icon Icon="@Phosphor.Broadcast" /></span>
+                        <span class="nav-label">@L["WatchTogetherSyncPlay"]</span>
+                    </NavLink>
+                    <NavLink class="nav-link focusable" href="/settings/shared-profiles">
+                        <span class="nav-icon"><K7Icon Icon="@Phosphor.UsersThree" /></span>
+                        <span class="nav-label">@L["WatchTogetherSharedProfiles"]</span>
+                    </NavLink>
+                </SidebarNavGroup>
+            }
+
+            <SidebarNavGroup Title="@L["GroupExperience"]" Icon="@Phosphor.SlidersHorizontal" Routes="@ExperienceRoutes">
+                <NavLink class="nav-link focusable" href="/settings/general">
+                    <span class="nav-icon"><K7Icon Icon="@Phosphor.Gear" /></span>
+                    <span class="nav-label">@L["General"]</span>
+                </NavLink>
+                @if (!_isGuest)
+                {
+                    <NavLink class="nav-link focusable" href="/settings/video-playback">
+                        <span class="nav-icon"><K7Icon Icon="@Phosphor.Play" /></span>
+                        <span class="nav-label">@L["VideoPlayback"]</span>
+                    </NavLink>
+                    <NavLink class="nav-link focusable" href="/settings/audio-player">
+                        <span class="nav-icon"><K7Icon Icon="@Phosphor.MusicNotes" /></span>
+                        <span class="nav-label">@L["AudioPlayer"]</span>
+                    </NavLink>
+                }
+            </SidebarNavGroup>
+
+            @if (!_isGuest)
+            {
+                <SidebarNavGroup Title="@L["GroupMyContent"]" Icon="@Phosphor.Stack" Routes="@MyContentRoutes">
+                    <NavLink class="nav-link focusable" href="/settings/libraries">
+                        <span class="nav-icon"><K7Icon Icon="@Phosphor.Books" /></span>
+                        <span class="nav-label">@L["Libraries"]</span>
+                    </NavLink>
+                    <NavLink class="nav-link focusable" href="/settings/home">
+                        <span class="nav-icon"><K7Icon Icon="@Phosphor.House" /></span>
+                        <span class="nav-label">@L["Home"]</span>
+                    </NavLink>
+                    <NavLink class="nav-link focusable" href="/settings/social">
+                        <span class="nav-icon"><K7Icon Icon="@Phosphor.GlobeHemisphereWest" /></span>
+                        <span class="nav-label">@L["Federation"]</span>
+                    </NavLink>
+                    <NavLink class="nav-link focusable" href="/settings/hidden">
+                        <span class="nav-icon"><K7Icon Icon="@Phosphor.EyeSlash" /></span>
+                        <span class="nav-label">@L["Hidden"]</span>
+                    </NavLink>
+                </SidebarNavGroup>
+
+                <SidebarNavLink Href="/settings/external-clients" Title="@L["ExternalClients"]" Icon="@Phosphor.PlugsConnected" />
+                <SidebarNavLink Href="/settings/scrobbling" Title="@L["Scrobbling"]" Icon="@Phosphor.Broadcast" />
+
+                @if (DeviceService.GetClientType() == ClientType.Native)
+                {
+                    <SidebarNavLink Href="/settings/offline" Title="@L["Offline"]" Icon="@Phosphor.CloudArrowDown" />
+                }
+            }
+
+            <SidebarNavLink Href="/settings/about" Title="@L["About"]" Icon="@Phosphor.Info" />
+        </nav>
+    </SidebarContent>
+    <ChildContent>
+        <div class="page-content">
+            @Body
+        </div>
+    </ChildContent>
+</SidebarLayout>

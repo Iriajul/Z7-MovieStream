@@ -1,0 +1,187 @@
+@page "/search"
+@inject IStringLocalizer<SearchPage> L
+@inject IStringLocalizer<SharedResource> S
+@using K7.Shared.Dtos.Entities.Medias
+@using K7.Shared.Dtos.Entities.Persons
+@using K7.Shared.Dtos.Search
+@using K7.Server.Domain.Enums
+@using K7.Clients.Shared.Mappings
+@using K7.Clients.Shared.Models
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<div class="search-page page-scrollable">
+    <div class="search-page__header">
+        <K7TextField @bind-Value="_query"
+                      Placeholder="@L["TypeHint"]"
+                      Variant="outlined"
+                      Clearable="true"
+                      Autofocus="true"
+                      Class="search-page__input"
+                      DebounceInterval="300"
+                      OnDebounceIntervalElapsed="@((string? v) => OnQueryDebounced(v))" />
+    </div>
+
+    @if (string.IsNullOrWhiteSpace(_query) || _query.Length < 2)
+    {
+        <div class="search-page__empty">
+            <K7Icon Icon="@Phosphor.MagnifyingGlass" Style="font-size: 64px; opacity: 0.2;" />
+            <p class="text-sm" Color="secondary">@L["EnterQuery"]</p>
+        </div>
+    }
+    else if (_loading)
+    {
+        <div class="search-page__loading">
+            <K7Spinner />
+            <p class="text-sm" Color="secondary">@L["Loading"]</p>
+        </div>
+    }
+    else if (_result is null || (_movieResults.Count == 0 && _serieSeasonResults.Count == 0 && _episodeResults.Count == 0 && _musicResults.Count == 0 && _result.PersonResults.Count == 0 && _result.CharacterResults.Count == 0))
+    {
+        <div class="search-page__empty">
+            <K7Icon Icon="@Phosphor.SmileyMeh" Style="font-size: 64px; opacity: 0.2;" />
+            <p class="text-sm" Color="secondary">@string.Format(L["NoResults"], _query)</p>
+        </div>
+    }
+    else
+    {
+        @if (_movieResults.Count > 0)
+        {
+            <Carousel Title="@L["Movies"]" ShowLoopBack="false">
+                @foreach (var media in _movieResults)
+                {
+                    var card = media.ToCardViewModel(ApiClient, n => string.Format(S["SeasonNumber"], n));
+                    @if (card is not null)
+                    {
+                        <CarouselItem>
+                            <MediaCard Model="card"
+                                        Variant="@GetVariant(card)"
+                                        Href="@GetMediaHref(media)"
+                                        FooterVisible="true"
+                                        OverlayEnabled="true"
+                                        ProgressEnabled="_canTrackProgress"
+                                        WatchedStatusEnabled="_canTrackProgress"
+                                        ExcludeMenuEnabled="_canExclude"
+                                        WatchStateMenuEnabled="_canSetWatchState"
+                                        IsAdmin="_isAdmin"
+                                        OnExcludeForSelf="() => ExcludeForSelf(card)"
+                                        OnExcludeForOthers="() => ExcludeForOthers(card)" />
+                        </CarouselItem>
+                    }
+                }
+            </Carousel>
+        }
+
+        @if (_serieSeasonResults.Count > 0)
+        {
+            <Carousel Title="@L["SeriesAndSeasons"]" ShowLoopBack="false">
+                @foreach (var media in _serieSeasonResults)
+                {
+                    var card = media.ToCardViewModel(ApiClient, n => string.Format(S["SeasonNumber"], n));
+                    @if (card is not null)
+                    {
+                        <CarouselItem>
+                            <MediaCard Model="card"
+                                        Variant="@GetVariant(card)"
+                                        Href="@GetMediaHref(media)"
+                                        FooterVisible="true"
+                                        OverlayEnabled="true"
+                                        ProgressEnabled="_canTrackProgress"
+                                        WatchedStatusEnabled="_canTrackProgress"
+                                        ExcludeMenuEnabled="_canExclude"
+                                        WatchStateMenuEnabled="_canSetWatchState"
+                                        IsAdmin="_isAdmin"
+                                        OnExcludeForSelf="() => ExcludeForSelf(card)"
+                                        OnExcludeForOthers="() => ExcludeForOthers(card)" />
+                        </CarouselItem>
+                    }
+                }
+            </Carousel>
+        }
+
+        @if (_episodeResults.Count > 0)
+        {
+            <Carousel Title="@L["Episodes"]" ShowLoopBack="false">
+                @foreach (var media in _episodeResults)
+                {
+                    var card = ToEpisodeCard(media);
+                    @if (card is not null)
+                    {
+                        <CarouselItem>
+                            <MediaCard Model="card"
+                                        Variant="@GetVariant(card)"
+                                        Href="@GetMediaHref(media)"
+                                        FooterVisible="true"
+                                        OverlayEnabled="true"
+                                        ProgressEnabled="_canTrackProgress"
+                                        WatchedStatusEnabled="_canTrackProgress"
+                                        ExcludeMenuEnabled="_canExclude"
+                                        WatchStateMenuEnabled="_canSetWatchState"
+                                        IsAdmin="_isAdmin"
+                                        OnExcludeForSelf="() => ExcludeForSelf(card)"
+                                        OnExcludeForOthers="() => ExcludeForOthers(card)" />
+                        </CarouselItem>
+                    }
+                }
+            </Carousel>
+        }
+
+        @if (_musicResults.Count > 0)
+        {
+            <Carousel Title="@L["Music"]" ShowLoopBack="false">
+                @foreach (var media in _musicResults)
+                {
+                    var card = media.ToCardViewModel(ApiClient, n => string.Format(S["SeasonNumber"], n));
+                    @if (card is not null)
+                    {
+                        <CarouselItem>
+                            <MediaCard Model="card"
+                                        Variant="@GetVariant(card)"
+                                        Href="@GetMediaHref(media)"
+                                        FooterVisible="true"
+                                        OverlayEnabled="true"
+                                        ProgressEnabled="_canTrackProgress"
+                                        WatchedStatusEnabled="_canTrackProgress"
+                                        ExcludeMenuEnabled="_canExclude"
+                                        WatchStateMenuEnabled="_canSetWatchState"
+                                        IsAdmin="_isAdmin"
+                                        OnExcludeForSelf="() => ExcludeForSelf(card)"
+                                        OnExcludeForOthers="() => ExcludeForOthers(card)" />
+                        </CarouselItem>
+                    }
+                }
+            </Carousel>
+        }
+
+        @if (_result.PersonResults.Count > 0)
+        {
+            <Carousel Title="@L["Persons"]" ShowLoopBack="false">
+                @foreach (var person in _result.PersonResults)
+                {
+                    <CarouselItem>
+                        <PersonCard Href="@($"/persons/{person.Id}")"
+                                    Title="@person.Name"
+                                    ImageUrl="@GetPersonPictureUrl(person)"
+                                    Alt="@person.Name" />
+                    </CarouselItem>
+                }
+            </Carousel>
+        }
+
+        @if (_result.CharacterResults.Count > 0)
+        {
+            <Carousel Title="@L["Roles"]" ShowLoopBack="false">
+                @foreach (var character in _result.CharacterResults)
+                {
+                    <CarouselItem>
+                        <PersonCard Href="@($"/persons/{character.PersonId}")"
+                                    Title="@character.CharacterName"
+                                    Subtitle="@character.MediaTitle"
+                                    ImageUrl="@GetCharacterPictureUrl(character)"
+                                    Alt="@character.PersonName" />
+                    </CarouselItem>
+                }
+            </Carousel>
+        }
+    }
+</div>

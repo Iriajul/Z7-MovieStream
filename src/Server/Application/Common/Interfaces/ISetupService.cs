@@ -1,0 +1,11 @@
+using K7.Server.Application.Common.Models;
+
+namespace K7.Server.Application.Common.Interfaces;
+
+public interface ISetupService
+{
+    Task<bool> IsSetupCompletedAsync(CancellationToken cancellationToken = default);
+    Task<bool> RequiresSetupTokenAsync(CancellationToken cancellationToken = default);
+    Task<Result> CompleteSetupAsync(string userName, string password, string? email = null, string? setupToken = null, CancellationToken cancellationToken = default);
+    Task<Result> CompleteSetupWithExternalLoginAsync(string userName, string? email, string loginProvider, string providerKey, CancellationToken cancellationToken = default);
+}

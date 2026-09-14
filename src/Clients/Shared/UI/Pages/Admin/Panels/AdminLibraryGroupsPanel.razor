@@ -1,0 +1,62 @@
+@page "/admin/library-groups"
+@layout AdminLayout
+@using K7.Shared.Dtos.Entities
+@inject IStringLocalizer<AdminLibraryGroupsPanel> L
+@inject IStringLocalizer<SharedResource> S
+
+<BrowseView TItem="LibraryGroupDto"
+            Items="_groups"
+            Loading="_isLoading"
+            DefaultItemWidth="320"
+            DefaultSpacing="16"
+            GridItemAspectRatio="null"
+            SingleColumnOnMobile="true"
+            PersistenceKey="admin-library-groups">
+    <ToolbarContent>
+        <h6>@L["Title"]</h6>
+    </ToolbarContent>
+    <GridTemplate Context="group">
+        <K7Paper Outlined="true">
+            <div class="group-card">
+                <div class="group-card__header d-flex align-center gap-2">
+                    <K7Icon Icon="@GetGroupIcon(group)"  IconSize="@K7IconSize.Sm" Class="group-card__icon" />
+                    <span class="group-card__name">@group.Title</span>
+                    <K7Chip Size="sm" Color="default" Class="group-card__type">@GetMediaTypeLabel(group.MediaType)</K7Chip>
+                </div>
+                @{
+                    var libraryTitles = GetLibraryTitles(group);
+                }
+                @if (libraryTitles.Count > 0)
+                {
+                    <ul class="group-card__libraries">
+                        @foreach (var libraryTitle in libraryTitles)
+                        {
+                            <li>@libraryTitle</li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="group-card__libraries-empty">@L["NoLibraries"]</p>
+                }
+                <div class="group-card__actions d-flex gap-2">
+                    <K7Button Variant="text" Size="sm" StartIcon="@Phosphor.PencilSimple" OnClick="@(() => OpenEditDialog(group))">
+                        @L["Edit"]
+                    </K7Button>
+                    <K7Button Variant="text" Size="sm" Color="error" StartIcon="@Phosphor.Trash" OnClick="@(() => ConfirmDelete(group))">
+                        @S["Delete"]
+                    </K7Button>
+                </div>
+            </div>
+        </K7Paper>
+    </GridTemplate>
+    <EmptyContent>
+        <K7EmptyState Icon="@Phosphor.Folders" Title="@L["Empty"]" Subtitle="@L["EmptyDescription"]">
+            <ActionContent>
+                <K7Button Variant="filled" Color="primary" StartIcon="@Phosphor.Plus" OnClick="GoToLibraries">
+                    @L["CreateLibrary"]
+                </K7Button>
+            </ActionContent>
+        </K7EmptyState>
+    </EmptyContent>
+</BrowseView>

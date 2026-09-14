@@ -1,0 +1,95 @@
+@using System.Globalization
+
+<div class="seekbar-container @(KeyboardFocusable ? "focusable" : null) @(_isScrubbing ? "scrubbing" : "")"
+     tabindex="@(KeyboardFocusable ? 0 : -1)"
+     role="slider"
+     data-sn-activatable="@(KeyboardFocusable ? true : null)"
+     data-thumbnails-uri="@(ThumbnailsUri?.ToString() ?? "")"
+     data-thumb-interval="@IntervalSeconds"
+     data-thumbs-per-row="@ThumbsPerRow"
+     data-thumb-width="@ThumbWidth"
+     data-thumb-height="@ThumbHeight"
+    aria-valuemin="0" aria-valuemax="@ClockDuration.ToString(CultureInfo.InvariantCulture)"
+    aria-valuenow="@ClockCurrentTime.ToString(CultureInfo.InvariantCulture)"
+    aria-label="Seek"
+@onpointerdown="OnPointerDown"
+@onpointermove="OnPointerMove"
+@onpointerup="OnPointerUp"
+@onpointercancel="OnPointerUp"
+@onpointerleave="OnPointerLeave"
+@onkeydown="OnKeyDown" @onkeydown:preventDefault="_preventKeyDefault" @onkeydown:stopPropagation="_isScrubbing"
+@onfocus="OnFocus"
+@onblur="OnBlur"
+@ref="SeekBarRef">
+
+    @if (!Chapters.Any())
+    {
+        <div class="seekbar-track">
+            <div class="progress" style="width: @CurrentPercent.ToString(CultureInfo.InvariantCulture)%"></div>
+            @if (IsHovering)
+            {
+                <div class="hover" style="width: @HoverPercent.ToString(CultureInfo.InvariantCulture)%"></div>
+            }
+            <div class="buffered" style="width: @BufferedPercent.ToString(CultureInfo.InvariantCulture)%"></div>
+        </div>
+    }
+    else
+    {
+        var segments = GetChapterSegments();
+        var gapsTotalPx = Math.Max(0, segments.Count - 1) * ChapterGapPx;
+        <div class="seekbar-chapters">
+            @for (var i = 0; i < segments.Count; i++)
+            {
+                var segment = segments[i];
+                var startFrac = segment.Start / ClockDuration;
+                var durFrac = segment.Duration / ClockDuration;
+                var gapOffsetPx = i * ChapterGapPx;
+
+                var progressPercent = Math.Clamp((ClockCurrentTime - segment.Start) / segment.Duration * 100, 0, 100);
+                var bufferPercent = Math.Clamp((ClockBufferedTime - segment.Start) / segment.Duration * 100, 0, 100);
+                var hoverPercent = Math.Clamp((HoverTime - segment.Start) / segment.Duration * 100, 0, 100);
+
+                <div class="chapter-segment-container"
+                     style="left: calc(@startFrac.ToString(CultureInfo.InvariantCulture) * (100% - @(gapsTotalPx.ToString(CultureInfo.InvariantCulture))px) + @(gapOffsetPx.ToString(CultureInfo.InvariantCulture))px); width: calc(@durFrac.ToString(CultureInfo.InvariantCulture) * (100% - @(gapsTotalPx.ToString(CultureInfo.InvariantCulture))px))">
+                    <div class="chapter-segment">
+                        <div class="chapter-progress" style="width: @progressPercent.ToString(CultureInfo.InvariantCulture)%"></div>
+                        @if (IsHovering)
+                        {
+                            <div class="chapter-hover" style="width: @hoverPercent.ToString(CultureInfo.InvariantCulture)%"></div>
+                        }
+                        <div class="chapter-buffered" style="width: @bufferPercent.ToString(CultureInfo.InvariantCulture)%"></div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @{
+        // TV/desktop keyboard scrub is painted by K7.SeekBar JS. If Blazor also renders
+        // .thumbnail here, ensurePreview races and leaves a second sprite stuck on the bar.
+        var showPreview = !_isScrubbing && (IsHovering || _isFocused);
+        var previewPercent = IsHovering ? HoverPercent : CurrentPercent;
+        var previewTime = IsHovering ? HoverTime : ClockCurrentTime;
+    }
+
+    @if (showPreview)
+    {
+        <div class="thumb" style="left: @previewPercent.ToString(CultureInfo.InvariantCulture)%"></div>
+
+        <div class="thumbnail" style="left: @previewPercent.ToString(CultureInfo.InvariantCulture)%">
+            @if (ThumbnailsUri != null)
+            {
+                <div class="thumbnail-image" style="@GetSpriteStyle(previewTime)"></div>
+            }
+            @if (Chapters.Any())
+            {
+                var hoveredChapter = GetHoveredChapter(previewTime);
+                @if (hoveredChapter is not null)
+                {
+                    <div class="thumbnail-chapter-title">@hoveredChapter.Title</div>
+                }
+            }
+            <div class="thumbnail-time">@GetHumanReadableTime(previewTime)</div>
+        </div>
+    }
+</div>

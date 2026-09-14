@@ -1,0 +1,557 @@
+name: Client release
+
+on:
+  # Draft-first: repo has immutable releases, so assets must be uploaded before publish.
+  # Create with `gh release create ... --draft`, then this workflow uploads assets and leaves the draft.
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach clients to (e.g. v1.2.3 or 1.2.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  MAUI_PROJECT: src/Clients/MAUI/K7.Clients.MAUI.csproj
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      is_draft: ${{ steps.version.outputs.is_draft }}
+    steps:
+      # Saving a GitHub draft does not create the git tag until Publish. CI creates
+      # the missing tag from the release target (usually main) so checkout works.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag and version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          TAG="${TAG#refs/tags/}"
+          # UI / dispatch often omit the leading v; drafts use tag_name vX.Y.Z.
+          if [[ "${TAG}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+            TAG="v${TAG}"
+          fi
+          if [ -z "${TAG}" ] || [[ "${TAG}" == untagged-* ]]; then
+            echo "::error::Release has no tag name yet. Choose a tag like v1.2.3 on the draft (GitHub may still show untagged-* until publish)."
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "version=${TAG#v}" >> "${GITHUB_OUTPUT}"
+
+          DRAFT=false
+          if [ "${{ github.event_name }}" = "release" ] && [ "${{ github.event.release.draft }}" = "true" ]; then
+            DRAFT=true
+          elif gh release view "${TAG}" --repo "${{ github.repository }}" --json isDraft --jq .isDraft 2>/dev/null | grep -qx true; then
+            DRAFT=true
+          else
+            if ! gh release view "${TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+              echo "::error::No GitHub release found for tag ${TAG}. Create a draft release that uses this tag name, then re-run."
+              exit 1
+            fi
+          fi
+          if [ "${DRAFT}" != "true" ]; then
+            echo "::error::Release ${TAG} must be a draft. This repo has immutable releases; publish only after client assets are uploaded (see docs/dev/releasing.md)."
+            exit 1
+          fi
+          if [ "$(gh release view "${TAG}" --repo "${{ github.repository }}" --json isImmutable --jq .isImmutable)" = "true" ]; then
+            echo "::error::Release ${TAG} is immutable; assets can no longer be uploaded. Create a new draft tag."
+            exit 1
+          fi
+
+          TARGET="${{ github.event.release.target_commitish }}"
+          if [ -z "${TARGET}" ]; then
+            TARGET="$(gh release view "${TAG}" --repo "${{ github.repository }}" --json targetCommitish --jq .targetCommitish)"
+          fi
+          TARGET="${TARGET#refs/heads/}"
+          TARGET="${TARGET#refs/tags/}"
+          if [ -z "${TARGET}" ]; then
+            TARGET="${{ github.event.repository.default_branch }}"
+          fi
+
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Git tag ${TAG} already exists."
+          elif git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Git tag ${TAG} already exists on origin."
+            git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          else
+            echo "Git tag ${TAG} missing (normal for drafts). Creating at ${TARGET}."
+            git fetch origin "${TARGET}"
+            if git rev-parse -q --verify "origin/${TARGET}" >/dev/null; then
+              REF="origin/${TARGET}"
+            else
+              REF="$(git rev-parse "${TARGET}")"
+            fi
+            git tag "${TAG}" "${REF}"
+            git push origin "refs/tags/${TAG}"
+            echo "Created and pushed ${TAG} -> $(git rev-parse "${TAG}^{commit}")"
+          fi
+
+          echo "is_draft=${DRAFT}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved ${TAG} (draft=${DRAFT}, target=${TARGET})"
+
+  # Windows runner: Linux hits NU1102 on Microsoft.NETCore.App.Runtime.Mono.linux-x64
+  # (desktop Mono host packs removed in .NET 9+; not published for .NET 10).
+  publish-android:
+    needs: resolve
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Setup Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install MAUI Android workload
+        run: dotnet workload install maui-android --skip-manifest-update
+
+      # wwwroot/dist is gitignored; restore before publish so static web assets include Embla/video.js/etc.
+      - name: Restore LibMan libraries
+        working-directory: src/Clients/Shared/UI
+        run: |
+          dotnet tool restore
+          dotnet tool run libman -- restore
+
+      # Prefer a long-lived keystore from secrets so APK updates keep the same signature.
+      # Fallback: ephemeral CI keystore (sideload only; signature changes each run).
+      - name: Prepare Android signing keystore
+        id: keystore
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          store="${{ runner.temp }}/k7-release.keystore"
+          envfile="${{ runner.temp }}/android-signing.env"
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > "${store}"
+            {
+              echo "KEY_ALIAS=${ANDROID_KEY_ALIAS}"
+              echo "STORE_PASS=${ANDROID_KEYSTORE_PASSWORD}"
+              echo "KEY_PASS=${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}"
+            } > "${envfile}"
+            echo "Using repository Android signing secrets."
+          else
+            keytool -genkeypair -v \
+              -keystore "${store}" \
+              -alias k7ci \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass k7-ci-store \
+              -keypass k7-ci-key \
+              -dname "CN=K7 CI, OU=K7, O=K7, L=Internet, ST=NA, C=FR"
+            {
+              echo "KEY_ALIAS=k7ci"
+              echo "STORE_PASS=k7-ci-store"
+              echo "KEY_PASS=k7-ci-key"
+            } > "${envfile}"
+            echo "::warning::ANDROID_KEYSTORE_* secrets missing; using ephemeral CI keystore (sideload only)."
+          fi
+          echo "path=${store}" >> "${GITHUB_OUTPUT}"
+          echo "envfile=${envfile}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish Android APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1090
+          source "${{ steps.keystore.outputs.envfile }}"
+          # K7PublishPlatform=android: single TFM in MAUI csproj (avoids NETSDK1178 for ios
+          # without global -p:TargetFrameworks=, which breaks ProjectReference restore).
+          # Version alone drives ApplicationDisplayVersion via csproj (_VersionCore).
+          dotnet publish "${{ env.MAUI_PROJECT }}" \
+            -f net10.0-android \
+            -c Release \
+            -p:K7PublishPlatform=android \
+            -p:Version="${{ needs.resolve.outputs.version }}" \
+            -p:AndroidKeyStore=true \
+            -p:AndroidSigningKeyStore="${{ steps.keystore.outputs.path }}" \
+            -p:AndroidSigningStorePass="${STORE_PASS}" \
+            -p:AndroidSigningKeyAlias="${KEY_ALIAS}" \
+            -p:AndroidSigningKeyPass="${KEY_PASS}" \
+            -o "${{ runner.temp }}/android-publish"
+
+      - name: Stage APK
+        id: apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=$(find "${{ runner.temp }}/android-publish" -type f \( -name '*.apk' \) | head -n 1)
+          if [ -z "${apk}" ]; then
+            echo "::error::No APK produced under android-publish"
+            find "${{ runner.temp }}/android-publish" -type f | head -n 50
+            exit 1
+          fi
+          out="${{ runner.temp }}/K7-${{ needs.resolve.outputs.version }}-android.apk"
+          cp "${apk}" "${out}"
+          echo "path=${out}" >> "${GITHUB_OUTPUT}"
+          echo "Staged $(basename "${out}") from ${apk}"
+
+      - name: Upload APK to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ needs.resolve.outputs.tag }}" \
+            "${{ steps.apk.outputs.path }}" \
+            --repo "${{ github.repository }}" \
+            --clobber
+
+  publish-windows:
+    needs: resolve
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Install MAUI Windows workload
+        run: dotnet workload install maui-windows --skip-manifest-update
+
+      # wwwroot/dist is gitignored; restore before publish so static web assets include Embla/video.js/etc.
+      - name: Restore LibMan libraries
+        working-directory: src/Clients/Shared/UI
+        run: |
+          dotnet tool restore
+          dotnet tool run libman -- restore
+
+      - name: Publish Windows (self-contained unpackaged)
+        id: win
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP "win-publish"
+          # K7PublishPlatform=windows: single TFM in MAUI csproj only (not global TargetFrameworks).
+          # UseMonoRuntime=false: avoid Microsoft.NETCore.App.Runtime.Mono.win-x64 (NU1102).
+          # Version alone drives ApplicationDisplayVersion via csproj (_VersionCore / no -rc label).
+          dotnet publish $env:MAUI_PROJECT `
+            -f net10.0-windows10.0.19041.0 `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:K7PublishPlatform=windows `
+            -p:UseMonoRuntime=false `
+            -p:WindowsPackageType=None `
+            -p:PublishSingleFile=false `
+            -p:Version="${{ needs.resolve.outputs.version }}" `
+            -o $out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $exe = Get-ChildItem -Path $out -Filter "K7.Clients.MAUI.exe" -Recurse -File | Select-Object -First 1
+          if (-not $exe) {
+            Write-Error "K7.Clients.MAUI.exe not found under $out"
+            Get-ChildItem -Path $out -Recurse -File | Select-Object -First 50 FullName
+            exit 1
+          }
+
+          # Friendly launcher name. WinUI unpackaged loads {exeBasename}.pri next to the
+          # process; copying only the exe (without K7.pri) crashes in Microsoft.UI.Xaml.dll
+          # (0xc000027b). AssemblyName=K7 is not used: NuGet reports ambiguous project name K7.
+          $pri = Join-Path $exe.DirectoryName "K7.Clients.MAUI.pri"
+          if (-not (Test-Path $pri)) {
+            Write-Error "K7.Clients.MAUI.pri not found next to $($exe.FullName)"
+            exit 1
+          }
+          Copy-Item $exe.FullName (Join-Path $out "K7.exe") -Force
+          Copy-Item $pri (Join-Path $out "K7.pri") -Force
+          $zip = Join-Path $env:RUNNER_TEMP "K7-${{ needs.resolve.outputs.version }}-win-x64.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path (Join-Path $out '*') -DestinationPath $zip -Force
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "path=$zip"
+
+      - name: Upload Windows zip to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release upload "${{ needs.resolve.outputs.tag }}" \
+            "${{ steps.win.outputs.path }}" \
+            --repo "${{ github.repository }}" \
+            --clobber
+
+  # macOS runner: iOS builds need Xcode. Produces an ad-hoc-signed .ipa for
+  # sideloading (AltStore / SideStore / Sideloadly re-sign it with the user's own
+  # free Apple ID at install) and attaches it to the SAME draft release as the
+  # other clients, alongside an AltStore source (apps.json). No Apple Developer
+  # account or signing certificate is required.
+  #
+  # Why the source survives immutable, versioned releases: apps.json is uploaded
+  # under a FIXED filename, so `.../releases/latest/download/apps.json`
+  # always resolves to the newest published release's source. The IPA download URL
+  # inside apps.json points at this release's exact versioned asset, which is a
+  # permanent immutable link. So users add one stable source URL and AltStore sees
+  # each new release as an update. The source icon is branding/icon.png on that tag.
+  publish-ios:
+    needs: resolve
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      # .NET for iOS pins to an EXACT Xcode version. The workload bundled with the
+      # SDK (Microsoft.iOS 26.0.x) needs Xcode 26.0. Use it if present; otherwise
+      # select the newest Xcode and update the workload to match it.
+      - name: Select matching Xcode
+        run: |
+          set -euo pipefail
+          echo "Installed Xcodes:"
+          ls -d /Applications/Xcode*.app
+          if ls -d /Applications/Xcode_26.0*.app >/dev/null 2>&1; then
+            target=$(ls -d /Applications/Xcode_26.0*.app | sort -V | tail -n 1)
+          else
+            echo "::warning::Xcode 26.0 not installed; using newest and updating workload"
+            target=$(ls -d /Applications/Xcode*.app | sort -V | tail -n 1)
+            echo "NEED_WORKLOAD_UPDATE=1" >> "$GITHUB_ENV"
+          fi
+          echo "Selecting ${target}"
+          sudo xcode-select -s "${target}/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install MAUI iOS workload
+        run: |
+          set -euo pipefail
+          if [ "${NEED_WORKLOAD_UPDATE:-0}" = "1" ]; then
+            dotnet workload install maui-ios
+            dotnet workload update
+          else
+            dotnet workload install maui-ios --skip-manifest-update
+          fi
+          dotnet workload list
+
+      # wwwroot/dist is gitignored; restore before build so static web assets are
+      # embedded, same as the Android/Windows jobs.
+      - name: Restore LibMan libraries
+        working-directory: src/Clients/Shared/UI
+        run: |
+          dotnet tool restore
+          dotnet tool run libman -- restore
+
+      # Build the device .app WITHOUT code signing (the sideloader supplies the
+      # signature). Sideload-specific build choices live here, not in the csproj,
+      # so the app's normal iOS build is unaffected:
+      #   - UseInterpreter: full AOT produces a ~104MB main binary that some
+      #     re-signers (isign) fail to process. The Mono interpreter (allowed on
+      #     iOS, no JIT) yields a small runtime that re-signs cleanly and builds
+      #     in minutes instead of ~30.
+      #   - -no_fixup_chains: .NET 10 + Xcode 26 emit LC_DYLD_CHAINED_FIXUPS by
+      #     default; older Mach-O parsers in some sideloaders cannot read it. Force
+      #     the classic LC_DYLD_INFO fixup format for broad sideloader compat.
+      #     Quote the value for MSBuild (`'"..."'`): `-p:` splits on commas, so
+      #     `-Wl,-no_fixup_chains` is otherwise parsed as a second switch.
+      #   - MtouchLink=None: this app is heavily reflection-based (EF Core,
+      #     OpenIddict, Blazor Hybrid) and iOS was never trim-tested upstream, so
+      #     keep every assembly rather than risk a trimmer removing reflected code.
+      #   - TreatWarningsAsErrors=false: iOS-only analyzers (CA1422, ...) were
+      #     never exercised and would otherwise fail the build.
+      - name: Build unsigned iOS .app
+        run: |
+          set -euo pipefail
+          dotnet build "${MAUI_PROJECT}" \
+            -c Release \
+            -f net10.0-ios \
+            -p:K7PublishPlatform=ios \
+            -p:RuntimeIdentifier=ios-arm64 \
+            -p:Version="${{ needs.resolve.outputs.version }}" \
+            -p:ApplicationVersion="${{ github.run_number }}" \
+            -p:RunAOTCompilation=false \
+            -p:UseInterpreter=true \
+            -p:MtouchLink=None \
+            -p:MtouchExtraArgs='"-gcc_flags -Wl,-no_fixup_chains"' \
+            -p:TreatWarningsAsErrors=false \
+            -p:EnableCodeSigning=false \
+            -p:_RequireCodeSigning=false \
+            -p:CodesignKey= \
+            -p:DisableCodesignVerification=true
+
+      # Package the .app into an ad-hoc-signed .ipa (a zip with the .app under a
+      # top-level Payload/). Two bundle tweaks are applied to the packaged copy
+      # only (the repo's Info.plist is untouched):
+      #   - CFBundleName = K7: the App ID name a sideloader sends to Apple is the
+      #     CFBundleName. MAUI derives it from the assembly name (K7.Clients.MAUI),
+      #     and Apple rejects App ID names containing dots (error 9416). A clean
+      #     name is required for free-Apple-ID signing.
+      #   - remove UIApplicationSceneManifest: it only declares the CarPlay scene,
+      #     whose restricted entitlement a free Apple ID cannot provision. Dropping
+      #     it from the sideload build keeps free-tier install/re-sign clean; the
+      #     repo keeps CarPlay for proper signed builds.
+      # Ad-hoc signing (`--sign -`, no cert) gives the binaries the LC_CODE_SIGNATURE
+      # slot that re-signers expect; nested Mach-O are signed first, the app last.
+      - name: Package ad-hoc-signed .ipa
+        id: pack
+        run: |
+          set -euo pipefail
+          app=$(find src/Clients/MAUI/bin/Release/net10.0-ios -maxdepth 3 -type d -name '*.app' | head -n 1)
+          if [ -z "${app}" ]; then
+            echo "::error::No .app bundle produced"
+            find src/Clients/MAUI/bin/Release/net10.0-ios -maxdepth 3 | head -n 100
+            exit 1
+          fi
+          echo "Found app bundle: ${app}"
+          workdir="${RUNNER_TEMP}/ipa"
+          rm -rf "${workdir}"
+          mkdir -p "${workdir}/Payload"
+          cp -R "${app}" "${workdir}/Payload/"
+          appcopy="${workdir}/Payload/$(basename "${app}")"
+          plist="${appcopy}/Info.plist"
+          plutil -replace CFBundleName -string "K7" "${plist}" \
+            || plutil -insert CFBundleName -string "K7" "${plist}"
+          plutil -remove UIApplicationSceneManifest "${plist}" 2>/dev/null || true
+
+          find "${appcopy}" -type d -name '*.framework' -exec \
+            codesign --force --sign - --timestamp=none {} \;
+          find "${appcopy}" -type f -name '*.dylib' -exec \
+            codesign --force --sign - --timestamp=none {} \;
+          codesign --force --sign - --timestamp=none "${appcopy}"
+          codesign -dvvv "${appcopy}" 2>&1 | grep -iE 'Signature=|flags=' || true
+
+          ipa="${RUNNER_TEMP}/K7-${{ needs.resolve.outputs.version }}-ios-sideload.ipa"
+          (cd "${workdir}" && zip -qr "${ipa}" Payload)
+          size=$(stat -f%z "${ipa}")
+          ls -lh "${ipa}"
+          echo "path=${ipa}" >> "$GITHUB_OUTPUT"
+          echo "size=${size}" >> "$GITHUB_OUTPUT"
+
+      # Fail fast if -no_fixup_chains did not take effect: a chained-fixups binary
+      # is rejected by older sideloader Mach-O parsers ("Guru Meditation ...
+      # Invalid file"). Better to catch it here than at install time.
+      - name: Verify classic fixups
+        run: |
+          set -euo pipefail
+          app=$(find src/Clients/MAUI/bin/Release/net10.0-ios -maxdepth 3 -type d -name '*.app' | head -n 1)
+          bin="${app}/$(basename "${app}" .app)"
+          if otool -l "${bin}" | grep -q LC_DYLD_CHAINED_FIXUPS; then
+            echo "::error::Binary still uses LC_DYLD_CHAINED_FIXUPS; -no_fixup_chains did not take effect"
+            exit 1
+          fi
+          echo "OK: classic LC_DYLD_INFO fixups in use"
+
+      # Generate the AltStore/SideStore source. apps.json uses a fixed filename
+      # (served via /releases/latest/download/), so the source URL tracks the
+      # newest release. The IPA downloadURL is this release's exact versioned
+      # asset, and size comes from the real IPA so AltStore's byte-exact check passes.
+      # iconURL reuses branding/icon.png (512px app mark, same as MAUI AppIcon).
+      - name: Generate AltStore source
+        id: source
+        run: |
+          set -euo pipefail
+          latest="https://github.com/${{ github.repository }}/releases/latest/download"
+          dl="https://github.com/${{ github.repository }}/releases/download/${{ needs.resolve.outputs.tag }}/K7-${{ needs.resolve.outputs.version }}-ios-sideload.ipa"
+          icon="https://raw.githubusercontent.com/${{ github.repository }}/${{ needs.resolve.outputs.tag }}/branding/icon.png"
+          out="${RUNNER_TEMP}/apps.json"
+          date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          desc="iOS client for the K7 self-hosted media server. Community sideload build: ad-hoc signed on GitHub Actions and re-signed with your own Apple ID by AltStore/SideStore on install. Built with the Mono interpreter. The CarPlay scene is dropped because a free Apple ID cannot provision it."
+          jq -n \
+            --arg name "K7 (sideload)" \
+            --arg src "${latest}/apps.json" \
+            --arg icon "${icon}" \
+            --arg web "https://github.com/${{ github.repository }}" \
+            --arg v "${{ needs.resolve.outputs.version }}" \
+            --arg date "${date}" \
+            --arg dl "${dl}" \
+            --argjson size ${{ steps.pack.outputs.size }} \
+            --arg desc "${desc}" \
+            '{
+              name: $name,
+              identifier: "com.k7.maui.sideload-source",
+              sourceURL: $src,
+              subtitle: "Sideload builds of the K7 media client for iOS",
+              iconURL: $icon,
+              website: $web,
+              tintColor: "#d9b060",
+              apps: [{
+                name: "K7",
+                bundleIdentifier: "com.k7.maui",
+                developerName: "K7 community",
+                subtitle: "Client for the K7 self-hosted media server",
+                localizedDescription: $desc,
+                iconURL: $icon,
+                tintColor: "#d9b060",
+                category: "entertainment",
+                screenshotURLs: [],
+                version: $v,
+                versionDate: $date,
+                versionDescription: "Sideload build for release \($v).",
+                downloadURL: $dl,
+                size: $size,
+                minOSVersion: "15.0",
+                versions: [{
+                  version: $v,
+                  date: $date,
+                  localizedDescription: "Sideload build for release \($v).",
+                  downloadURL: $dl,
+                  size: $size,
+                  minOSVersion: "15.0"
+                }]
+              }],
+              news: []
+            }' > "$out"
+          jq empty "$out" && echo "apps.json is valid JSON"
+          echo "path=${out}" >> "$GITHUB_OUTPUT"
+
+      # Attach the IPA and AltStore source to the same draft release. apps.json
+      # keeps a fixed name so /releases/latest/download/ tracks it.
+      - name: Upload iOS assets to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ needs.resolve.outputs.tag }}" \
+            "${{ steps.pack.outputs.path }}" \
+            "${{ steps.source.outputs.path }}" \
+            --repo "${{ github.repository }}" \
+            --clobber
+
+  # Leave the release as a draft. Publishing with GITHUB_TOKEN does not trigger
+  # docker-release / sync-version (GitHub skips workflow events from GITHUB_TOKEN).
+  # Maintainer publishes the draft after assets are present so those workflows run.
+  assets-ready:
+    needs: [resolve, publish-android, publish-windows, publish-ios]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm assets uploaded
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ needs.resolve.outputs.tag }}"
+          assets="$(gh release view "${tag}" --repo "${{ github.repository }}" --json assets --jq '[.assets[].name] | join(", ")')"
+          echo "Assets on ${tag}: ${assets}"
+          echo "${assets}" | grep -q 'android.apk'
+          echo "${assets}" | grep -q 'win-x64.zip'
+          echo "${assets}" | grep -q 'ios-sideload.ipa'
+          echo "${assets}" | grep -q 'apps.json'
+          if [ "${{ needs.resolve.outputs.is_draft }}" = "true" ]; then
+            echo "Draft ${tag} is ready to publish (immutable releases: publish only after assets are attached)."
+          fi

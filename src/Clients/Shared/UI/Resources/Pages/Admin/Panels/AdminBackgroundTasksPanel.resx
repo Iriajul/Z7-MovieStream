@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="SettingsTitle" xml:space="preserve"><value>Configuration</value></data>
+  <data name="HelpTitle" xml:space="preserve"><value>Aide taches de fond</value></data>
+  <data name="HelpAriaLabel" xml:space="preserve"><value>Aide taches de fond</value></data>
+  <data name="Save" xml:space="preserve"><value>Enregistrer</value></data>
+  <data name="WorkerCountLabel" xml:space="preserve"><value>Nombre de workers</value></data>
+  <data name="SettingsSaved" xml:space="preserve"><value>Configuration enregistrée.</value></data>
+  <data name="TasksTitle" xml:space="preserve"><value>Tâches en arrière-plan</value></data>
+  <data name="Refresh" xml:space="preserve"><value>Rafraîchir</value></data>
+  <data name="FilterAll" xml:space="preserve"><value>Toutes</value></data>
+  <data name="FilterStatus" xml:space="preserve"><value>Statut</value></data>
+  <data name="StatusPending" xml:space="preserve"><value>En attente</value></data>
+  <data name="StatusInProgress" xml:space="preserve"><value>En cours</value></data>
+  <data name="StatusWaitingForRetry" xml:space="preserve"><value>Retry en attente</value></data>
+  <data name="StatusCompleted" xml:space="preserve"><value>Terminée</value></data>
+  <data name="StatusFailed" xml:space="preserve"><value>Échouée</value></data>
+  <data name="StatusCancelled" xml:space="preserve"><value>Annulée</value></data>
+  <data name="NoTasks" xml:space="preserve"><value>Aucune tâche.</value></data>
+  <data name="Empty" xml:space="preserve"><value>Aucune tâche</value></data>
+  <data name="EmptyDescription" xml:space="preserve"><value>Aucune tâche en file d'attente pour le moment, ou aucun élément ne correspond aux filtres.</value></data>
+  <data name="ColName" xml:space="preserve"><value>Nom</value></data>
+  <data name="ColStatus" xml:space="preserve"><value>Statut</value></data>
+  <data name="ColLane" xml:space="preserve"><value>File</value></data>
+  <data name="ColTriggeredBy" xml:space="preserve"><value>Origine</value></data>
+  <data name="FilterTriggeredBy" xml:space="preserve"><value>Origine</value></data>
+  <data name="Lane_LibraryScan" xml:space="preserve"><value>Analyse de bibliothèque</value></data>
+  <data name="Lane_Probe" xml:space="preserve"><value>Analyse de conteneur</value></data>
+  <data name="Lane_FfmpegPrepare" xml:space="preserve"><value>Préparation ffmpeg</value></data>
+  <data name="Lane_MediaAnalysis" xml:space="preserve"><value>Analyse de média</value></data>
+  <data name="Lane_ImageExtract" xml:space="preserve"><value>Extraction d'images</value></data>
+  <data name="Lane_ImageProcessing" xml:space="preserve"><value>Traitement d'images</value></data>
+  <data name="Lane_Metadata" xml:space="preserve"><value>Métadonnées</value></data>
+  <data name="Lane_Federation" xml:space="preserve"><value>Fédération</value></data>
+  <data name="Lane_DownloadTranscode" xml:space="preserve"><value>Téléchargements hors ligne</value></data>
+  <data name="TriggeredBy_System" xml:space="preserve"><value>Système</value></data>
+  <data name="TriggeredBy_User" xml:space="preserve"><value>Utilisateur</value></data>
+  <data name="TriggeredBy_Scheduler" xml:space="preserve"><value>Planificateur</value></data>
+  <data name="TriggeredBy_Watcher" xml:space="preserve"><value>Surveillance de fichiers</value></data>
+  <data name="TriggeredBy_Federation" xml:space="preserve"><value>Fédération</value></data>
+  <data name="TriggeredBy_Diagnostics" xml:space="preserve"><value>Diagnostics</value></data>
+  <data name="WorkClass_Polish" xml:space="preserve"><value>Finition</value></data>
+  <data name="WorkClass_Prepare" xml:space="preserve"><value>Préparation</value></data>
+  <data name="WorkClass_CriticalEnrich" xml:space="preserve"><value>Enrichissement critique</value></data>
+  <data name="WorkClass_CriticalProbe" xml:space="preserve"><value>Analyse critique</value></data>
+  <data name="WorkClass_CriticalLink" xml:space="preserve"><value>Liaison critique</value></data>
+  <data name="ColAttempts" xml:space="preserve"><value>Tentatives</value></data>
+  <data name="ColDate" xml:space="preserve"><value>Date de création</value></data>
+  <data name="ColDuration" xml:space="preserve"><value>Durée</value></data>
+  <data name="DurationSubSecond" xml:space="preserve"><value>&lt; 1s</value></data>
+  <data name="DurationSeconds" xml:space="preserve"><value>{0}s</value></data>
+  <data name="DurationMinutes" xml:space="preserve"><value>{0}m {1}s</value></data>
+  <data name="DurationHours" xml:space="preserve"><value>{0}h {1}m</value></data>
+  <data name="Created" xml:space="preserve"><value>Créé le</value></data>
+  <data name="AriaDetail" xml:space="preserve"><value>Détails</value></data>
+  <data name="AriaDelete" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="DeleteTitle" xml:space="preserve"><value>Supprimer la tâche</value></data>
+  <data name="DeleteMessage" xml:space="preserve"><value>Supprimer la tâche « {0} » ?</value></data>
+  <data name="DeleteConfirm" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="TaskDeleted" xml:space="preserve"><value>Tâche supprimée.</value></data>
+  <data name="TaskTypesTitle" xml:space="preserve"><value>Types de tâches</value></data>
+  <data name="TaskType_AnalyzeMusicTrackAudioCommand" xml:space="preserve"><value>Analyse audio</value></data>
+  <data name="TaskType_ComputeHlsSegmentsCommand" xml:space="preserve"><value>Calcul des segments HLS</value></data>
+  <data name="TaskType_CreateFileMetadatasCommand" xml:space="preserve"><value>Extraction des métadonnées</value></data>
+  <data name="TaskType_CreateMediaCommand" xml:space="preserve"><value>Création de média</value></data>
+  <data name="TaskType_DeleteIndexedFileCommand" xml:space="preserve"><value>Suppression de fichier</value></data>
+  <data name="TaskType_DownloadMetadataPictureFromProviderCommand" xml:space="preserve"><value>Téléchargement d'image</value></data>
+  <data name="TaskType_GenerateMetadataPictureVariantsCommand" xml:space="preserve"><value>Génération de miniatures</value></data>
+  <data name="TaskType_GenerateThumbnailsCommand" xml:space="preserve"><value>Génération de vignettes vidéo</value></data>
+  <data name="TaskType_GenerateEpisodeStillFromSourceCommand" xml:space="preserve"><value>Génération d'image d'épisode</value></data>
+  <data name="TaskType_IndexLibraryFilesCommand" xml:space="preserve"><value>Indexation de bibliothèque</value></data>
+  <data name="TaskType_IndexLibraryPathsCommand" xml:space="preserve"><value>Indexation de chemins</value></data>
+  <data name="TaskType_RefreshMediaMetadatasCommand" xml:space="preserve"><value>Rafraîchissement des métadonnées</value></data>
+  <data name="TaskType_EnrichSerieTmdbSupplementalCommand" xml:space="preserve"><value>Enrichissement TMDB (série)</value></data>
+  <data name="TaskType_EnrichMusicArtistWikidataCommand" xml:space="preserve"><value>Enrichissement Wikidata (artiste)</value></data>
+  <data name="TaskType_DetectMediaSegmentsCommand" xml:space="preserve"><value>Détection d'intros/outros</value></data>
+  <data name="TaskType_ExtractSerieThemeSongCommand" xml:space="preserve"><value>Génération de thème musical</value></data>
+  <data name="TaskType_ExtractChaptersCommand" xml:space="preserve"><value>Extraction des chapitres</value></data>
+  <data name="TaskType_RematchLibraryMediaCommand" xml:space="preserve"><value>Rematch de bibliothèque</value></data>
+  <data name="TaskType_RefreshPersonMetadataCommand" xml:space="preserve"><value>Rafraîchissement des métadonnées d'artiste</value></data>
+  <data name="FilterByType" xml:space="preserve"><value>Filtrer par type</value></data>
+  <data name="AllTypes" xml:space="preserve"><value>Tous les types</value></data>
+  <data name="TimeJustNow" xml:space="preserve"><value>A l'instant</value></data>
+  <data name="TimeMinutesAgo" xml:space="preserve"><value>Il y a {0} min</value></data>
+  <data name="TimeHoursAgo" xml:space="preserve"><value>Il y a {0}h</value></data>
+  <data name="TimeDaysAgo" xml:space="preserve"><value>Il y a {0}j</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="CancelTitle" xml:space="preserve"><value>Annuler la tâche</value></data>
+  <data name="CancelMessage" xml:space="preserve"><value>Annuler la tâche '{0}' ?</value></data>
+  <data name="CancelConfirm" xml:space="preserve"><value>Annuler la tâche</value></data>
+  <data name="TaskCancelled" xml:space="preserve"><value>Tâche annulee.</value></data>
+  <data name="FilterTaskType" xml:space="preserve"><value>Type de tâche</value></data>
+  <data name="SortBy" xml:space="preserve"><value>Trier par</value></data>
+  <data name="SortDateDesc" xml:space="preserve"><value>Plus récents</value></data>
+  <data name="SortDateAsc" xml:space="preserve"><value>Plus anciens</value></data>
+  <data name="SortDurationDesc" xml:space="preserve"><value>Durée décroissante</value></data>
+  <data name="SortDurationAsc" xml:space="preserve"><value>Durée croissante</value></data>
+  <data name="SortNameAsc" xml:space="preserve"><value>Nom A-Z</value></data>
+  <data name="SortNameDesc" xml:space="preserve"><value>Nom Z-A</value></data>
+</root>

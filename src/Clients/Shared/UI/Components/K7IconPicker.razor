@@ -1,0 +1,30 @@
+@namespace K7.Clients.Shared.UI.Components
+
+<div class="k7-icon-picker">
+    <div class="k7-icon-picker__header">
+        @if (!string.IsNullOrEmpty(Value))
+        {
+            <div class="k7-icon-picker__selected">
+                <K7Icon Icon="@Value" aria-hidden="true" />
+                <K7IconButton Class="k7-icon-picker__clear" OnClick="Clear" title="Remove" Icon="@Phosphor.X" />
+            </div>
+        }
+        <K7TextField
+            TValue="string"
+            Class="k7-icon-picker__search"
+            Placeholder="@SearchPlaceholder"
+            DebounceInterval="200"
+            OnDebounceIntervalElapsed="OnSearchInput" />
+ 
+    </div>
+    <div class="k7-icon-picker__grid">
+        @foreach (var icon in FilteredIcons)
+        {
+            <K7IconButton
+                Class="@("k7-icon-picker__item " + (Value == icon.Value ? "selected" : ""))"
+                Icon="@icon.Value"
+                OnClick="() => Select(icon.Value)"
+                title="@icon.DisplayName" />
+        }
+    </div>
+</div>

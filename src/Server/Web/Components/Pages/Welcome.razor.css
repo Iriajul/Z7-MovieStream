@@ -1,0 +1,364 @@
+/* Scroll-driven intro. welcome-scroll.js writes --welcome-p (0 at top, 1 when the
+   section has scrolled past) so this works in every browser, including Firefox. */
+.welcome-scroll {
+    --welcome-p: 0;
+    position: relative;
+    height: 240vh;
+}
+
+.welcome-sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    perspective: 1200px;
+}
+
+.welcome-wall {
+    position: absolute;
+    inset: -30% -25%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1.25rem;
+    transform:
+        rotateX(calc(38deg * (1 - var(--welcome-p))))
+        rotateZ(calc(-8deg * (1 - var(--welcome-p))))
+        scale(calc(1.35 - 0.45 * var(--welcome-p)))
+        translateY(calc(-12vh * var(--welcome-p)));
+    opacity: calc(1 - 0.75 * var(--welcome-p));
+    will-change: transform, opacity;
+}
+
+.welcome-row {
+    display: flex;
+    gap: 1.25rem;
+    justify-content: center;
+}
+
+.welcome-row--0 { transform: translateX(calc(-6% + 12% * var(--welcome-p))); }
+.welcome-row--1 { transform: translateX(calc(6% - 12% * var(--welcome-p))); }
+.welcome-row--2 { transform: translateX(calc(-3% + 10% * var(--welcome-p))); }
+.welcome-row--3 { transform: translateX(calc(5% - 10% * var(--welcome-p))); }
+.welcome-row--4 { transform: translateX(calc(-5% + 8% * var(--welcome-p))); }
+
+/* Dark fade at the top (behind the header) and bottom (into the call to action). */
+.welcome-sticky::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        linear-gradient(to bottom, rgba(13, 9, 7, 0.85) 0%, transparent 22%),
+        linear-gradient(to top, rgba(13, 9, 7, 0.9) 0%, transparent 25%),
+        radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(13, 9, 7, 0.6) 100%);
+}
+
+/* --- Top bar --- */
+.welcome-header {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 5.5rem;
+    padding: 0 4vw;
+    background: linear-gradient(to bottom, rgba(13, 9, 7, 0.9), rgba(13, 9, 7, 0));
+}
+
+.welcome-header-logo {
+    display: flex;
+    color: #f3ecde;
+    filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.6));
+}
+
+.welcome-header-logo ::deep svg {
+    width: clamp(72px, 7vw, 104px);
+    height: auto;
+}
+
+.welcome-header-signin {
+    display: inline-flex;
+    align-items: center;
+    height: 2.5rem;
+    padding: 0 1.4rem;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1a1208;
+    text-decoration: none;
+    background: linear-gradient(135deg, #f0cf86 0%, #d9b060 50%, #b98d3e 100%);
+    box-shadow: 0 6px 20px rgba(217, 176, 96, 0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.welcome-header-signin:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 28px rgba(217, 176, 96, 0.45);
+}
+
+.welcome-header-signin:focus-visible {
+    outline: 3px solid #f3ecde;
+    outline-offset: 3px;
+}
+
+.welcome-poster {
+    flex: 0 0 auto;
+    width: clamp(90px, 11vw, 170px);
+    aspect-ratio: 2 / 3;
+    border-radius: var(--radius-lg, 12px);
+    border: 1px solid rgba(243, 236, 222, 0.08);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+}
+
+.welcome-poster img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.welcome-poster--0 { background: linear-gradient(160deg, #d9b060 0%, #5a4526 55%, #1a1511 100%); }
+.welcome-poster--1 { background: linear-gradient(160deg, #7a5c9e 0%, #34264a 55%, #120e18 100%); }
+.welcome-poster--2 { background: linear-gradient(160deg, #3f7a7c 0%, #1f3d3e 55%, #0c1414 100%); }
+.welcome-poster--3 { background: linear-gradient(160deg, #b0563f 0%, #53281d 55%, #150d0b 100%); }
+.welcome-poster--4 { background: linear-gradient(160deg, #4c6a9e 0%, #23324b 55%, #0d1018 100%); }
+.welcome-poster--5 { background: linear-gradient(160deg, #8a9e4c 0%, #3f4a22 55%, #10130a 100%); }
+.welcome-poster--6 { background: linear-gradient(160deg, #9e4c74 0%, #4a2336 55%, #140b10 100%); }
+.welcome-poster--7 { background: linear-gradient(160deg, #f3ecde 0%, #8a7d63 55%, #1f1a14 100%); }
+
+.welcome-headline {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding-inline: 1.5rem;
+    max-width: 44rem;
+}
+
+.welcome-headline::before {
+    content: "";
+    position: absolute;
+    inset: -40% -30%;
+    z-index: -1;
+    background: radial-gradient(closest-side, var(--color-bg, #0d0907) 30%, transparent);
+    opacity: calc(0.4 + 0.6 * var(--welcome-p));
+}
+
+.welcome-kicker {
+    margin: 0 0 0.75rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #d9b060;
+    opacity: clamp(0, calc(var(--welcome-p) * 3 - 0.2), 1);
+}
+
+.welcome-title {
+    margin: 0;
+    font-size: clamp(2rem, 5vw, 3.75rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    color: var(--color-text, #f3ecde);
+    opacity: clamp(0, calc(var(--welcome-p) * 2.5 - 0.35), 1);
+    transform: translateY(calc(40px * (1 - var(--welcome-p))));
+}
+
+.welcome-hint {
+    position: fixed;
+    left: 50%;
+    bottom: 2.5rem;
+    translate: -50% 0;
+    margin: 0;
+    padding: 0.55rem 1.1rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #f3ecde;
+    background: rgba(13, 9, 7, 0.55);
+    border: 1px solid rgba(243, 236, 222, 0.2);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    pointer-events: none;
+    opacity: clamp(0, calc(1 - var(--welcome-p) * 5), 1);
+    animation: welcome-hint-bob 2s ease-in-out infinite;
+}
+
+@keyframes welcome-hint-bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .welcome-hint {
+        animation: none;
+    }
+}
+
+.welcome-credit {
+    position: absolute;
+    right: 1rem;
+    bottom: 0.75rem;
+    z-index: 1;
+    margin: 0;
+    font-size: 0.7rem;
+    color: var(--color-text-muted, #8a7d63);
+}
+
+.welcome-credit a {
+    color: inherit;
+}
+
+/* --- Call to action: rises into the faded poster wall --- */
+.welcome-cta {
+    position: relative;
+    z-index: 2;
+    margin-top: -38vh;
+    padding: 18vh 1.5rem 12vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    background:
+        radial-gradient(60% 50% at 50% 35%, rgba(217, 176, 96, 0.14), transparent 70%),
+        linear-gradient(to bottom, transparent, var(--color-bg, #0d0907) 30%);
+}
+
+.welcome-cta-eyebrow {
+    margin: 0 0 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: #d9b060;
+}
+
+.welcome-cta-title {
+    margin: 0;
+    font-size: clamp(2.4rem, 6vw, 4.5rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-weight: 800;
+    color: var(--color-text, #f3ecde);
+}
+
+.welcome-cta-sub {
+    margin: 1.25rem 0 2.5rem;
+    max-width: 34rem;
+    font-size: clamp(1rem, 1.6vw, 1.2rem);
+    line-height: 1.5;
+    color: rgba(243, 236, 222, 0.7);
+}
+
+.welcome-cta-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.welcome-cta-actions ::deep .welcome-guest-form {
+    display: contents;
+}
+
+.welcome-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-width: 13rem;
+    height: 3.5rem;
+    padding: 0 2rem;
+    border-radius: 999px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.welcome-btn:focus-visible {
+    outline: 3px solid #f3ecde;
+    outline-offset: 3px;
+}
+
+.welcome-btn--primary {
+    border: none;
+    color: #1a1208;
+    background: linear-gradient(135deg, #f0cf86 0%, #d9b060 45%, #b98d3e 100%);
+    box-shadow: 0 10px 30px rgba(217, 176, 96, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.welcome-btn--primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 42px rgba(217, 176, 96, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.welcome-btn-arrow {
+    width: 1.2rem;
+    height: 1.2rem;
+    transition: transform 0.2s ease;
+}
+
+.welcome-btn--primary:hover .welcome-btn-arrow {
+    transform: translateX(4px);
+}
+
+.welcome-btn--ghost {
+    color: var(--color-text, #f3ecde);
+    background: rgba(243, 236, 222, 0.08);
+    border: 1px solid rgba(243, 236, 222, 0.22);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.welcome-btn--ghost:hover {
+    transform: translateY(-2px);
+    background: rgba(243, 236, 222, 0.14);
+    border-color: rgba(243, 236, 222, 0.4);
+}
+
+.welcome-cta-fineprint {
+    margin: 1.5rem 0 0;
+    font-size: 0.8rem;
+    color: rgba(243, 236, 222, 0.45);
+}
+
+@media (max-width: 599.98px) {
+    .welcome-cta-actions {
+        flex-direction: column;
+        width: 100%;
+        max-width: 22rem;
+    }
+
+    .welcome-btn {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .welcome-btn,
+    .welcome-btn-arrow,
+    .welcome-header-signin {
+        transition: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .welcome-scroll {
+        height: auto;
+        --welcome-p: 1 !important;
+    }
+
+    .welcome-sticky {
+        position: relative;
+        height: 70vh;
+    }
+}

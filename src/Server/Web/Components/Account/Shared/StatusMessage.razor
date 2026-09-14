@@ -1,0 +1,33 @@
+﻿@if (!string.IsNullOrEmpty(DisplayMessage))
+{
+    var isError = IsErrorMessage(DisplayMessage);
+    var alertClass = isError ? "auth-alert auth-alert--error" : "auth-alert auth-alert--success";
+    <div class="@alertClass" role="@(isError ? "alert" : "status")">@DisplayMessage</div>
+}
+
+@code {
+    private string? messageFromCookie;
+
+    [Parameter]
+    public string? Message { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private string? DisplayMessage => Message ?? messageFromCookie;
+
+    protected override void OnInitialized()
+    {
+        messageFromCookie = HttpContext.Request.Cookies[IdentityRedirectManager.StatusCookieName];
+
+        if (messageFromCookie is not null)
+        {
+            HttpContext.Response.Cookies.Delete(IdentityRedirectManager.StatusCookieName);
+        }
+    }
+
+    // Localized Identity messages use "Error:" (en) or "Erreur :" (fr); treat both as errors.
+    private static bool IsErrorMessage(string message) =>
+        message.StartsWith("Error", StringComparison.OrdinalIgnoreCase)
+        || message.StartsWith("Erreur", StringComparison.OrdinalIgnoreCase);
+}

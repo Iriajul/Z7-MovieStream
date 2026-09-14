@@ -1,0 +1,21 @@
+@using K7.Clients.Shared.UI.Helpers
+@using K7.Shared.Dtos.Entities.Medias
+
+<LibraryBrowseListRow Actions="Actions">
+    <a id="@ElementId" href="@Href" class="@RootClass" @onfocusin="OnFocused">
+        @ThumbnailContent
+        <div class="library-list-item-info">
+            <p class="library-list-item-title">@PrimaryTitle</p>
+            @if (SecondaryText is not null)
+            {
+                <span class="library-list-item-secondary">@SecondaryText</span>
+            }
+        </div>
+        @if (Actions is null)
+        {
+            <div class="library-list-item-end">
+                @EndContent
+            </div>
+        }
+    </a>
+</LibraryBrowseListRow>

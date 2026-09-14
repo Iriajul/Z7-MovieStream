@@ -1,0 +1,19 @@
+@namespace K7.Clients.Shared.UI.Components
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@using K7.Clients.Shared.UI.Helpers
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
+
+<K7IconButton Icon="@Phosphor.ArrowLeft"
+              Size="sm"
+              Class="@($"k7-back-btn {Class}")"
+              AriaLabel="Back"
+              OnClick="GoBack" />
+
+@code {
+    [Parameter] public string Class { get; set; } = "";
+
+    private Task GoBack() =>
+        NavigationHistoryHelper.NavigateBackOrHomeAsync(JS, Navigation);
+}

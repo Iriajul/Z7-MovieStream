@@ -1,0 +1,10 @@
+@using Microsoft.Extensions.Localization
+@using K7.Clients.Shared.UI.Pages
+@inject IStringLocalizer<SharedResource> S
+
+<div class="k7-dialog-content">
+        <p Style="white-space: pre-wrap;">@ContentText</p>
+    </div>
+    <div class="k7-dialog-actions">
+        <K7Button OnClick="Cancel" Variant="text">@ButtonText</K7Button>
+    </div>

@@ -1,0 +1,60 @@
+@page "/my-space"
+@layout MySpaceLayout
+@using K7.Clients.Shared.Enums
+@inject IStringLocalizer<MySpacePage> L
+@inject NavigationManager NavigationManager
+@inject IDeviceService DeviceService
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<div class="my-space-hub page-scrollable">
+    <div class="my-space-cards">
+        <K7CategoryCard Title="@L["Playlists"]"
+                        Description="@PlaylistDescription"
+                        Icon="queue"
+                        GradientStart="rgba(80,20,80,0.85)"                        IconColor="rgba(120,40,120,0.6)"
+                        Class="k7-category-card--lg"
+                        OnClick="@(() => NavigationManager.NavigateTo("/my-space/playlists"))" />
+
+        <K7CategoryCard Title="@L["Collections"]"
+                        Description="@CollectionsDescription"
+                        Icon="bookmark-simple"
+                        GradientStart="rgba(20,60,80,0.85)"                        IconColor="rgba(30,80,120,0.6)"
+                        Class="k7-category-card--lg"
+                        OnClick="@(() => NavigationManager.NavigateTo("/my-space/collections"))" />
+
+        <K7CategoryCard Title="@L["Stats"]"
+                        Description="@L["StatsDesc"]"
+                        Icon="chart-bar"
+                        GradientStart="rgba(20,80,40,0.85)"                        IconColor="rgba(30,120,60,0.6)"
+                        Class="k7-category-card--lg"
+                        OnClick="@(() => NavigationManager.NavigateTo("/my-space/stats"))" />
+
+        <K7CategoryCard Title="@L["History"]"
+                        Description="@HistoryDescription"
+                        Icon="clock-counter-clockwise"
+                        GradientStart="rgba(80,50,20,0.85)"                        IconColor="rgba(140,90,30,0.6)"
+                        Class="k7-category-card--lg"
+                        OnClick="@(() => NavigationManager.NavigateTo("/my-space/history"))" />
+
+        @if (_canRate)
+        {
+            <K7CategoryCard Title="@L["Reviews"]"
+                            Description="@L["ReviewsDesc"]"
+                            Icon="chat-circle-text"
+                            GradientStart="rgba(80,60,20,0.85)"                        IconColor="rgba(160,120,40,0.6)"
+                            Class="k7-category-card--lg"
+                            OnClick="@(() => NavigationManager.NavigateTo("/my-space/reviews"))" />
+        }
+
+        @if (DeviceService.GetClientType() != ClientType.Web)
+        {
+            <K7CategoryCard Title="@L["Downloads"]"
+                            Description="@L["DownloadsDesc"]"
+                            Icon="download-simple"
+                            GradientStart="rgba(20,20,80,0.85)"                            IconColor="rgba(40,40,140,0.6)"
+                            Class="k7-category-card--lg"
+                            OnClick="@(() => NavigationManager.NavigateTo("/my-space/downloads"))" />
+        }
+    </div>
+</div>

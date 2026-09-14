@@ -1,0 +1,41 @@
+@using K7.Clients.Shared.Helpers
+@using K7.Clients.Shared.Interfaces
+@using K7.Clients.Shared.Models
+@inject IStringLocalizer<IntelligentSearchDialog> L
+@inject IMusicIntelligenceClientService MusicIntelligence
+@inject IMediaService MediaService
+@inject IK7ServerService ApiClient
+@inject IAudioPlayerService Audio
+@inject IK7Snackbar Snackbar
+@inject IStringLocalizer<SharedResource> S
+
+<div class="k7-dialog-content">
+    <div class="d-flex flex-col gap-4 pa-4 intelligent-search-dialog">
+        @if (FixedKind is null)
+        {
+            <K7Select TValue="IntelligentSearchKind" Value="_kind" ValueChanged="OnKindChanged" Label="@L["ModeLabel"]" Variant="outlined">
+                <K7SelectItem TValue="IntelligentSearchKind" Value="IntelligentSearchKind.Sonic" Text="@L["ModeSonic"]">@L["ModeSonic"]</K7SelectItem>
+                <K7SelectItem TValue="IntelligentSearchKind" Value="IntelligentSearchKind.Lyrics" Text="@L["ModeLyrics"]">@L["ModeLyrics"]</K7SelectItem>
+            </K7Select>
+        }
+
+        <K7TextField @bind-Value="_query"
+                     Label="@L["QueryLabel"]"
+                     Placeholder="@GetPlaceholder()"
+                     HelperText="@GetHelperText()" />
+
+        <div class="d-flex gap-2 justify-end">
+            <K7Button OnClick="Cancel" Variant="K7ButtonVariant.Text">@L["Cancel"]</K7Button>
+            <K7Button OnClick="SubmitAsync" Variant="K7ButtonVariant.Filled" Disabled="string.IsNullOrWhiteSpace(_query) || _loading">
+                @if (_loading)
+                {
+                    <K7Spinner Size="16" />
+                }
+                else
+                {
+                    @L["Play"]
+                }
+            </K7Button>
+        </div>
+    </div>
+</div>

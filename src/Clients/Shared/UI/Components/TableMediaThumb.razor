@@ -1,0 +1,26 @@
+@namespace K7.Clients.Shared.UI.Components
+@using K7.Clients.Shared.UI.Helpers
+@using K7.Server.Domain.Enums
+
+@if (!string.IsNullOrEmpty(ImageUrl))
+{
+    <div class="table-media-thumb" style="@ThumbStyle">
+        <K7Image Src="@ImageUrl"
+                 Alt=""
+                 ObjectFit="contain"
+                 Class="table-media-thumb__image rounded"
+                 LoadingMode="K7ImageLoadingMode.Css"
+                 loading="lazy"
+                 FallbackContent="@PlaceholderVisual" />
+    </div>
+}
+else
+{
+    <div class="table-media-thumb table-media-thumb--placeholder" style="@ThumbStyle" aria-hidden="true">
+        @PlaceholderVisual
+    </div>
+}
+
+@code {
+    private RenderFragment PlaceholderVisual => @<K7Icon Icon="@PlaceholderIcon" IconSize="@K7IconSize.Sm" />;
+}

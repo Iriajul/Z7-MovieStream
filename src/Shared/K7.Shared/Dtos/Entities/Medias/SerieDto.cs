@@ -1,0 +1,16 @@
+namespace K7.Shared.Dtos.Entities.Medias;
+
+public sealed record SerieDto : MediaDto
+{
+    public string? Overview { get; init; }
+    public string? Status { get; init; }
+    public string? OriginalLanguage { get; init; }
+    public string? ContentRating { get; init; }
+    public string? Network { get; init; }
+    public IReadOnlyList<string>? Studios { get; init; }
+    public IReadOnlyList<TrailerDto>? Trailers { get; init; }
+    public IReadOnlyList<LiteSerieSeasonDto>? Seasons { get; init; }
+    /// <summary>Typical episode runtime in minutes, when known.</summary>
+    public int? Runtime { get; init; }
+    public bool HasThemeSong { get; set; }
+}

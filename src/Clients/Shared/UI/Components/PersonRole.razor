@@ -1,0 +1,21 @@
+@if (Skeleton)
+{
+    <div class="d-flex flex-col">
+        <K7Skeleton Shape="circle" />
+
+        <div class="person-text">
+            <div class="d-flex flex-col">
+                <K7Skeleton Width="80px" />
+                <K7Skeleton Width="50px" />
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <PersonCard Href="@($"/persons/{LitePersonRoleDto.Person!.Id}")"
+                Title="@LitePersonRoleDto.Person.Name"
+                Subtitle="@GetSubtitle()"
+                ImageUrl="@GetImageUrl()"
+                Alt="@LitePersonRoleDto.Person.Name" />
+}

@@ -1,0 +1,259 @@
+@page "/my-space/playlists"
+@layout MySpaceLayout
+@using K7.Clients.Shared.Mappings
+@using K7.Clients.Shared.UI.Helpers
+@using K7.Shared.Dtos.Requests
+@using K7.Server.Domain.Enums
+@inject IPlaylistService K7ServerService
+@inject IK7ServerService ApiClient
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<MySpacePlaylistsPage> L
+@inject IStringLocalizer<LibraryGroup> LibrarySortL
+@inject IStringLocalizer<SharedResource> S
+@inject IServerPreferencesService ServerPreferences
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<BrowseView TItem="MySpacePlaylistBrowseItem"
+              Items="_items"
+              Loading="_loading"
+              PersistenceKey="my-space-playlists"
+              Class="my-space-library-browse"
+              @ref="_browseView"
+              OnColumnPickerRequested="OnColumnPickerRequested"
+              DefaultItemWidth="160"
+              DefaultSpacing="24"
+              GridItemAspectRatio="1f"
+              GridCardVariant="MediaCardVariant.Cover"
+              ListItemHeight="64">
+    <ToolbarContent>
+        @if (_selectionMode)
+        {
+            <h5>@string.Format(L["SelectedCount"], SelectedCount)</h5>
+            <div class="flex-1"></div>
+            <K7Button Variant="text" OnClick="ToggleSelectAll" Disabled="@(OwnedCount == 0 || _deleting)">
+                @(AllSelected ? L["DeselectAll"] : L["SelectAll"])
+            </K7Button>
+            <K7Button Variant="filled"
+                      Color="error"
+                      StartIcon="@Phosphor.Trash"
+                      OnClick="ConfirmDeleteSelectedAsync"
+                      Disabled="@(SelectedCount == 0 || _deleting)"
+                      AriaLabel="@L["DeleteSelected"]">
+                @L["DeleteSelected"]
+            </K7Button>
+            <K7Button Variant="text" OnClick="ExitSelectionMode" Disabled="@_deleting" AriaLabel="@S["Cancel"]">
+                @S["Cancel"]
+            </K7Button>
+        }
+        else
+        {
+            <h5>@L["PageTitle"]</h5>
+            <div class="flex-1"></div>
+            <K7Switch Value="_showShared" ValueChanged="OnShowSharedChanged" Label="@L["ShowShared"]" />
+            <K7ButtonGroup TValue="MediaType?" Options="_mediaTypeOptions" Value="_mediaTypeFilter" ValueChanged="SetMediaTypeFilter" AriaLabel="@L["PageTitle"]" />
+            <K7Select TValue="LibraryItemOrderingOption" Class="library-toolbar-sort" Value="_selectedSort" ValueChanged="OnSortChanged">
+                @foreach (var opt in MySpaceLibraryBrowseSort.PlaylistOptions)
+                {
+                    <K7SelectItem Value="@opt" Text="@GetSortLabel(opt)">@GetSortLabel(opt)</K7SelectItem>
+                }
+            </K7Select>
+            <K7IconButton Icon="@Phosphor.ListChecks"
+                          OnClick="EnterSelectionMode"
+                          Disabled="@(OwnedCount == 0)"
+                          AriaLabel="@L["Select"]" />
+            <K7Menu Class="my-space-toolbar-new" Disabled="@(!_canCreate)">
+                <ActivatorContent>
+                    <K7Button Variant="filled" Color="primary" StartIcon="@Phosphor.Plus" Disabled="@(!_canCreate)" AriaLabel="@L["New"]">
+                        <span class="my-space-toolbar-new__label">@L["New"]</span>
+                    </K7Button>
+                </ActivatorContent>
+                <ChildContent>
+                    <K7MenuItem Icon="queue" OnClick="OpenCreatePlaylistDialog">Playlist</K7MenuItem>
+                    <K7MenuItem Icon="sparkle" OnClick="OpenCreateDynamicPlaylistDialog">@L["DynamicPlaylist"]</K7MenuItem>
+                    @if (_musicIntelligenceAvailable)
+                    {
+                        <K7MenuItem Icon="magic-wand" OnClick="OpenSmartPlaylistDialog">@L["SmartPlaylist"]</K7MenuItem>
+                    }
+                </ChildContent>
+            </K7Menu>
+        }
+    </ToolbarContent>
+    <EmptyContent>
+        <K7EmptyState Icon="@Phosphor.Queue" Title="@L["None"]" Subtitle="@L["EmptyHint"]" />
+    </EmptyContent>
+    <GridTemplate Context="item">
+        @{
+            var playlist = item.Playlist;
+            var vm = playlist.ToCardViewModel(ApiClient, GetPlaylistSubtitle(item));
+            var placeholderIcon = playlist.IsDynamicPlaylist ? Phosphor.Sparkle : Phosphor.Queue;
+            var selected = IsSelected(playlist.Id);
+        }
+        @if (_selectionMode && item.IsOwned)
+        {
+            <div class="my-space-select-item focusable @(selected ? "is-selected" : null)"
+                 role="checkbox"
+                 aria-checked="@selected.ToString().ToLowerInvariant()"
+                 tabindex="0"
+                 @onclick="@(() => ToggleSelection(playlist.Id))"
+                 @onkeydown="@(e => OnSelectKeyDown(e, playlist.Id))"
+                 @onkeydown:preventDefault="true">
+                <MediaCard Model="vm"
+                           Variant="MediaCardVariant.Cover"
+                           FooterVisible="true"
+                           ContextMenuEnabled="false"
+                           HoverOverlayEnabled="true"
+                           Selected="selected"
+                           PlaceholderIcon="@placeholderIcon"
+                           TypeBadgeIcon="@(playlist.IsDynamicPlaylist ? Phosphor.Sparkle : null)">
+                    <CoverContent>
+                        <K7CoverMosaic CoverPicture="playlist.CoverPicture"
+                                       PreviewPictures="playlist.PreviewPictures"
+                                       PlaceholderIcon="@placeholderIcon"
+                                       PictureSize="MetadataPictureSize.Medium"
+                                       Alt="@playlist.Title"
+                                       Class="media-card-mosaic" />
+                    </CoverContent>
+                </MediaCard>
+                <span class="my-space-select-item__check" aria-hidden="true">
+                    <K7Icon Icon="@(selected ? Phosphor.Fill.CheckCircle : Phosphor.Circle)" IconSize="@K7IconSize.Lg" />
+                </span>
+            </div>
+        }
+        else
+        {
+            <MediaCard Model="vm"
+                       Href="@GetPlaylistHref(item)"
+                       Variant="MediaCardVariant.Cover"
+                       FooterVisible="true"
+                       ContextMenuEnabled="false"
+                       HoverOverlayEnabled="true"
+                       PlaceholderIcon="@placeholderIcon"
+                       TypeBadgeIcon="@(playlist.IsDynamicPlaylist ? Phosphor.Sparkle : null)">
+                <CoverContent>
+                    <K7CoverMosaic CoverPicture="playlist.CoverPicture"
+                                   PreviewPictures="playlist.PreviewPictures"
+                                   PlaceholderIcon="@placeholderIcon"
+                                   PictureSize="MetadataPictureSize.Medium"
+                                   Alt="@playlist.Title"
+                                   Class="media-card-mosaic" />
+                </CoverContent>
+            </MediaCard>
+        }
+    </GridTemplate>
+    <TableContent>
+        <K7DataTable TItem="MySpacePlaylistBrowseItem"
+                     ServerData="LoadTableDataAsync"
+                     ActiveSortKey="@_activeSortKey"
+                     ActiveSortDirection="@_activeSortDirection"
+                     OnSortChanged="OnTableSortChanged"
+                     OnRowClick="OnPlaylistActivated"
+                     RowHeight="56"
+                     ShowToolbar="false"
+                     Surface="false"
+                     @ref="_dataTable">
+            <K7DataColumn TItem="MySpacePlaylistBrowseItem" Title="" Width="48px" Visible="@_selectionMode" Hideable="false" VisibleOnMobile="true">
+                <CellTemplate Context="item">
+                    @{
+                        var selected = IsSelected(item.Id);
+                    }
+                    @if (item.IsOwned)
+                    {
+                        <span class="k7-select-check @(selected ? "is-selected" : null)" aria-hidden="true">
+                            <K7Icon Icon="@(selected ? Phosphor.Fill.CheckCircle : Phosphor.Circle)" IconSize="@K7IconSize.Md" />
+                        </span>
+                    }
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="MySpacePlaylistBrowseItem" Title="@S["Title"]" SortKey="title" Hideable="false">
+                <CellTemplate Context="item">
+                    @{
+                        var playlist = item.Playlist;
+                    }
+                    <div class="library-table-title">
+                        <LibraryItemCoverThumb CoverPicture="playlist.CoverPicture"
+                                                PreviewPictures="playlist.PreviewPictures"
+                                                PreferPreviewWhenEmpty="@(playlist.ItemCount == 0)"
+                                                PlaceholderIcon="@(playlist.IsDynamicPlaylist ? Phosphor.Sparkle : Phosphor.Queue)"
+                                                Alt="@playlist.Title" />
+                        <p class="text-sm">
+                            @playlist.Title
+                            @if (playlist.IsDynamicPlaylist)
+                            {
+                                <K7Icon Name="sparkle" IconSize="@K7IconSize.Sm" Color="secondary" Class="ml-1" />
+                            }
+                        </p>
+                    </div>
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="MySpacePlaylistBrowseItem" Title="@L["Owner"]" Width="180px" Visible="@_showShared" VisibleOnMobile="true">
+                <CellTemplate Context="item">
+                    <span>@GetOwnerLabel(item)</span>
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="MySpacePlaylistBrowseItem" Title="@L["ItemsColumn"]" Width="120px" VisibleOnMobile="false">
+                <CellTemplate Context="item">
+                    <span>@GetPlaylistItemCountLabel(item.Playlist)</span>
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="MySpacePlaylistBrowseItem" Title="@LibrarySortL["SortLastListenedRecent"]" SortKey="lastListened" Width="180px">
+                <CellTemplate Context="item">
+                    <span>@FormatLastListenedOrDash(item.Playlist.LastListenedAt)</span>
+                </CellTemplate>
+            </K7DataColumn>
+        </K7DataTable>
+    </TableContent>
+    <ListTemplate Context="item">
+        @{
+            var playlist = item.Playlist;
+            var selected = IsSelected(playlist.Id);
+        }
+        <LibraryBrowseListRow>
+            @if (_selectionMode && item.IsOwned)
+            {
+                <button type="button"
+                        class="library-list-item focusable my-space-select-list-item @(selected ? "is-selected" : null)"
+                        @onclick="@(() => ToggleSelection(playlist.Id))">
+                    <span class="my-space-select-list-item__check" aria-hidden="true">
+                        <K7Icon Icon="@(selected ? Phosphor.Fill.CheckCircle : Phosphor.Circle)" IconSize="@K7IconSize.Md" />
+                    </span>
+                    <LibraryItemCoverThumb CoverPicture="playlist.CoverPicture"
+                                            PreviewPictures="playlist.PreviewPictures"
+                                            PreferPreviewWhenEmpty="@(playlist.ItemCount == 0)"
+                                            PlaceholderIcon="@(playlist.IsDynamicPlaylist ? Phosphor.Sparkle : Phosphor.Queue)"
+                                            Alt="@playlist.Title" />
+                    <div class="library-list-item-info">
+                        <p class="library-list-item-title">
+                            @playlist.Title
+                            @if (playlist.IsDynamicPlaylist)
+                            {
+                                <K7Icon Name="sparkle" IconSize="@K7IconSize.Sm" Color="secondary" Class="ml-1" />
+                            }
+                        </p>
+                        <span class="library-list-item-secondary">@GetPlaylistSubtitle(item)</span>
+                    </div>
+                </button>
+            }
+            else
+            {
+                <a href="@GetPlaylistHref(item)" class="library-list-item focusable">
+                    <LibraryItemCoverThumb CoverPicture="playlist.CoverPicture"
+                                            PreviewPictures="playlist.PreviewPictures"
+                                            PreferPreviewWhenEmpty="@(playlist.ItemCount == 0)"
+                                            PlaceholderIcon="@(playlist.IsDynamicPlaylist ? Phosphor.Sparkle : Phosphor.Queue)"
+                                            Alt="@playlist.Title" />
+                    <div class="library-list-item-info">
+                        <p class="library-list-item-title">
+                            @playlist.Title
+                            @if (playlist.IsDynamicPlaylist)
+                            {
+                                <K7Icon Name="sparkle" IconSize="@K7IconSize.Sm" Color="secondary" Class="ml-1" />
+                            }
+                        </p>
+                        <span class="library-list-item-secondary">@GetPlaylistSubtitle(item)</span>
+                    </div>
+                </a>
+            }
+        </LibraryBrowseListRow>
+    </ListTemplate>
+</BrowseView>

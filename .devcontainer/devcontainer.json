@@ -1,0 +1,27 @@
+{
+  "name": "K7",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:4": {}
+  },
+  "forwardPorts": [7080, 5050, 5432],
+  "postCreateCommand": "dotnet restore && dotnet tool restore",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.csharp",
+        "ms-azuretools.vscode-docker",
+        "GitHub.copilot",
+        "EditorConfig.EditorConfig",
+        "adrianwilczynski.libman"
+      ],
+      "settings": {
+        "dotnet.defaultSolution": "K7.slnx"
+      }
+    }
+  }
+}

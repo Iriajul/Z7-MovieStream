@@ -1,0 +1,104 @@
+using K7.Server.Application.Common.Interfaces;
+using K7.Server.Application.Features.BackgroundTasks.Commands.CreateBackgroundTask;
+using K7.Server.Application.Features.Libraries.Commands.IndexLibraryFiles;
+using K7.Server.Application.Helpers;
+using K7.Server.Domain.Entities;
+using K7.Server.Domain.Enums;
+using MediatR;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+namespace K7.Server.Application.Services;
+
+public sealed class LibraryScanSchedulerService(
+    IServiceScopeFactory scopeFactory,
+    ILogger<LibraryScanSchedulerService> logger) : BackgroundService
+{
+    private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(15);
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await SetupCompletionGate.WaitUntilCompletedAsync(scopeFactory, logger, stoppingToken);
+        if (stoppingToken.IsCancellationRequested)
+            return;
+
+        logger.LogInformation("LibraryScanSchedulerService started");
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(CheckInterval, stoppingToken);
+                await ProcessDueScansAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in library scan scheduler");
+            }
+        }
+
+        logger.LogInformation("LibraryScanSchedulerService stopped");
+    }
+
+    private async Task ProcessDueScansAsync(CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+
+        var libraries = await context.Libraries
+            .AsNoTracking()
+            .Where(l => l.RootPath != null && l.PeerServerId == null && l.AutoScanIntervalHours > 0)
+            .ToListAsync(cancellationToken);
+
+        if (libraries.Count == 0)
+            return;
+
+        var lastScanMap = new Dictionary<Guid, DateTimeOffset?>();
+        foreach (var library in libraries)
+        {
+            var lastCompletedAt = await context.BackgroundTasks
+                .AsNoTracking()
+                .Where(t => t.TargetEntityId == library.Id
+                    && t.Name == nameof(IndexLibraryFilesCommand)
+                    && t.Status == BackgroundTaskStatus.Completed
+                    && t.CompletedAt != null)
+                .Select(t => t.CompletedAt)
+                .MaxAsync(cancellationToken);
+
+            lastScanMap[library.Id] = lastCompletedAt;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var library in libraries)
+        {
+            var interval = TimeSpan.FromHours(library.AutoScanIntervalHours);
+            if (lastScanMap.TryGetValue(library.Id, out var lastCompletedAt)
+                && lastCompletedAt.HasValue
+                && now - lastCompletedAt.Value < interval)
+            {
+                continue;
+            }
+
+            logger.LogInformation("Queueing periodic scan for library {LibraryId} ({Title})", library.Id, library.Title);
+
+            await sender.Send(new CreateBackgroundTaskCommand
+            {
+                Request = new IndexLibraryFilesCommand(library.Id),
+                TargetEntityId = library.Id,
+                TargetEntityTypeName = nameof(Library),
+                Lane = BackgroundTaskLane.LibraryScan,
+                WorkClass = BackgroundTaskWorkClass.CriticalLink,
+                TriggeredBy = BackgroundTaskTriggeredBy.Scheduler,
+                MaxAttempts = 1,
+                TimeoutSeconds = 3600
+            }, cancellationToken);
+        }
+    }
+}

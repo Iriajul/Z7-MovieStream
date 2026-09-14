@@ -1,0 +1,200 @@
+using K7.Clients.Shared.Helpers;
+using K7.Clients.Shared.Interfaces;
+using K7.Clients.Shared.Models;
+using K7.Shared.Dtos;
+using K7.Shared.Dtos.Entities.Medias;
+using K7.Shared.Interfaces;
+using Microsoft.AspNetCore.Components;
+
+namespace K7.Clients.Shared.UI.Components.Players;
+
+public partial class SkipSegmentOverlay : IDisposable
+{
+    [Inject] private IPlayerService PlayerService { get; set; } = default!;
+    [Inject] private IMediaService MediaService { get; set; } = default!;
+    [Inject] private IUserPreferencesService UserPreferencesService { get; set; } = default!;
+
+    [Parameter] public Guid? MediaId { get; set; }
+    [Parameter] public bool ControlsVisible { get; set; }
+
+    public bool CanSkip => _visible && _activeSegment is not null;
+
+    private IReadOnlyList<MediaSegmentDto>? _segments;
+    private MediaSegmentDto? _activeSegment;
+    private VideoPlayerSettingsDto? _settings;
+    private SkipSegmentPresenter.State _skipState;
+    private bool _visible;
+    private bool _showSkippedNotification;
+    private K7.Shared.Enums.MediaSegmentType _skippedSegmentType;
+    private CancellationTokenSource? _notificationCts;
+    private Guid? _loadedMediaId;
+    private int _loadGeneration;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadSegmentsAsync(PlayerService.Source?.MediaId ?? MediaId);
+    }
+
+    protected override void OnInitialized()
+    {
+        PlayerService.CurrentTimeChanged += OnTimeChanged;
+        PlayerService.PlayerUxSettingsChanged += OnPlayerUxSettingsChanged;
+        PlayerService.SourceChanged += OnSourceChanged;
+    }
+
+    private void OnPlayerUxSettingsChanged()
+    {
+        if (PlayerService.VideoPlayerUxSettings is { } settings)
+            _settings = settings;
+    }
+
+    protected override void OnParametersSet()
+    {
+        ApplyCurrentTime(render: false);
+    }
+
+    private void OnSourceChanged(PlayerSource source) =>
+        _ = InvokeAsync(() => LoadSegmentsAsync(source.MediaId));
+
+    private async Task LoadSegmentsAsync(Guid? mediaId)
+    {
+        if (mediaId is null)
+        {
+            _loadGeneration++;
+            _loadedMediaId = null;
+            _segments = null;
+            ResetSkipSession();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (mediaId == _loadedMediaId)
+            return;
+
+        _loadGeneration++;
+        var generation = _loadGeneration;
+        _loadedMediaId = mediaId;
+        _segments = null;
+        ResetSkipSession();
+
+        try
+        {
+            var segments = await MediaService.GetMediaSegmentsAsync(mediaId.Value);
+            var settings = _settings ?? await UserPreferencesService.GetEffectiveVideoPlayerSettingsAsync();
+            if (generation != _loadGeneration)
+                return;
+
+            _segments = segments;
+            _settings = settings;
+        }
+        catch
+        {
+            if (generation != _loadGeneration)
+                return;
+
+            _segments = null;
+        }
+
+        ApplyCurrentTime(render: true);
+    }
+
+    private void ResetSkipSession()
+    {
+        _skipState = default;
+        _activeSegment = null;
+        _visible = false;
+        _showSkippedNotification = false;
+    }
+
+    private void OnTimeChanged(double currentTimeSeconds) => ApplyTime(currentTimeSeconds, render: true);
+
+    private void ApplyCurrentTime(bool render) => ApplyTime(PlayerService.CurrentTime, render);
+
+    private void ApplyTime(double currentTimeSeconds, bool render)
+    {
+        if (_segments is null)
+        {
+            if (_visible || _activeSegment is not null)
+            {
+                ResetSkipSession();
+                if (render)
+                    _ = InvokeAsync(StateHasChanged);
+            }
+
+            return;
+        }
+
+        var result = SkipSegmentPresenter.Tick(
+            _skipState,
+            _segments,
+            _settings,
+            currentTimeSeconds,
+            ControlsVisible,
+            DateTime.UtcNow);
+
+        if (result.Action == SkipSegmentPresenter.ActionKind.AutoSkip
+            && result.State.ActiveSegment is { } segment)
+        {
+            PlayerService.Seek(segment.EndMs / 1000.0);
+            ShowSkippedNotification(segment.Type);
+        }
+
+        _skipState = result.State;
+        _activeSegment = result.State.ActiveSegment;
+        _visible = result.State.Visible;
+        if (render)
+            _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void SkipSegment()
+    {
+        if (_skipState.ActiveSegment is null)
+            return;
+
+        var endSeconds = _skipState.ActiveSegment.EndMs / 1000.0;
+        PlayerService.Seek(endSeconds);
+        _skipState = _skipState with
+        {
+            Visible = false,
+            ActiveSegment = null,
+            LastSkipUtc = DateTime.UtcNow
+        };
+        _activeSegment = null;
+        _visible = false;
+    }
+
+    public void Dispose()
+    {
+        _notificationCts?.Cancel();
+        _notificationCts?.Dispose();
+        PlayerService.CurrentTimeChanged -= OnTimeChanged;
+        PlayerService.PlayerUxSettingsChanged -= OnPlayerUxSettingsChanged;
+        PlayerService.SourceChanged -= OnSourceChanged;
+    }
+
+    private void ShowSkippedNotification(K7.Shared.Enums.MediaSegmentType type)
+    {
+        _notificationCts?.Cancel();
+        _notificationCts?.Dispose();
+        _notificationCts = new CancellationTokenSource();
+
+        _skippedSegmentType = type;
+        _showSkippedNotification = true;
+
+        var ct = _notificationCts.Token;
+        _ = HideNotificationAfterDelayAsync(ct);
+    }
+
+    private async Task HideNotificationAfterDelayAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(3000, ct);
+            _showSkippedNotification = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+}

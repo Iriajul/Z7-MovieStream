@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+@using K7.Server.Application.Common.Interfaces
+@using K7.Server.Application.Common.Settings
+@using K7.Server.Application.Features.LinkPreview.Queries.GetLinkPreview
+@using K7.Server.Domain.Settings
+@using K7.Server.Web.Components.Account
+@using K7.Server.Web.Infrastructure
+@using Microsoft.AspNetCore.Components.Endpoints
+@using Microsoft.Extensions.Configuration
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
+<html lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d0907" />
+    <title>@PageTitle</title>
+    <meta name="description" content="@PageDescription" />
+    <meta name="application-name" content="@ServerName" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="@ServerName" />
+    <meta property="og:title" content="@PageTitle" />
+    <meta property="og:description" content="@PageDescription" />
+    <meta property="og:url" content="@CanonicalUrl" />
+    <meta property="og:image" content="@ImageUrl" />
+    @if (_preview?.PictureId is null)
+    {
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:width" content="@LinkPreviewUrls.ImageWidth" />
+        <meta property="og:image:height" content="@LinkPreviewUrls.ImageHeight" />
+    }
+    <meta property="og:image:alt" content="@PageTitle" />
+    <meta name="twitter:card" content="@TwitterCard" />
+    <meta name="twitter:title" content="@PageTitle" />
+    <meta name="twitter:description" content="@PageDescription" />
+    <meta name="twitter:image" content="@ImageUrl" />
+    @if (NativeLaunchUri is not null)
+    {
+        <meta http-equiv="refresh" content="0; url=@NativeLaunchUri" />
+        <script src="@Assets["_content/K7.Clients.Shared.UI/js/auth-complete-launch.js"]"></script>
+    }
+    <base href="/" />
+
+    <script src="@Assets["_content/K7.Clients.Shared.UI/js/tv-layout.js"]"></script>
+    <script>window.__K7_DEFAULT_THEME__ = "@_defaultTheme";</script>
+    <script>window.__K7_DEFAULT_LANGUAGE__ = "@_defaultLanguage";</script>
+    <script src="@Assets["_content/K7.Clients.Shared.UI/js/theme.js"]"></script>
+
+    <link rel="stylesheet" href="@Assets["_content/K7.Clients.Shared.UI/app.css"]" />
+    <link rel="stylesheet" href="@Assets["K7.Server.Web.styles.css"]" />
+    <link rel="stylesheet" href="@Assets["css/auth.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/K7.Clients.Shared.UI/dist/video.js/video-js.min.css"]" />
+    <ImportMap />
+    <link rel="modulepreload" href="@Assets["_content/K7.Clients.Shared.UI/js/carousel.js"]" />
+    <link rel="modulepreload" href="@Assets["_content/K7.Clients.Shared.UI/js/home-restore.js"]" />
+    <link rel="modulepreload" href="@Assets["_content/K7.Clients.Shared.UI/js/vertical-carousel.js"]" />
+    <link rel="icon" type="image/png" sizes="512x512" href="@Assets[LinkPreviewUrls.IconAsset]" />
+    <link rel="icon" type="image/svg+xml" href="@Assets["_content/K7.Clients.Shared.UI/assets/favicon.svg"]" />
+    <link rel="apple-touch-icon" href="@Assets[LinkPreviewUrls.IconAsset]" />
+    @if (IsAuthSsrPath)
+    {
+        <link rel="modulepreload" href="@Assets["_framework/blazor.web.js"]" />
+    }
+    <HeadOutlet @rendermode="PageRenderMode" />
+</head>
+
+<body>
+    @if (PageRenderMode is not null)
+    {
+        <div id="preload">
+            <div class="preload-content">
+                <div id="preload-animation" class="preload-animation"></div>
+            </div>
+        </div>
+    }
+    <Routes @rendermode="PageRenderMode" />
+
+    <script src="@Assets["_content/K7.Clients.Shared.UI/dist/lottie/build/player/lottie_light.min.js"]"></script>
+    <script>
+        if (window.lottie) {
+            lottie.loadAnimation({
+                container: document.getElementById('preload-animation'),
+                renderer: 'svg',
+                loop: true,
+                autoplay: true,
+                path: '_content/K7.Clients.Shared.UI/animations/splash.json'
+            });
+        }
+    </script>
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["js/welcome-scroll.js"]"></script>
+    <script src="@Assets["_content/K7.Clients.Shared.UI/js/lottie-interop.js"]"></script>
+    <script>K7.Lottie.preload('_content/K7.Clients.Shared.UI/animations/splash.json');</script>
+    <script src="@Assets["_content/K7.Clients.Shared.UI/dist/embla-carousel/embla-carousel.umd.js"]"></script>
+    <script src="@Assets["_content/K7.Clients.Shared.UI/lib/js-spatial-navigation/spatial_navigation.js"]"></script>
+    <script src="@Assets["_content/K7.Clients.Shared.UI/js/navigation.js"]"></script>
+    <script src="@Assets["_content/K7.Clients.Shared.UI/dist/qrcodejs/qrcode.min.js"]"></script>
+    <script src="@Assets["_content/K7.Clients.Shared.UI/js/qrcode.js"]"></script>
+    <script src="@Assets["_content/K7.Clients.Shared.UI/js/ambientTheme.js"]"></script>
+    <script src="@Assets["dist/bowser/es5.min.js"]"></script>
+    <script src="@Assets["_content/K7.Clients.Shared.UI/dist/video.js/video.min.js"]"></script>
+    <script src="@Assets["_content/K7.Clients.Shared.UI/js/videoplayer.js"]"></script>
+    <script src="@Assets["_content/K7.Clients.Shared.UI/js/audioplayer.js"]"></script>
+    <script src="@Assets["_content/K7.Clients.Shared.UI/js/deviceCapabilities.js"]"></script>
+    <script src="@Assets["js/deviceUtils.js"]"></script>
+    <script src="@Assets["js/castplayer.js"]"></script>
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+    <script>
+        window.blazorCulture = {
+            getSaved: () => window.localStorage.getItem('BlazorCulture'),
+            get: () => window.localStorage.getItem('BlazorCulture')
+                || window.__K7_DEFAULT_LANGUAGE__
+                || 'en',
+            set: (value) => {
+                window.localStorage.setItem('BlazorCulture', value);
+                document.cookie = `.AspNetCore.Culture=c=${value}|uic=${value};path=/;max-age=31536000;samesite=lax`;
+            }
+        };
+    </script>
+</body>
+
+</html>
+
+@code {
+    [Inject]
+    private IServiceScopeFactory ScopeFactory { get; set; } = default!;
+
+    [Inject]
+    private IConfiguration Configuration { get; set; } = default!;
+
+    [Inject]
+    private IStringLocalizer<App> L { get; set; } = default!;
+
+    [Inject]
+    private ILogger<App> Logger { get; set; } = default!;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private string _defaultTheme = "default-dark";
+    private string _defaultLanguage = "en";
+    private LinkPreview? _preview;
+
+    private string ServerName =>
+        Configuration["Server:Name"] is { Length: > 0 } name ? name : "Z7";
+
+    private string Description => L["Description"];
+
+    private string PageTitle => LinkPreviewDocument.ResolveTitle(ServerName, Description, _preview);
+
+    private string PageDescription =>
+        !string.IsNullOrWhiteSpace(_preview?.Description) ? _preview.Description : Description;
+
+    private string CanonicalOrigin => LinkPreviewUrls.Origin(
+        HttpContext.Request,
+        Configuration["BaseUrl"]?.TrimEnd('/') ?? "https://localhost:7443");
+
+    private string CanonicalUrl => LinkPreviewUrls.CanonicalPage(CanonicalOrigin, HttpContext.Request.Path);
+
+    private string ImageUrl => LinkPreviewUrls.Image(
+        CanonicalOrigin,
+        _preview?.PictureId,
+        Assets[LinkPreviewUrls.ImageAsset]);
+
+    private string TwitterCard => "summary_large_image";
+
+    private string? NativeLaunchUri =>
+        IdentityRedirectUri.TryGetNativeCallback(HttpContext.Request.Query["launch"].ToString(), out var callback)
+            ? callback.AbsoluteUri
+            : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var serverSettings = scope.ServiceProvider.GetRequiredService<IServerSettingsService>();
+        _defaultTheme = await serverSettings.GetAsync(ServerSettingKeys.DefaultTheme) ?? "default-dark";
+        _defaultLanguage = await serverSettings.GetAsync(ServerSettingKeys.DefaultLanguage) ?? "en";
+
+        var path = HttpContext.Request.Path.Value ?? "/";
+        if (!LinkPreviewRoute.TryParse(path, out _))
+            return;
+
+        var flags = await serverSettings.GetFeatureFlagsAsync(HttpContext.RequestAborted);
+        if (!flags.MediaLinkPreviewsEnabled)
+            return;
+
+        try
+        {
+            var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+            _preview = await sender.Send(new GetLinkPreviewQuery(path), HttpContext.RequestAborted);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Link preview lookup failed for {Path}", path);
+        }
+    }
+
+    private IComponentRenderMode? PageRenderMode => IsAuthSsrPath
+        ? null
+        : new InteractiveWebAssemblyRenderMode(false);
+
+    private bool IsAuthSsrPath =>
+        !HttpContext.AcceptsInteractiveRouting()
+        || HttpContext.Request.Path.StartsWithSegments("/welcome")
+        || HttpContext.Request.Path.StartsWithSegments("/sign-in")
+        || HttpContext.Request.Path.StartsWithSegments("/sign-up")
+        || HttpContext.Request.Path.StartsWithSegments("/setup")
+        || HttpContext.Request.Path.StartsWithSegments("/account")
+        || HttpContext.Request.Path.StartsWithSegments("/auth/complete");
+}

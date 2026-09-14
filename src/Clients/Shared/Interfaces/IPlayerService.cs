@@ -1,0 +1,145 @@
+using K7.Clients.Shared.Enums;
+using K7.Clients.Shared.Models;
+using K7.Server.Domain.Enums;
+using K7.Shared.Dtos.Entities.Metadatas.Files;
+using K7.Shared.Dtos.Entities.Metadatas.Files.Tracks;
+
+using K7.Shared.Dtos;
+
+namespace K7.Clients.Shared.Interfaces;
+
+public interface IPlayerService
+{
+    event Func<Task>? PlayRequested;
+    event Func<Task>? PauseRequested;
+    event Func<Task>? StopRequested;
+    event Func<double, Task>? SeekRequested;
+    event Func<Task>? EnterFullScreenRequested;
+    event Func<Task>? ExitFullScreenRequested;
+    event Func<Task>? MuteRequested;
+    event Func<Task>? UnmuteRequest;
+    event Func<double, Task>? VolumeChangeRequested;
+    event Func<double, Task>? PlaybackRateChangeRequested;
+    event Action<AspectRatioMode>? AspectRatioModeChangeRequested;
+
+
+    event Action<string>? SwitchAudioTrackRequested;
+    event Action<string?>? SwitchSubtitleTrackRequested;
+    event Action<PlayerSource>? SourceChanged;
+    event Action? IsVisibleChanged;
+    event Action<bool>? IsFullScreenChanged;
+    event Action<PlaybackState>? PlaybackStateChanged;
+    event Action<double>? DurationChanged;
+    event Action<double>? CurrentTimeChanged;
+    event Action<double>? BufferedTimeChanged;
+    event Action<double>? VolumeChanged;
+    event Action<double>? PlaybackRateChanged;
+    event Action<bool>? IsMutedChanged;
+    event Action<AudioFileTrackDto?>? AudioTrackChanged;
+    event Action<SubtitleFileTrackDto?>? SubtitleTrackChanged;
+    event Action? SubtitleTracksChanged;
+    event Action<VideoQualityOption?>? QualityChanged;
+    event Action<AspectRatioMode>? AspectRatioModeChanged;
+
+    IReadOnlyList<AudioFileTrackDto> AudioTracks { get; }
+    AudioFileTrackDto? SelectedAudioTrack { get; }
+
+    IReadOnlyList<SubtitleFileTrackDto> SubtitleTracks { get; }
+    SubtitleFileTrackDto? SelectedSubtitleTrack { get; }
+
+    IReadOnlyList<VideoQualityOption> AvailableQualities { get; }
+    VideoQualityOption? SelectedQuality { get; }
+
+    PlayerSource Source { get; set; }
+    bool IsVisible { get; }
+    PlaybackState PlaybackState { get; set; }
+    bool IsFullScreen { get; set; }
+    double Duration { get; set; }
+    double CurrentTime { get; set; }
+    double BufferedTime { get; set; }
+    double Volume { get; set; }
+    double PlaybackRate { get; set; }
+    bool IsMuted { get; set; }
+    AspectRatioMode AspectRatio { get; }
+
+    void Play();
+    void Pause();
+    void EnterFullScreen();
+    void ExitFullScreen();
+    void Seek(double time);
+    void Mute();
+    void Unmute();
+    void SetVolume(double volume);
+    void SetPlaybackRate(double rate);
+    void Stop();
+    void SetAspectRatioMode(AspectRatioMode mode);
+
+    /// <summary>
+    /// Best-effort resume clock for handoff (remote play, quality swap). Prefers
+    /// <see cref="CurrentTime"/>, then last known tick, then <c>PendingSeekTime</c>.
+    /// </summary>
+    double GetResumePosition();
+
+    Task ShowAsync();
+    Task HideAsync();
+
+    event Action? BackPressed;
+    event Action? PlaybackStartFailed;
+
+    /// <summary>
+    /// SharedResource key for the snackbar shown after <see cref="PlaybackStartFailed"/>.
+    /// Set by <see cref="AbortPlaybackStartAsync"/> before the event is raised.
+    /// </summary>
+    string? PlaybackStartFailureMessageKey { get; }
+
+    Task PlayIndexedFileAsync(Guid indexedFileId, IEnumerable<AudioFileTrackDto> audioTracks, IEnumerable<SubtitleFileTrackDto>? subtitleTracks = null, int? audioTrackIndex = null, int? subtitleTrackIndex = null, VideoResolutionIdentifier? videoResolution = null, string? thumbnailsUrl = null, Guid? mediaId = null, string? title = null, string? coverUrl = null, double? startPosition = null, IReadOnlyList<ChapterMarkerDto>? chapters = null, double? durationSeconds = null, CancellationToken cancellationToken = default);
+    Task PlayRemoteIndexedFileAsync(Guid remoteFileId, IEnumerable<AudioFileTrackDto> audioTracks, IEnumerable<SubtitleFileTrackDto>? subtitleTracks = null, int? audioTrackIndex = null, int? subtitleTrackIndex = null, VideoResolutionIdentifier? videoResolution = null, string? thumbnailsUrl = null, Guid? mediaId = null, string? title = null, string? coverUrl = null, double? startPosition = null, CancellationToken cancellationToken = default);
+    void SetSubtitleTracks(IEnumerable<SubtitleFileTrackDto>? tracks);
+    Task ChangeAudioTrackAsync(AudioFileTrackDto track, CancellationToken cancellationToken = default);
+    Task ChangeSubtitleTrackAsync(SubtitleFileTrackDto? track, CancellationToken cancellationToken = default);
+    Task ChangeQualityAsync(VideoQualityOption? quality, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retries opening the current HLS source or walks Direct Play -&gt; remux -&gt; transcode after a start failure.
+    /// Web Video.js can walk the ABR ladder. Native MediaElement promotes failed Direct Play to remux,
+    /// then to the encode ladder.
+    /// Returns true when a recovery attempt was scheduled or when recovery was skipped because media is progressing.
+    /// </summary>
+    /// <param name="allowQualityLadder">
+    /// When false, soft idle timeouts do not step quality.
+    /// Hard Video.js SRC_NOT_SUPPORTED and native decoder/runtime-check failures should pass true.
+    /// </param>
+    Task<bool> TryRecoverPlaybackStartAsync(bool allowQualityLadder = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stops playback, hides the player, and raises <see cref="PlaybackStartFailed"/>.
+    /// </summary>
+    /// <param name="messageKey">
+    /// Optional SharedResource key. When null, uses StreamPlaybackTimedOut if a stream session exists,
+    /// otherwise StreamNotReady (indexing).
+    /// </param>
+    Task AbortPlaybackStartAsync(string? messageKey = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Short-press rewind duration for video controls (seconds).</summary>
+    int SkipBackSeconds { get; }
+
+    /// <summary>Short-press fast-forward duration for video controls (seconds).</summary>
+    int SkipForwardSeconds { get; }
+
+    void SetSkipBackSeconds(int seconds);
+    void SetSkipForwardSeconds(int seconds);
+
+    /// <summary>Last effective video UX settings pushed from preferences (skip, subtitle style, etc.).</summary>
+    VideoPlayerSettingsDto? VideoPlayerUxSettings { get; }
+
+    /// <summary>Apply video UX settings to the in-memory player and notify listeners once.</summary>
+    void ApplyVideoPlayerUxSettings(VideoPlayerSettingsDto settings);
+
+    /// <summary>
+    /// Clock updates from an external player (MPC-HC). Drives
+    /// <see cref="CurrentTimeChanged"/> and <see cref="PlaybackStateChanged"/>.
+    /// </summary>
+    void ApplyExternalClock(double positionSeconds, double? durationSeconds, PlaybackState state);
+
+    event Action? PlayerUxSettingsChanged;
+}

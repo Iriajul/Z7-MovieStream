@@ -1,0 +1,37 @@
+using K7.Shared.Dtos;
+using K7.Shared.Dtos.Home;
+using K7.Shared.Dtos.Requests;
+
+namespace K7.Shared.Interfaces;
+
+public interface IUserPreferencesService
+{
+    Task<IReadOnlyList<Guid>> GetSelfLibraryExclusionsAsync(CancellationToken cancellationToken = default);
+    Task UpdateSelfLibraryExclusionsAsync(UpdateSelfLibraryExclusionsRequest request, CancellationToken cancellationToken = default);
+    Task<HomeLayoutDto> GetHomeLayoutAsync(CancellationToken cancellationToken = default);
+    Task UpdateHomeLayoutAsync(HomeLayoutDto layout, CancellationToken cancellationToken = default);
+    Task ResetHomeLayoutAsync(CancellationToken cancellationToken = default);
+    Task<GeneralPreferencesDto> GetEffectiveGeneralPreferencesAsync(CancellationToken cancellationToken = default);
+    Task UpdateUserGeneralPreferencesAsync(GeneralPreferencesDto settings, CancellationToken cancellationToken = default);
+    Task ResetUserGeneralPreferencesAsync(CancellationToken cancellationToken = default);
+    Task<VideoPlayerSettingsDto> GetEffectiveVideoPlayerSettingsAsync(CancellationToken cancellationToken = default);
+    Task UpdateUserVideoPlayerSettingsAsync(VideoPlayerSettingsDto settings, CancellationToken cancellationToken = default);
+    Task ResetUserVideoPlayerSettingsAsync(CancellationToken cancellationToken = default);
+    Task<AudioPlayerSettingsDto> GetEffectiveAudioPlayerSettingsAsync(CancellationToken cancellationToken = default);
+    Task UpdateUserAudioPlayerSettingsAsync(AudioPlayerSettingsDto settings, CancellationToken cancellationToken = default);
+    Task ResetUserAudioPlayerSettingsAsync(CancellationToken cancellationToken = default);
+    Task<TrackSelectionPreferencesDto> GetEffectiveTrackSelectionPreferencesAsync(Guid? libraryId = null, CancellationToken cancellationToken = default);
+    Task UpdateUserTrackSelectionPreferencesAsync(TrackSelectionPreferencesDto preferences, Guid? libraryId = null, CancellationToken cancellationToken = default);
+    Task ResetUserTrackSelectionPreferencesAsync(Guid? libraryId = null, CancellationToken cancellationToken = default);
+    Task<VideoPlaybackPolicySettingsDto> GetEffectiveVideoPlaybackPolicySettingsAsync(CancellationToken cancellationToken = default);
+    Task UpdateUserVideoPlaybackPolicySettingsAsync(VideoPlaybackPolicySettingsDto settings, CancellationToken cancellationToken = default);
+    Task ResetUserVideoPlaybackPolicySettingsAsync(CancellationToken cancellationToken = default);
+    Task<AudioPlaybackPolicySettingsDto> GetEffectiveAudioPlaybackPolicySettingsAsync(CancellationToken cancellationToken = default);
+    Task UpdateUserAudioPlaybackPolicySettingsAsync(AudioPlaybackPolicySettingsDto settings, CancellationToken cancellationToken = default);
+    Task ResetUserAudioPlaybackPolicySettingsAsync(CancellationToken cancellationToken = default);
+    Task<SyncPlayPreferencesDto> GetSyncPlayPreferencesAsync(CancellationToken cancellationToken = default);
+    Task UpdateSyncPlayPreferencesAsync(SyncPlayPreferencesDto preferences, CancellationToken cancellationToken = default);
+    Task<SharedProfilePreferencesDto> GetSharedProfilePreferencesAsync(CancellationToken cancellationToken = default);
+    Task UpdateSharedProfilePreferencesAsync(SharedProfilePreferencesDto preferences, CancellationToken cancellationToken = default);
+    Task<bool> UserSettingExistsAsync(string key, CancellationToken cancellationToken = default);
+}

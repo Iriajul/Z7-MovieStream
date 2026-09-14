@@ -1,0 +1,42 @@
+@layout EmptyLayout
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@inject IStringLocalizer<Welcome> L
+@inject IStringLocalizer<SharedResource> S
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<div class="welcome-page">
+    <div class="welcome-card">
+        <div class="welcome-card-header">
+            <h1 class="welcome-title">K7</h1>
+            <p class="welcome-subtitle">@L["WelcomeHeading"]</p>
+        </div>
+
+        <div class="welcome-card-body">
+            <hr class="welcome-divider" />
+
+            @if (_loading)
+            {
+                <div class="welcome-loading">
+                    <K7Spinner />
+                    <p>@L["SignInPrompt"]</p>
+                </div>
+            }
+            else
+            {
+                <div class="welcome-actions">
+                    <K7Button Variant="filled" Size="lg" OnClick="SignInAsync" data-initial-focus>
+                        @S["SignIn"]
+                    </K7Button>
+
+                    @if (_guestEnabled)
+                    {
+                        <K7Button Variant="outlined" Size="lg" OnClick="ContinueAsGuestAsync">
+                            @L["ContinueAsGuest"]
+                        </K7Button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>

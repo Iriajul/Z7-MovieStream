@@ -1,0 +1,30 @@
+using K7.Server.Application.Common.Interfaces;
+using K7.Server.Application.Common.Validation;
+using K7.Server.Domain.Constants;
+
+namespace K7.Server.Application.Features.Users.Commands.CreateUser;
+
+public class CreateUserCommandValidator : AbstractValidator<CreateUserCommand>
+{
+    public CreateUserCommandValidator(IPasswordPolicyService passwordPolicy)
+    {
+        RuleFor(x => x.Username)
+            .NotEmpty()
+            .MaximumLength(256);
+
+        RuleFor(x => x.Email)
+            .EmailAddress()
+            .MaximumLength(256)
+            .When(x => !string.IsNullOrWhiteSpace(x.Email));
+
+        RuleFor(x => x.Role)
+            .NotEmpty()
+            .Must(r => r is Roles.User or Roles.Administrator)
+            .WithMessage("Role must be 'User' or 'Administrator'.");
+
+        When(x => !string.IsNullOrWhiteSpace(x.Password), () =>
+        {
+            RuleFor(x => x.Password!).MustSatisfyPasswordPolicy(passwordPolicy);
+        });
+    }
+}

@@ -1,0 +1,134 @@
+.federation-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.federation-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.peer-card {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.peer-card__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.peer-card__info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.peer-card__info h6 {
+    margin: 0;
+}
+
+.peer-card__url {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}
+
+.peer-card__details {
+    display: flex;
+    gap: 16px;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}
+
+.peer-card__detail {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.peer-card__actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.federation-panel__section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.federation-panel__section-title {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text-secondary);
+}
+
+.federation-social-policy {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.federation-social-policy__header,
+.federation-social-policy__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 7rem 7rem;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+}
+
+.federation-social-policy__header {
+    background: var(--color-surface-2);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.federation-social-policy__row:nth-child(even) {
+    background: color-mix(in srgb, var(--color-surface-2) 40%, transparent);
+}
+
+.federation-social-policy__label-col {
+    font-size: var(--text-sm);
+}
+
+.federation-social-policy__check-col {
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    text-align: center;
+}
+
+.federation-social-policy__check {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 2.25rem;
+    min-width: 2.25rem;
+    margin-inline: auto;
+}
+
+@media (max-width: 599.98px) {
+    .federation-social-policy__header,
+    .federation-social-policy__row {
+        grid-template-columns: minmax(0, 1fr) 4.5rem 4.5rem;
+        padding: var(--space-2) var(--space-3);
+    }
+}

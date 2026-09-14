@@ -1,0 +1,15 @@
+﻿@page "/sign-in/lockout"
+@layout K7.Server.Web.Components.Pages.Auth.AuthLayout
+
+@inject IStringLocalizer<Lockout> L
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<div class="auth-card">
+    <div class="auth-card-header">
+        <h1 class="auth-title">@L["Title"]</h1>
+    </div>
+    <div class="auth-card-body">
+        <div class="auth-alert auth-alert--error" role="alert">@L["Message"]</div>
+    </div>
+</div>

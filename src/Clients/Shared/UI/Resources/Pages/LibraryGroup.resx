@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="PageTitle" xml:space="preserve"><value>Bibliothèque {0}</value></data>
+  <data name="Title" xml:space="preserve"><value>Titre</value></data>
+  <data name="Status" xml:space="preserve"><value>Statut</value></data>
+  <data name="Episodes" xml:space="preserve"><value>Episodes</value></data>
+  <data name="Seasons" xml:space="preserve"><value>Saisons</value></data>
+  <data name="Albums" xml:space="preserve"><value>Albums</value></data>
+  <data name="Tracks" xml:space="preserve"><value>Morceaux</value></data>
+  <data name="Artists" xml:space="preserve"><value>Artistes</value></data>
+  <data name="ItemCount" xml:space="preserve"><value>{0} élément(s)</value></data>
+  <data name="SortTitleAsc" xml:space="preserve"><value>Titre A-Z</value></data>
+  <data name="SortTitleDesc" xml:space="preserve"><value>Titre Z-A</value></data>
+  <data name="SortNewest" xml:space="preserve"><value>Plus recents</value></data>
+  <data name="SortOldest" xml:space="preserve"><value>Plus anciens</value></data>
+  <data name="SortReleaseDateDesc" xml:space="preserve"><value>Date de sortie (recents)</value></data>
+  <data name="SortReleaseDateAsc" xml:space="preserve"><value>Date de sortie (anciens)</value></data>
+  <data name="SortLocalRatingDesc" xml:space="preserve"><value>Mieux notés</value></data>
+  <data name="SortLocalRatingAsc" xml:space="preserve"><value>Moins bien notés</value></data>
+  <data name="SortRecentActivity" xml:space="preserve"><value>Activité récente</value></data>
+  <data name="SortOldestActivity" xml:space="preserve"><value>Activité ancienne</value></data>
+  <data name="SortLastListenedRecent" xml:space="preserve"><value>Dernière écoute</value></data>
+  <data name="SortLastListenedOldest" xml:space="preserve"><value>Écoute la plus ancienne</value></data>
+  <data name="Year" xml:space="preserve"><value>Annee</value></data>
+  <data name="Rating" xml:space="preserve"><value>Note</value></data>
+  <data name="PlayCount" xml:space="preserve"><value>Lectures</value></data>
+  <data name="DateAdded" xml:space="preserve"><value>Date d'ajout</value></data>
+  <data name="MediaTypeFilter" xml:space="preserve"><value>Type de média</value></data>
+  <data name="AllGenres" xml:space="preserve"><value>Tous les genres</value></data>
+  <data name="GenreFilterOption" xml:space="preserve"><value>{0} ({1})</value></data>
+  <data name="IntelligentSearchNoResults" xml:space="preserve"><value>Aucun r&#233;sultat pour cette recherche dans ce groupe.</value></data>
+  <data name="IntelligentSearchError" xml:space="preserve"><value>La recherche intelligente a &#233;chou&#233;.</value></data>
+  <data name="CreateDynamicPlaylist" xml:space="preserve"><value>Cr&#233;er en playlist dynamique</value></data>
+  <data name="CreateDynamicPlaylistDialogTitle" xml:space="preserve"><value>Cr&#233;er une playlist dynamique</value></data>
+  <data name="ContentSourceFilter" xml:space="preserve"><value>Source</value></data>
+  <data name="ContentSourceAll" xml:space="preserve"><value>Toutes les sources</value></data>
+  <data name="ContentSourceLocal" xml:space="preserve"><value>Local</value></data>
+</root>
+

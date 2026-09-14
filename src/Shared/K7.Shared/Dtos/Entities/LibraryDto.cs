@@ -1,0 +1,30 @@
+﻿using K7.Server.Domain.Enums;
+
+namespace K7.Shared.Dtos.Entities;
+
+public sealed record LibraryDto
+{
+    public required Guid Id { get; init; }
+    public required string Title { get; init; }
+    public required LibraryMediaType MediaType { get; init; }
+    public string? RootPath { get; init; }
+    public required string MetadataProviderName { get; init; }
+    public required string MetadataLanguage { get; init; }
+    public required string MetadataFallbackLanguage { get; init; }
+    public int? MetadataRefreshIntervalDays { get; init; }
+    public required Guid LibraryGroupId { get; init; }
+    public Guid? PeerServerId { get; init; }
+    public string? PeerServerName { get; init; }
+    public string? PeerServerBaseUrl { get; init; }
+    /// <summary>Null for local libraries. False when the origin peer is inactive or last test failed.</summary>
+    public bool? PeerReachable { get; init; }
+    public bool IntroDetectionEnabled { get; init; } = true;
+    public bool ThemeSongGenerationEnabled { get; init; } = true;
+    public bool SeekbarThumbnailGenerationEnabled { get; init; } = true;
+    public bool ChapterExtractionEnabled { get; init; } = true;
+    public bool MusicAudioAnalysisEnabled { get; init; } = true;
+    public bool TranscodingEnabled { get; init; } = true;
+    public bool TransmuxingEnabled { get; init; } = true;
+    public bool RealtimeMonitorEnabled { get; init; } = true;
+    public int AutoScanIntervalHours { get; init; } = 6;
+}

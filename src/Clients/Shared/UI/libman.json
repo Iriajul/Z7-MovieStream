@@ -1,0 +1,151 @@
+{
+  "version": "3.0",
+  "defaultProvider": "cdnjs",
+  "libraries": [
+    {
+      "provider": "jsdelivr",
+      "library": "embla-carousel@8.6.0",
+      "destination": "wwwroot/dist/embla-carousel/",
+      "files": [
+        "embla-carousel.umd.js"
+      ]
+    },
+    {
+      "library": "qrcodejs@1.0.0",
+      "destination": "wwwroot/dist/qrcodejs/",
+      "files": [
+        "qrcode.min.js"
+      ]
+    },
+    {
+      "provider": "jsdelivr",
+      "library": "@fontsource/epilogue@5.0.8",
+      "destination": "wwwroot/lib/fonts/epilogue",
+      "files": [
+        "latin-700.css",
+        "latin-900.css",
+        "files/epilogue-latin-700-normal.woff2",
+        "files/epilogue-latin-900-normal.woff2"
+      ]
+    },
+    {
+      "provider": "jsdelivr",
+      "library": "@fontsource/manrope@5.0.8",
+      "destination": "wwwroot/lib/fonts/manrope",
+      "files": [
+        "latin-400.css",
+        "latin-500.css",
+        "latin-700.css",
+        "files/manrope-latin-400-normal.woff2",
+        "files/manrope-latin-500-normal.woff2",
+        "files/manrope-latin-700-normal.woff2"
+      ]
+    },
+    {
+      "provider": "filesystem",
+      "library": "https://raw.githubusercontent.com/luke-chang/js-spatial-navigation/master/spatial_navigation.js",
+      "destination": "wwwroot/lib/js-spatial-navigation",
+      "files": [
+        "spatial_navigation.js"
+      ]
+    },
+    {
+      "provider": "jsdelivr",
+      "library": "@phosphor-icons/web@2.1.2",
+      "destination": "wwwroot/dist/phosphor-icons/",
+      "files": [
+        "src/regular/style.css",
+        "src/regular/Phosphor.woff2",
+        "src/fill/style.css",
+        "src/fill/Phosphor-Fill.woff2",
+        "src/bold/style.css",
+        "src/bold/Phosphor-Bold.woff2",
+        "src/thin/style.css",
+        "src/thin/Phosphor-Thin.woff2",
+        "src/light/style.css",
+        "src/light/Phosphor-Light.woff2",
+        "src/duotone/style.css",
+        "src/duotone/Phosphor-Duotone.woff2"
+      ]
+    },
+    {
+      "library": "video.js@8.22.0",
+      "destination": "wwwroot/dist/video.js/",
+      "files": [
+        "video.min.js",
+        "video-js.min.css"
+      ]
+    },
+    {
+      "provider": "jsdelivr",
+      "library": "lottie-web@5.12.2",
+      "destination": "wwwroot/dist/lottie/",
+      "files": [
+        "build/player/lottie_light.min.js"
+      ]
+    },
+    {
+      "provider": "jsdelivr",
+      "library": "flag-icons@7.3.2",
+      "destination": "wwwroot/dist/flag-icons/",
+      "files": [
+        "flags/4x3/fr.svg",
+        "flags/4x3/gb.svg",
+        "flags/4x3/de.svg",
+        "flags/4x3/es.svg",
+        "flags/4x3/it.svg",
+        "flags/4x3/jp.svg",
+        "flags/4x3/kr.svg",
+        "flags/4x3/br.svg",
+        "flags/4x3/ru.svg",
+        "flags/4x3/cn.svg",
+        "flags/4x3/sa.svg",
+        "flags/4x3/nl.svg",
+        "flags/4x3/pl.svg",
+        "flags/4x3/se.svg",
+        "flags/4x3/dk.svg",
+        "flags/4x3/fi.svg",
+        "flags/4x3/no.svg",
+        "flags/4x3/tr.svg",
+        "flags/4x3/ua.svg",
+        "flags/4x3/in.svg",
+        "flags/4x3/th.svg",
+        "flags/4x3/vn.svg",
+        "flags/4x3/gr.svg",
+        "flags/4x3/il.svg",
+        "flags/4x3/cz.svg",
+        "flags/4x3/hu.svg",
+        "flags/4x3/ro.svg",
+        "flags/4x3/id.svg",
+        "flags/1x1/fr.svg",
+        "flags/1x1/gb.svg",
+        "flags/1x1/de.svg",
+        "flags/1x1/es.svg",
+        "flags/1x1/it.svg",
+        "flags/1x1/jp.svg",
+        "flags/1x1/kr.svg",
+        "flags/1x1/br.svg",
+        "flags/1x1/ru.svg",
+        "flags/1x1/cn.svg",
+        "flags/1x1/sa.svg",
+        "flags/1x1/nl.svg",
+        "flags/1x1/pl.svg",
+        "flags/1x1/se.svg",
+        "flags/1x1/dk.svg",
+        "flags/1x1/fi.svg",
+        "flags/1x1/no.svg",
+        "flags/1x1/tr.svg",
+        "flags/1x1/ua.svg",
+        "flags/1x1/in.svg",
+        "flags/1x1/th.svg",
+        "flags/1x1/vn.svg",
+        "flags/1x1/gr.svg",
+        "flags/1x1/il.svg",
+        "flags/1x1/cz.svg",
+        "flags/1x1/hu.svg",
+        "flags/1x1/ro.svg",
+        "flags/1x1/id.svg"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+@page "/playlists"
+@using K7.Clients.Shared.Mappings
+@using K7.Shared.Dtos.Entities.Playlists
+@inject IPlaylistService K7ServerService
+@inject IK7ServerService ApiClient
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<Playlists> L
+@inject IStringLocalizer<SharedResource> S
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<BrowseView TItem="LitePlaylistDto"
+              Items="_playlists"
+              Loading="_loading"
+              PersistenceKey="playlists"
+              Class="playlists-browse"
+              DefaultItemWidth="160"
+              DefaultSpacing="24"
+              GridItemAspectRatio="1f"
+              GridCardVariant="MediaCardVariant.Cover">
+    <ToolbarContent>
+        <h5>@L["PageTitle"]</h5>
+        <div class="flex-1"></div>
+        <K7Menu Disabled="@(!_canCreate)">
+            <ActivatorContent>
+                <K7Button Variant="outlined" Color="primary" StartIcon="@Phosphor.Lightbulb" Disabled="@(!_canCreate)" AriaLabel="@L["Presets"]">
+                    <span class="playlists-toolbar-label">@L["Presets"]</span>
+                </K7Button>
+            </ActivatorContent>
+            <ChildContent>
+                <K7MenuItem OnClick="() => CreatePreset(Preset.RecentlyAdded)">@L["PresetRecentlyAdded"]</K7MenuItem>
+                <K7MenuItem OnClick="() => CreatePreset(Preset.MostPlayed)">@L["PresetMostPlayed"]</K7MenuItem>
+                <K7MenuItem OnClick="() => CreatePreset(Preset.NeverPlayed)">@L["PresetNeverPlayed"]</K7MenuItem>
+                <K7MenuItem OnClick="() => CreatePreset(Preset.HighlyRated)">@L["PresetHighlyRated"]</K7MenuItem>
+                <K7MenuItem OnClick="() => CreatePreset(Preset.RecentlyPlayed)">@L["PresetRecentlyPlayed"]</K7MenuItem>
+            </ChildContent>
+        </K7Menu>
+        <K7Menu Class="playlists-toolbar-new" Disabled="@(!_canCreate)">
+            <ActivatorContent>
+                <K7Button Variant="filled" Color="primary" StartIcon="@Phosphor.Plus" Disabled="@(!_canCreate)" AriaLabel="@L["NewMenu"]">
+                    <span class="playlists-toolbar-label">@L["NewMenu"]</span>
+                </K7Button>
+            </ActivatorContent>
+            <ChildContent>
+                <K7MenuItem Icon="queue" OnClick="OpenCreatePlaylistDialog">Playlist</K7MenuItem>
+                <K7MenuItem Icon="sparkle" OnClick="OpenCreateDynamicPlaylistDialog">@L["DynamicPlaylist"]</K7MenuItem>
+            </ChildContent>
+        </K7Menu>
+    </ToolbarContent>
+    <EmptyContent>
+        <K7EmptyState Icon="@Phosphor.Queue" Title="@L["None"]" Subtitle="@L["EmptyHint"]" />
+    </EmptyContent>
+    <GridTemplate Context="playlist">
+        @{
+            var vm = playlist.ToCardViewModel(ApiClient, GetPlaylistSubtitle(playlist));
+            var placeholderIcon = playlist.IsDynamicPlaylist ? Phosphor.Sparkle : Phosphor.Queue;
+        }
+        <MediaCard Model="vm"
+                   Href="@GetPlaylistHref(playlist)"
+                   Variant="MediaCardVariant.Cover"
+                   FooterVisible="true"
+                   ContextMenuEnabled="false"
+                   HoverOverlayEnabled="true"
+                   PlaceholderIcon="@placeholderIcon"
+                   TypeBadgeIcon="@(playlist.IsDynamicPlaylist ? Phosphor.Sparkle : null)">
+            <CoverContent>
+                <K7CoverMosaic CoverPicture="playlist.CoverPicture"
+                               PreviewPictures="playlist.PreviewPictures"
+                               PlaceholderIcon="@placeholderIcon"
+                               PictureSize="MetadataPictureSize.Medium"
+                               Alt="@playlist.Title"
+                               Class="media-card-mosaic" />
+            </CoverContent>
+        </MediaCard>
+    </GridTemplate>
+</BrowseView>

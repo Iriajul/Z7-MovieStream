@@ -1,0 +1,225 @@
+﻿@page "/sign-in"
+@layout K7.Server.Web.Components.Pages.Auth.AuthLayout
+
+@using System.ComponentModel.DataAnnotations
+@using K7.Server.Infrastructure.Configuration
+@using K7.Server.Infrastructure.Database.Context.Identity
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Options
+@using K7.Server.Web.Components.Account
+
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject ILogger<Login> Logger
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+@inject IOptions<AuthenticationConfiguration> AuthConfig
+@inject IStringLocalizer<Login> L
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<StatusMessage Message="@errorMessage" />
+
+<div class="auth-card">
+    <div class="auth-card-header">
+        <h1 class="auth-title">@L["WelcomeBack"]</h1>
+        <p class="auth-subtitle">@L["SignInPrompt"]</p>
+    </div>
+    <div class="auth-card-body">
+        @if (_auth.Local.SignInEnabled)
+        {
+            <EditForm Model="Input" method="post" OnValidSubmit="LoginUser" FormName="login" Enhance="false">
+                <input type="hidden" name="ReturnUrl" value="@ReturnUrl" />
+                <DataAnnotationsValidator />
+                <div class="auth-form-stack">
+                    <div class="auth-form-field">
+                        <label>@L["Username"]</label>
+                        <InputText @bind-Value="Input!.Username" type="text" class="auth-input focusable" placeholder="@L["UsernamePlaceholder"]" autocomplete="username" aria-required="true" autofocus />
+                        <ValidationMessage For="@(() => Input!.Username)" class="auth-validation" />
+                    </div>
+
+                    <div class="auth-form-field">
+                        <label>@L["Password"]</label>
+                        <div class="auth-input-row">
+                            <InputText @bind-Value="Input.Password" id="pw-login" type="password" class="auth-input focusable" placeholder="@L["PasswordPlaceholder"]" autocomplete="current-password" aria-required="true" />
+                            <button type="button" class="auth-input-action focusable" onclick="togglePwLogin()" aria-label="@L["ShowPassword"]"><i class="ph ph-eye"></i></button>
+                        </div>
+                        <ValidationMessage For="@(() => Input.Password)" class="auth-validation" />
+                    </div>
+
+                    <label class="auth-toggle">
+                        <InputCheckbox @bind-Value="Input.RememberMe" />
+                        <span>@L["RememberMe"]</span>
+                    </label>
+
+                    <button type="submit" class="k7-btn k7-btn--filled focusable" style="width:100%;">@L["SignIn"]</button>
+                </div>
+            </EditForm>
+        }
+
+        @if (_auth.Local.SignInEnabled && _auth.Oidc.Enabled)
+        {
+            <p class="auth-or">@L["OrContinueWith"]</p>
+            <a href="@_oidcLoginUrl" data-enhance-nav="false" style="text-decoration:none;">
+                <button type="button" class="k7-btn k7-btn--outlined focusable" style="width:100%;">
+                    @(_auth.Oidc.DisplayName ?? L["SignInOidc"])
+                </button>
+            </a>
+        }
+    </div>
+    @if (_auth.Local.SignInEnabled && _auth.Local.RegistrationEnabled)
+    {
+        <div class="auth-card-footer">
+            <span class="auth-caption">
+                @L["NoAccount"]
+                <a href="@(NavigationManager.GetUriWithQueryParameters("/sign-up", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))" class="auth-link focusable" data-enhance-nav="false">@L["SignUp"]</a>
+            </span>
+        </div>
+    }
+</div>
+
+<script>
+    (function () {
+        var timeoutId;
+        window.togglePwLogin = function () {
+            var el = document.getElementById('pw-login');
+            if (!el) return;
+            if (el.type === 'password') {
+                el.type = 'text';
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(function () { el.type = 'password'; }, 5000);
+            } else {
+                el.type = 'password';
+                clearTimeout(timeoutId);
+            }
+        };
+    })();
+</script>
+
+@code {
+    private string? errorMessage;
+    private AuthenticationConfiguration _auth = new();
+    private string _oidcLoginUrl = "/api/authentication/login";
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel? Input { get; set; }
+
+    [SupplyParameterFromQuery(Name = "ReturnUrl")]
+    private string? ReturnUrlQuery { get; set; }
+
+    [SupplyParameterFromForm(Name = "ReturnUrl")]
+    private string? ReturnUrlForm { get; set; }
+
+    private string? ReturnUrl => IdentityRedirectUri.Coalesce(ReturnUrlForm, ReturnUrlQuery, HttpContext?.Request.Query);
+
+    [SupplyParameterFromQuery]
+    private string? Error { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+
+        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+
+            if (HttpContext.User.Identity?.IsAuthenticated == true)
+            {
+                var destination = !string.IsNullOrEmpty(ReturnUrl) && IdentityRedirectUri.IsLocalPath(ReturnUrl)
+                    ? ReturnUrl
+                    : "/";
+                Logger.LogInformation(
+                    "Sign-in skipped, already authenticated. RedirectKind {RedirectKind}",
+                    IdentityRedirectUri.Classify(destination));
+                RedirectManager.RedirectTo(destination);
+                return;
+            }
+        }
+
+        _auth = AuthConfig.Value;
+        var returnUrl = ReturnUrl ?? "/";
+        _oidcLoginUrl = NavigationManager.GetUriWithQueryParameters("/api/authentication/login",
+            new Dictionary<string, object?> { ["returnUrl"] = returnUrl });
+
+        errorMessage = Error switch
+        {
+            "auto_provisioning_disabled" => L["OidcAutoProvisioningDisabled"],
+            "account_exists" => L["OidcAccountExists"],
+            _ => errorMessage
+        };
+
+        if (!_auth.Local.SignInEnabled && _auth.Oidc.Enabled)
+        {
+            RedirectManager.RedirectTo(_oidcLoginUrl);
+            return;
+        }
+
+        if (!_auth.Local.SignInEnabled && !_auth.Oidc.Enabled)
+        {
+            RedirectManager.RedirectTo("/welcome");
+            return;
+        }
+    }
+
+    public async Task LoginUser()
+    {
+        var userName = await ResolveUserNameAsync(Input!.Username);
+        var result = await SignInManager.PasswordSignInAsync(userName, Input.Password, Input.RememberMe, lockoutOnFailure: true);
+        if (result.Succeeded)
+        {
+            Logger.LogInformation(
+                "User logged in. ReturnUrlKind {ReturnUrlKind}",
+                IdentityRedirectUri.Classify(ReturnUrl));
+            RedirectManager.RedirectTo(ReturnUrl);
+        }
+        else if (result.RequiresTwoFactor)
+        {
+            RedirectManager.RedirectTo(
+                "/sign-in/two-factor",
+                new() { ["ReturnUrl"] = ReturnUrl, ["rememberMe"] = Input.RememberMe });
+        }
+        else if (result.IsLockedOut)
+        {
+            Logger.LogWarning("User account locked out.");
+            RedirectManager.RedirectTo("/sign-in/lockout");
+        }
+        else
+        {
+            errorMessage = L["InvalidLogin"];
+        }
+    }
+
+    private async Task<string> ResolveUserNameAsync(string login)
+    {
+        var trimmed = login.Trim();
+        var byName = await UserManager.FindByNameAsync(trimmed);
+        if (byName is not null)
+            return byName.UserName ?? trimmed;
+
+        if (trimmed.Contains('@'))
+        {
+            var byEmail = await UserManager.FindByEmailAsync(trimmed);
+            if (byEmail?.UserName is not null)
+                return byEmail.UserName;
+        }
+
+        return trimmed;
+    }
+
+    private sealed class InputModel
+    {
+        [Required]
+        public string Username { get; set; } = "";
+
+        [Required]
+        [DataType(DataType.Password)]
+        public string Password { get; set; } = "";
+
+        [Display(Name = "Remember me?")]
+        public bool RememberMe { get; set; }
+    }
+}

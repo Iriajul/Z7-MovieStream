@@ -1,0 +1,540 @@
+.page-with-sidebar {
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* ── Mobile top bar ── */
+
+.sidebar-mobile-topbar {
+    display: none;
+}
+
+.page-sidebar {
+    width: var(--page-sidebar-width, 260px);
+    min-width: 0;
+    flex-shrink: 0;
+    background: var(--color-drawer);
+    border-right: 1px solid var(--color-border);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: width var(--transition-normal);
+}
+
+.page-sidebar-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+}
+
+.page-sidebar-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+.page-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-2) var(--space-1);
+    flex-shrink: 0;
+}
+
+.page-sidebar-collapse-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    margin-inline-start: auto;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.page-sidebar-collapse-toggle:hover,
+.page-sidebar-collapse-toggle:focus-visible {
+    color: var(--color-text);
+    background: var(--color-surface-hover);
+}
+
+/* Always show labels in the page sidebar (overrides global .nav-label max-width:0) */
+.page-sidebar:not(.page-sidebar--collapsed) ::deep .nav-label {
+    max-width: none;
+    overflow: visible;
+}
+
+/* Menu-style nav links and group toggles share one row layout */
+.page-sidebar ::deep .page-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--space-1) var(--space-2);
+}
+
+.page-sidebar ::deep .nav-link,
+.page-sidebar ::deep .nav-group-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--space-2);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    min-height: 44px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: visible;
+    scroll-margin: 2px;
+}
+
+.page-sidebar ::deep .nav-link {
+    border-radius: var(--radius-sm);
+}
+
+.page-sidebar ::deep .nav-link.focusable:focus,
+.page-sidebar ::deep .nav-link.focusable:focus-visible,
+.page-sidebar ::deep .nav-link.focusable:focus-within,
+.page-sidebar ::deep .nav-group-toggle.focusable:focus,
+.page-sidebar ::deep .nav-group-toggle.focusable:focus-visible,
+.page-sidebar ::deep .nav-group-toggle.focusable:focus-within {
+    color: var(--color-text);
+    background: var(--color-surface-hover);
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
+}
+
+.page-sidebar ::deep .nav-link.active:focus,
+.page-sidebar ::deep .nav-link.active:focus-visible,
+.page-sidebar ::deep .nav-link.active:focus-within {
+    color: var(--color-accent);
+}
+
+:global(html.platform-tv) .page-sidebar ::deep .nav-link.focusable:focus,
+:global(html.platform-tv) .page-sidebar ::deep .nav-link.focusable:focus-visible,
+:global(html.platform-tv) .page-sidebar ::deep .nav-link.focusable:focus-within,
+:global(html.platform-tv) .page-sidebar ::deep .nav-group-toggle.focusable:focus,
+:global(html.platform-tv) .page-sidebar ::deep .nav-group-toggle.focusable:focus-visible,
+:global(html.platform-tv) .page-sidebar ::deep .nav-group-toggle.focusable:focus-within {
+    outline-width: 3px;
+}
+
+.page-sidebar ::deep .nav-link .nav-icon,
+.page-sidebar ::deep .nav-group-toggle .nav-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    flex-shrink: 0;
+    font-size: var(--text-base);
+    color: var(--color-text-muted);
+}
+
+.page-sidebar ::deep .nav-link.active .nav-icon {
+    color: var(--color-accent);
+}
+
+.page-sidebar ::deep summary.nav-group-toggle {
+    list-style: none;
+}
+
+.page-sidebar ::deep summary.nav-group-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.page-sidebar ::deep .nav-group-toggle {
+    border-radius: var(--radius-sm);
+    text-align: start;
+}
+
+.page-sidebar ::deep .nav-group-arrow {
+    display: block;
+    margin-inline-start: auto;
+    flex-shrink: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    transition: transform var(--transition-fast);
+}
+
+.page-sidebar .page-sidebar-title {
+    padding: var(--space-1) var(--space-2) 0;
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--color-text-primary);
+    letter-spacing: -0.01em;
+    min-width: 0;
+}
+
+.page-sidebar ::deep .nav-group[open] .nav-group-arrow {
+    transform: rotate(180deg);
+}
+
+.page-sidebar ::deep .nav-group--active > .nav-group-toggle {
+    color: var(--color-text);
+}
+
+.page-sidebar ::deep .nav-group-items {
+    padding-inline-start: var(--space-2);
+}
+
+.page-sidebar ::deep .nav-group-items .nav-link {
+    padding-inline-start: calc(var(--space-3) + 1.25rem + var(--space-2));
+}
+
+.page-sidebar-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+
+/* ── Mobile drawer (narrow viewport or phone device, including landscape) ── */
+
+@media (max-width: 599.98px) {
+    .page-with-sidebar {
+        flex-direction: column;
+    }
+
+    .sidebar-mobile-topbar {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-3);
+        background: var(--color-drawer);
+        border-bottom: 1px solid var(--color-border);
+        flex-shrink: 0;
+    }
+
+    .sidebar-mobile-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: none;
+        color: var(--color-text-primary);
+        font-size: var(--text-xl);
+        padding: var(--space-1);
+        cursor: pointer;
+        border-radius: var(--radius-sm);
+    }
+
+    .sidebar-mobile-toggle:focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: -2px;
+    }
+
+    .sidebar-mobile-title {
+        font-size: var(--text-base);
+        font-weight: 600;
+        color: var(--color-text-primary);
+    }
+
+    .page-sidebar {
+        display: none;
+        width: 100%;
+        border-right: none;
+        flex: 1;
+        overflow: hidden;
+    }
+
+    .page-sidebar.sidebar-open {
+        display: flex;
+    }
+
+    .page-sidebar .page-sidebar-title {
+        display: none;
+    }
+
+    .page-sidebar ::deep .nav-link,
+    .page-sidebar ::deep .nav-group-toggle {
+        padding: var(--space-3) var(--space-4);
+        font-size: var(--text-base);
+    }
+
+    .page-sidebar-body.sidebar-body-hidden {
+        display: none;
+    }
+}
+
+.page-with-sidebar.page-with-sidebar--mobile-drawer {
+    flex-direction: column;
+}
+
+.page-with-sidebar.page-with-sidebar--mobile-drawer .sidebar-mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-drawer);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.page-with-sidebar.page-with-sidebar--mobile-drawer .sidebar-mobile-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--color-text-primary);
+    font-size: var(--text-xl);
+    padding: var(--space-1);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+}
+
+.page-with-sidebar.page-with-sidebar--mobile-drawer .sidebar-mobile-toggle:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
+}
+
+.page-with-sidebar.page-with-sidebar--mobile-drawer .sidebar-mobile-title {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.page-with-sidebar.page-with-sidebar--mobile-drawer .page-sidebar {
+    display: none;
+    width: 100%;
+    border-right: none;
+    flex: 1;
+    overflow: hidden;
+}
+
+.page-with-sidebar.page-with-sidebar--mobile-drawer .page-sidebar.sidebar-open {
+    display: flex;
+}
+
+.page-with-sidebar.page-with-sidebar--mobile-drawer .page-sidebar .page-sidebar-title {
+    display: none;
+}
+
+.page-with-sidebar.page-with-sidebar--mobile-drawer .page-sidebar ::deep .nav-link,
+.page-with-sidebar.page-with-sidebar--mobile-drawer .page-sidebar ::deep .nav-group-toggle {
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-base);
+}
+
+.page-with-sidebar.page-with-sidebar--mobile-drawer .page-sidebar-body.sidebar-body-hidden {
+    display: none;
+}
+
+/* ── Desktop collapsed rail (nav rules live in layout.css) ── */
+
+.page-with-sidebar.page-with-sidebar--rail:not(.page-with-sidebar--mobile-drawer) {
+    overflow: visible;
+}
+
+.page-with-sidebar.page-with-sidebar--rail:not(.page-with-sidebar--mobile-drawer) > .page-sidebar {
+    width: var(--page-sidebar-width-collapsed, 56px);
+    min-width: var(--page-sidebar-width-collapsed, 56px);
+    max-width: var(--page-sidebar-width-collapsed, 56px);
+    overflow: visible;
+}
+
+.page-with-sidebar.page-with-sidebar--rail:not(.page-with-sidebar--mobile-drawer) .page-sidebar-scroll {
+    overflow: visible;
+}
+
+.page-with-sidebar.page-with-sidebar--rail:not(.page-with-sidebar--mobile-drawer) ::deep .page-sidebar-nav,
+.page-with-sidebar.page-with-sidebar--rail:not(.page-with-sidebar--mobile-drawer) ::deep .nav-group--rail {
+    overflow: visible;
+}
+
+.page-with-sidebar.page-with-sidebar--rail:not(.page-with-sidebar--mobile-drawer) ::deep .page-sidebar-nav > .nav-link > .nav-label {
+    display: none;
+}
+
+.page-with-sidebar.page-with-sidebar--rail:not(.page-with-sidebar--mobile-drawer) ::deep .nav-group-flyout .nav-link > .nav-label {
+    display: inline;
+    max-width: none;
+    overflow: visible;
+}
+
+@media (min-width: 600px) {
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar-collapse-toggle {
+        display: inline-flex;
+        position: relative;
+        z-index: 1;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar.page-sidebar--collapsed {
+        width: var(--page-sidebar-width-collapsed, 56px);
+        min-width: var(--page-sidebar-width-collapsed, 56px);
+        max-width: var(--page-sidebar-width-collapsed, 56px);
+        overflow: visible;
+        position: relative;
+        z-index: var(--z-above);
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar.page-sidebar--collapsed .page-sidebar-scroll {
+        overflow: visible;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .page-sidebar-nav {
+        align-items: center;
+        padding-inline: var(--space-1);
+        overflow: visible;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .page-sidebar-nav > .nav-link > .nav-label,
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group-items,
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group:not(.nav-group--rail) .nav-group-toggle > .nav-label,
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group-toggle > .nav-group-arrow {
+        display: none;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group--rail {
+        position: relative;
+        width: 100%;
+        overflow: visible;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-rail-entry {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        width: 2.75rem;
+        min-width: 2.75rem;
+        max-width: 2.75rem;
+        height: 2.75rem;
+        margin-inline: auto;
+        padding: 0;
+        overflow: visible;
+        box-sizing: border-box;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-rail-hint {
+        display: none;
+        position: absolute;
+        left: calc(100% + var(--space-2));
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: var(--z-drawer);
+        padding: var(--space-2) var(--space-3);
+        white-space: nowrap;
+        background: var(--color-drawer);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        box-shadow: var(--shadow-md);
+        color: var(--color-text);
+        font-size: var(--text-sm);
+        font-weight: 500;
+        pointer-events: none;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-rail-entry:hover > .nav-rail-hint,
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-rail-entry:focus-visible > .nav-rail-hint {
+        display: block;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group--rail:hover > .nav-rail-entry > .nav-rail-hint,
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group--rail:focus-within > .nav-rail-entry > .nav-rail-hint {
+        display: none;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group-flyout {
+        display: none;
+        position: absolute;
+        left: 100%;
+        top: 0;
+        z-index: var(--z-drawer);
+        min-width: 12rem;
+        padding: var(--space-2);
+        padding-inline-start: var(--space-2);
+        background: var(--color-drawer);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        box-shadow: var(--shadow-md);
+        flex-direction: column;
+        gap: var(--space-1);
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group-flyout::before {
+        content: "";
+        position: absolute;
+        right: 100%;
+        top: 0;
+        width: var(--space-2);
+        height: 100%;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group--rail:hover > .nav-group-flyout,
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group--rail:focus-within > .nav-group-flyout,
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group--rail.nav-group--rail-open > .nav-group-flyout,
+    .page-with-sidebar.page-with-sidebar--rail:not(.page-with-sidebar--mobile-drawer) ::deep .nav-group--rail:hover > .nav-group-flyout,
+    .page-with-sidebar.page-with-sidebar--rail:not(.page-with-sidebar--mobile-drawer) ::deep .nav-group--rail:focus-within > .nav-group-flyout,
+    .page-with-sidebar.page-with-sidebar--rail:not(.page-with-sidebar--mobile-drawer) ::deep .nav-group--rail.nav-group--rail-open > .nav-group-flyout {
+        display: flex;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .page-sidebar-nav > .nav-link,
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group--rail > .nav-group-toggle {
+        justify-content: center;
+        width: 2.75rem;
+        min-width: 2.75rem;
+        max-width: 2.75rem;
+        margin-inline: auto;
+        padding: 0;
+        overflow: visible;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group-flyout .nav-link {
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        height: auto;
+        min-height: 44px;
+        margin: 0;
+        justify-content: flex-start;
+        padding: var(--space-2) var(--space-3);
+        gap: var(--space-2);
+        overflow: visible;
+        scroll-margin: 2px;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group-flyout .nav-link > .nav-label {
+        display: inline;
+        max-width: none;
+        overflow: visible;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group-flyout .nav-link.focusable:focus,
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group-flyout .nav-link.focusable:focus-visible,
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group-flyout .nav-link.focusable:focus-within {
+        color: var(--color-text);
+        background: var(--color-surface-hover);
+        outline: 2px solid var(--color-accent);
+        outline-offset: -2px;
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group-flyout .nav-link.active:focus,
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group-flyout .nav-link.active:focus-visible,
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group-flyout .nav-link.active:focus-within {
+        color: var(--color-accent);
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed ::deep .nav-group--active > .nav-rail-entry .nav-icon {
+        color: var(--color-accent);
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed .page-sidebar-header {
+        justify-content: center;
+        padding-inline: var(--space-1);
+    }
+
+    .page-with-sidebar:not(.page-with-sidebar--mobile-drawer) .page-sidebar--collapsed .page-sidebar-collapse-toggle {
+        margin-inline-start: 0;
+    }
+}

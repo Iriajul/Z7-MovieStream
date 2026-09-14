@@ -1,0 +1,419 @@
+using CommunityToolkit.Maui;
+using K7.Clients.MAUI.Constants;
+using K7.Clients.MAUI.Data;
+using K7.Clients.MAUI.Interfaces;
+using K7.Clients.MAUI.Services;
+using K7.Clients.MAUI.Services.Authentication;
+using K7.Clients.Shared.Helpers;
+using K7.Clients.Shared.Interfaces;
+using K7.Clients.Shared.Services;
+using K7.Shared.Interfaces;
+using K7.Shared.Services;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.WebView.Maui;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting.Internal;
+using Microsoft.Extensions.Logging;
+using Microsoft.Maui.LifecycleEvents;
+using OpenIddict.Client;
+using OpenIddict.Client.SystemIntegration;
+using SkiaSharp.Views.Maui.Controls.Hosting;
+using static OpenIddict.Abstractions.OpenIddictConstants;
+
+#if WINDOWS
+using K7.Clients.MAUI.Platforms.Windows;
+#endif
+#if WINDOWS
+using LibVLCSharp.MAUI;
+#endif
+
+namespace K7.Clients.MAUI;
+
+public static partial class MauiProgram
+{
+    public static MauiApp CreateMauiApp()
+    {
+        MauiNativeVideoChrome.EnableForNativeMediaElementHosts();
+
+#if WINDOWS
+        // Capture JSException.Message (VS only shows "Exception thrown" without details).
+        // Also reports a rate-limited sample to the server via IClientErrorReporter once DI is ready.
+        JsExceptionDebugListener.Install();
+        WindowsNativeProtocol.EnsureRegistered();
+#endif
+        NativeAuthTrace.Install();
+
+        var builder = MauiApp.CreateBuilder();
+        builder
+            .UseMauiApp<App>()
+            .UseSkiaSharp()
+            .UseMauiCommunityToolkitMediaElement(isAndroidForegroundServiceEnabled: false)
+#if WINDOWS
+            .UseLibVLCSharp()
+#endif
+            .ConfigureFonts(fonts =>
+            {
+                fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
+                fonts.AddFont("Phosphor.ttf", "Phosphor");
+            });
+
+        builder.Services.AddMauiBlazorWebView();
+
+        builder.Services.AddSingleton<AuthSessionKeeper>();
+        builder.ConfigureLifecycleEvents(events =>
+        {
+#if WINDOWS
+            events.AddWindows(windows =>
+            {
+                windows.OnWindowCreated(nativeWindow =>
+                {
+                    WindowGeometryPersistence.Attach(nativeWindow);
+                    WindowsProtocolActivation.Attach();
+                });
+            });
+#elif ANDROID
+            events.AddAndroid(android =>
+            {
+                android.OnPause(_ => AppLifecycleGate.SetForeground(false));
+                android.OnResume(_ =>
+                {
+                    AppLifecycleGate.SetForeground(true);
+                    if (IPlatformApplication.Current?.Services is { } services)
+                        services.GetService<AuthSessionKeeper>()?.OnAppResumed();
+                });
+            });
+#elif IOS || MACCATALYST
+            events.AddiOS(ios =>
+            {
+                ios.OnResignActivation(_ => AppLifecycleGate.SetForeground(false));
+                ios.OnActivated(_ =>
+                {
+                    AppLifecycleGate.SetForeground(true);
+                    if (IPlatformApplication.Current?.Services is { } services)
+                        services.GetService<AuthSessionKeeper>()?.OnAppResumed();
+                });
+            });
+#endif
+        });
+
+#if DEBUG
+        builder.Services.AddBlazorWebViewDeveloperTools();
+        builder.Logging.AddDebug();
+        builder.Logging.AddFilter("Microsoft.AspNetCore.Components.WebView", LogLevel.Debug);
+        builder.Logging.AddFilter("Microsoft.JSInterop", LogLevel.Trace);
+        builder.Logging.AddFilter("Microsoft.AspNetCore.Components", LogLevel.Information);
+#endif
+
+        // https://github.com/dotnet/maui/issues/14185
+        // https://github.com/microsoft/microsoft-ui-xaml/issues/6527
+        builder.ConfigureMauiHandlers(handlers =>
+        {
+#if WINDOWS
+            handlers.AddHandler<BlazorWebView, Platforms.Windows.TransparentBlazorWebViewHandler>();
+#elif ANDROID
+            handlers.AddHandler<BlazorWebView, Platforms.Android.TransparentBlazorWebViewHandler>();
+#elif IOS
+            handlers.AddHandler<BlazorWebView, Platforms.iOS.TransparentBlazorWebViewHandler>();
+#endif
+        });
+
+        builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+        builder.Services.ConfigurePlatformServices();
+
+        builder.Services.AddSingleton<SidebarService>();
+        builder.Services.AddSingleton<BackButtonService>();
+        builder.Services.AddSingleton<ThemeService>();
+
+        builder.Services.AddTransient<AuthenticationDelegatingHandler>();
+        builder.Services.AddHttpClient(nameof(K7ServerService))
+            .AddHttpMessageHandler<AuthenticationDelegatingHandler>()
+#if ANDROID
+            // HttpURLConnection (AndroidMessageHandler) only allows standard HTTP methods.
+            // SocketsHttpHandler supports QUERY and other custom methods.
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler())
+#endif
+            ;
+        builder.Services.AddSingleton<K7ServerService>(sp =>
+        {
+            var factory = sp.GetRequiredService<IHttpClientFactory>();
+            var client = factory.CreateClient(nameof(K7ServerService));
+            return new K7ServerService(client);
+        });
+        builder.Services.AddSingleton<IK7ServerService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IMediaService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<ILibraryService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IPlaylistService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<ICollectionService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<ISearchService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IStreamingService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IDeviceApiService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IUserAdminService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IRatingService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IReviewService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<ISocialUserService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IServerInfoService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IBackgroundTaskService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IDiagnosticsService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IUserPreferencesService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IServerPreferencesService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IApiKeyAdminService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IClientAppPasswordUserService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IMusicIntelligenceAdminService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IScrobblingAdminService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IScrobblingUserService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<ITranscodeAdminService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IMusicIntelligenceClientService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IDownloadService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<INotificationAdminService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<IFederationService>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<K7ServerManagerService>();
+        builder.Services.AddSingleton<IServerConnectionService>(sp => sp.GetRequiredService<K7ServerManagerService>());
+
+        builder.Services.AddSingleton<WebViewJsBridge>();
+        builder.Services.AddSingleton<IDeviceService, DeviceService>();
+        builder.Services.AddSingleton<IExternalLinkService, MauiExternalLinkService>();
+#if !ANDROID
+        builder.Services.AddSingleton<ISoftKeyboardService, NoOpSoftKeyboardService>();
+#endif
+        builder.Services.AddSingleton<IAppExitService, AppExitService>();
+        builder.Services.AddSingleton<IBrightnessService, BrightnessService>();
+        builder.Services.AddSingleton<IVolumeService, VolumeService>();
+        builder.Services.AddSingleton<IStreamUriService, StreamUriService>();
+        builder.Services.AddSingleton<IPlayerService, PlayerService>();
+        builder.Services.AddSingleton<IAudioPlayerService, AudioPlayerService>();
+        // Scoped: IJSRuntime is scoped in Blazor Hybrid; a singleton would capture a dead runtime.
+        builder.Services.AddScoped<IAmbientThemeService, AmbientThemeService>();
+        builder.Services.AddSingleton<ISleepTimerService, SleepTimerService>();
+        builder.Services.AddSingleton<AutoplayService>();
+        builder.Services.AddSingleton<IMusicRadioPlaybackService, MusicRadioPlaybackService>();
+        builder.Services.AddSingleton<IMediaPlayerService, MediaPlayerService>();
+        builder.Services.AddSingleton<IMediaStreamSession, MediaSessionService>();
+        builder.Services.AddSingleton<IMediaBrowseService, MediaBrowseService>();
+        builder.Services.AddSingleton<IDeviceStorageService, DeviceStorageService>();
+        builder.Services.AddSingleton<IPageFilterStorage, PageFilterStorage>();
+        builder.Services.AddSingleton<ISharedProfileApi>(sp => sp.GetRequiredService<K7ServerService>());
+        builder.Services.AddSingleton<ISharedProfileLocalCache, SharedProfileLocalCache>();
+        builder.Services.AddSingleton<ISharedProfileService, SharedProfileService>();
+        builder.Services.AddSingleton<ISharedProfileSessionService, SharedProfileSessionService>();
+        builder.Services.AddSingleton<ISharedProfileDevicePinService, SharedProfileDevicePinService>();
+        builder.Services.AddSingleton<ILocalUserService, LocalUserService>();
+        builder.Services.AddSingleton<K7HubClient>();
+        builder.Services.AddSingleton<IVideoPlayerSettingsHubEvents>(sp => sp.GetRequiredService<K7HubClient>());
+        builder.Services.AddSingleton<IUserRatingSync, UserRatingSync>();
+        builder.Services.AddSingleton<IVideoPlayerUxSettingsSync, VideoPlayerUxSettingsSync>();
+        builder.Services.AddSingleton(new MediaCacheStore(maxEntries: 32));
+        builder.Services.AddSingleton<IHomeNavigationState, HomeNavigationState>();
+        builder.Services.AddSingleton<IHubFocusNavigationState, HubFocusNavigationState>();
+        builder.Services.AddSingleton<IHomeFeedStore, HomeFeedStore>();
+        builder.Services.AddSingleton<IFeedHubHostService, FeedHubHostService>();
+        builder.Services.AddSingleton<IMediaBrowseHubCoordinator, MediaBrowseHubCoordinator>();
+        builder.Services.AddSingleton<IExploreGroupStore, ExploreGroupStore>();
+        builder.Services.AddSingleton<ILibraryGroupContextStore, LibraryGroupContextStore>();
+        builder.Services.AddSingleton<PlaybackProgressTracker>();
+        builder.Services.AddSingleton<AudioPlaybackProgressTracker>();
+
+        // Offline playback services
+        builder.Services.AddDbContextFactory<Data.OfflineMediaDbContext>(options =>
+        {
+            var dbPath = Path.Combine(FileSystem.AppDataDirectory, "k7-offline.db");
+            options.UseSqlite($"Data Source={dbPath}");
+        });
+        builder.Services.AddSingleton<IConnectivityService, ConnectivityService>();
+        builder.Services.AddSingleton<IOfflineMediaStore, OfflineMediaStore>();
+        builder.Services.AddSingleton<IPlaybackJournal, PlaybackJournal>();
+#if !ANDROID
+        builder.Services.AddSingleton<IDownloadKeepAlive, NoOpDownloadKeepAlive>();
+#endif
+        builder.Services.AddSingleton<IDownloadManager, Services.DownloadManager>();
+        builder.Services.AddSingleton<IMusicCacheService, MusicCacheService>();
+        builder.Services.AddSingleton<IPlaybackSyncService, PlaybackSyncService>();
+
+        builder.Services.AddSingleton<K7DialogService>();
+        builder.Services.AddSingleton<IK7DialogService>(sp => sp.GetRequiredService<K7DialogService>());
+        builder.Services.AddSingleton<K7SnackbarService>();
+        builder.Services.AddSingleton<IK7Snackbar>(sp => sp.GetRequiredService<K7SnackbarService>());
+        builder.Services.AddSingleton<MediaCardContextMenuService>();
+        builder.Services.AddSingleton<IMediaCardContextMenuService>(sp => sp.GetRequiredService<MediaCardContextMenuService>());
+        builder.Services.AddSingleton<IClientErrorReporter, ClientErrorReporter>();
+        // Scoped: IJSRuntime is scoped in Blazor Hybrid; a singleton would capture a dead runtime.
+        builder.Services.AddScoped<ISpatialNavService, SpatialNavService>();
+        builder.Services.AddScoped<SoftKeyboardJsBridge>();
+#if WINDOWS
+        builder.Services.AddScoped<IWindowsStreamFetchJsBridge, WindowsStreamFetchJsBridge>();
+#else
+        builder.Services.AddScoped<IWindowsStreamFetchJsBridge, NoOpWindowsStreamFetchJsBridge>();
+#endif
+        builder.Services.AddSingleton<ICastOrchestrationService, CastOrchestrationService>();
+        builder.Services.AddSingleton<RemotePlaybackHandler>();
+        builder.Services.AddSingleton<RemoteControlService>();
+        builder.Services.AddSingleton<IRemoteControlService>(sp => sp.GetRequiredService<RemoteControlService>());
+        builder.Services.AddSingleton<SyncPlayService>();
+        builder.Services.AddSingleton<ISyncPlayService>(sp => sp.GetRequiredService<SyncPlayService>());
+        builder.Services.AddSingleton<ISyncPlayMediaLoader, SyncPlayMediaLoader>();
+        builder.Services.AddSingleton<SyncPlayPlaybackHandler>();
+
+        var serverUrl = Preferences.Get(PreferenceKeys.K7_SERVER_URL, null);
+        ConfigureOpenIddict(builder.Services, serverUrl);
+
+        builder.Services.AddAuthorizationCore();
+        builder.Services.AddSingleton<ICustomAuthenticationStateProvider, CustomAuthenticationStateProvider>();
+        builder.Services.AddSingleton(sp => (AuthenticationStateProvider)sp.GetRequiredService<ICustomAuthenticationStateProvider>());
+        builder.Services.AddSingleton<IFeatureAccessService, FeatureAccessService>();
+
+        System.Diagnostics.Debug.WriteLine("K7 MAUI - Calling builder.Build()");
+        var app = builder.Build();
+        NativeAuthTrace.Configure(app.Services);
+#if WINDOWS
+        WindowsProtocolActivation.Attach();
+#endif
+        System.Diagnostics.Debug.WriteLine("K7 MAUI - builder.Build() completed");
+
+        var offlineDbFactory = app.Services.GetRequiredService<IDbContextFactory<OfflineMediaDbContext>>();
+        OfflineDbBootstrap.Start(offlineDbFactory);
+        OpenIddictDbBootstrap.Start(app.Services);
+
+        // Event subscriptions only - do not block first frame on these graphs.
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                app.Services.GetRequiredService<AudioPlaybackProgressTracker>();
+                app.Services.GetRequiredService<RemotePlaybackHandler>();
+                app.Services.GetRequiredService<IPlaybackSyncService>();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("K7 MAUI - playback handler init failed: " + ex);
+            }
+        });
+
+        System.Diagnostics.Debug.WriteLine("K7 MAUI - CreateMauiApp returning");
+        return app;
+    }
+
+    private static void ConfigureOpenIddict(IServiceCollection services, string? serverUrl)
+    {
+        string dbPath;
+        try
+        {
+            dbPath = Path.Combine(FileSystem.AppDataDirectory, "k7-openiddict.db");
+            System.Diagnostics.Debug.WriteLine($"K7 MAUI - OpenIddict DB path: {dbPath}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"K7 MAUI - FileSystem.AppDataDirectory failed: {ex}");
+            dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "k7-openiddict.db");
+            System.Diagnostics.Debug.WriteLine($"K7 MAUI - Fallback DB path: {dbPath}");
+        }
+
+        System.Diagnostics.Debug.WriteLine("K7 MAUI - Initializing SQLitePCL");
+        SQLitePCL.Batteries_V2.Init();
+        System.Diagnostics.Debug.WriteLine("K7 MAUI - Registering DbContext");
+        services.AddDbContext<OpenIddictDbContext>(options =>
+        {
+            options.UseSqlite($"Filename={dbPath}");
+            options.UseOpenIddict();
+        });
+
+        System.Diagnostics.Debug.WriteLine("K7 MAUI - Registering OpenIddict");
+        services.AddOpenIddict()
+            .AddCore(options =>
+            {
+                options.UseEntityFrameworkCore()
+                       .UseDbContext<OpenIddictDbContext>();
+            })
+            .AddClient(options =>
+            {
+                options.AllowAuthorizationCodeFlow()
+                       .AllowDeviceAuthorizationFlow()
+                       .AllowRefreshTokenFlow();
+
+#if ANDROID || IOS
+                options.AddEphemeralEncryptionKey()
+                       .AddEphemeralSigningKey();
+#else
+                // Development certificates live in the CurrentUser X.509 store and often
+                // break after wiping LocalState. Prefer ephemeral keys on desktop too.
+                options.AddEphemeralEncryptionKey()
+                       .AddEphemeralSigningKey();
+#endif
+
+                // Required whenever authorization code flow is enabled, even before a
+                // server URL/registration exists (first-run SetupPage). Without this,
+                // IOptions validation throws SR.ID0356 on first CurrentValue access.
+                // Windows uses the same custom scheme as mobile so the system browser
+                // returns the code to the running app instead of http://localhost.
+                options.SetRedirectionEndpointUris(new Uri("k7://callback/login", UriKind.Absolute));
+
+                options.UseSystemIntegration();
+                options.UseSystemNetHttp()
+                       .SetProductInformation(typeof(MauiProgram).Assembly);
+
+                options.AddEventHandler(LoginCallbackResponseHandler.Descriptor);
+
+                if (!string.IsNullOrEmpty(serverUrl))
+                {
+                    options.AddRegistration(CreateK7Registration(serverUrl));
+                }
+            });
+
+        System.Diagnostics.Debug.WriteLine("K7 MAUI - Registering IHostEnvironment + IHostApplicationLifetime");
+        // MAUI doesn't support IHostedService/IHostApplicationLifetime natively.
+        // See https://github.com/dotnet/maui/issues/2244
+        services.AddSingleton<IHostEnvironment>(new HostingEnvironment
+        {
+            ApplicationName = typeof(MauiProgram).Assembly.GetName().Name!
+        });
+
+        services.AddSingleton<IHostApplicationLifetime, MauiHostApplicationLifetime>();
+
+#if !ANDROID
+        // Resolve the SAME singleton instances that OpenIddict registered as IHostedService,
+        // so that handlers (e.g. AttachDynamicPortToRedirectUri) see the started instances.
+        services.AddSingleton<IMauiInitializeService>(static provider =>
+        {
+            var service = provider.GetServices<IHostedService>()
+                .OfType<OpenIddictClientSystemIntegrationActivationHandler>()
+                .FirstOrDefault()
+                ?? throw new InvalidOperationException("OpenIddict activation handler is not registered.");
+            return new MauiHostedServiceAdapter(service, provider.GetRequiredService<IHostApplicationLifetime>());
+        });
+
+        services.AddSingleton<IMauiInitializeService>(static provider =>
+        {
+            var service = provider.GetServices<IHostedService>()
+                .OfType<OpenIddictClientSystemIntegrationHttpListener>()
+                .FirstOrDefault()
+                ?? throw new InvalidOperationException("OpenIddict HTTP listener is not registered.");
+            return new MauiHostedServiceAdapter(service, provider.GetRequiredService<IHostApplicationLifetime>());
+        });
+
+        services.AddSingleton<IMauiInitializeService>(static provider =>
+        {
+            var service = provider.GetServices<IHostedService>()
+                .OfType<OpenIddictClientSystemIntegrationPipeListener>()
+                .FirstOrDefault()
+                ?? throw new InvalidOperationException("OpenIddict pipe listener is not registered.");
+            return new MauiHostedServiceAdapter(service, provider.GetRequiredService<IHostApplicationLifetime>());
+        });
+#endif
+
+        services.AddScoped<IMauiInitializeScopedService, MauiDatabaseInitializer>();
+    }
+
+    internal static OpenIddictClientRegistration CreateK7Registration(string serverUrl)
+    {
+        return new OpenIddictClientRegistration
+        {
+            Issuer = new Uri(serverUrl, UriKind.Absolute),
+            ProviderName = "K7",
+            RegistrationId = $"K7:{serverUrl}",
+            ClientId = "k7-native",
+            RedirectUri = new Uri("k7://callback/login", UriKind.Absolute),
+            Scopes = { Scopes.Email, Scopes.Profile, Scopes.Roles, Scopes.OfflineAccess, "api" }
+        };
+    }
+
+    static partial void ConfigurePlatformServices(this IServiceCollection services);
+}

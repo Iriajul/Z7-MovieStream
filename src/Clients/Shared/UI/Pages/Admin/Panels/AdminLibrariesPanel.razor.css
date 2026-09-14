@@ -1,0 +1,41 @@
+::deep .library-card__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+::deep .library-card__title {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+::deep .library-card__path {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    overflow: hidden;
+}
+
+::deep .library-card__path span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+::deep .library-card__stat strong {
+    color: var(--color-text-primary);
+}
+
+::deep .library-card__scan-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+::deep .library-card__scan-label {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}

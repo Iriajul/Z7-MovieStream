@@ -1,0 +1,21 @@
+@using K7.Server.Web.Infrastructure
+@inject TrendingPosterService TrendingPosters
+
+<div class="auth-backdrop" aria-hidden="true">
+    @if (_posterUrls.Count > 0)
+    {
+        <div class="auth-backdrop__grid">
+            @for (var i = 0; i < 32; i++)
+            {
+                <img src="@_posterUrls[i % _posterUrls.Count]" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<string> _posterUrls = [];
+
+    protected override async Task OnInitializedAsync() =>
+        _posterUrls = await TrendingPosters.GetShuffledAsync();
+}

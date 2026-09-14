@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Lottie Preview</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0d0907; color: #f3ecde; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 2rem; gap: 2rem; }
+        h1 { font-size: 1.25rem; font-weight: 500; opacity: .6; }
+        .preview { background: #1a1410; border: 1px solid rgba(217, 176, 96, .26); border-radius: 12px; padding: 2rem; }
+        #animation { width: 400px; height: 220px; }
+        .controls { display: flex; gap: 1rem; align-items: center; }
+        button { background: #221a14; color: #f3ecde; border: 1px solid rgba(217, 176, 96, .26); border-radius: 6px; padding: .5rem 1rem; cursor: pointer; font-size: .875rem; }
+        button:hover { background: #2a2018; }
+        label { font-size: .875rem; opacity: .7; }
+        select { background: #221a14; color: #f3ecde; border: 1px solid rgba(217, 176, 96, .26); border-radius: 6px; padding: .4rem .6rem; }
+    </style>
+</head>
+<body>
+    <h1>Lottie Preview - splash.json</h1>
+    <div class="preview">
+        <div id="animation"></div>
+    </div>
+    <div class="controls">
+        <button onclick="anim.goToAndPlay(0, true)">Replay</button>
+        <button onclick="anim.pause()">Pause</button>
+        <button onclick="anim.play()">Play</button>
+        <label>Speed:
+            <select onchange="anim.setSpeed(parseFloat(this.value))">
+                <option value="0.25">0.25x</option>
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="2">2x</option>
+            </select>
+        </label>
+        <label>
+            <input type="checkbox" checked onchange="anim.loop = this.checked"> Loop
+        </label>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.13.0/lottie.min.js"></script>
+    <script>
+        var anim = lottie.loadAnimation({
+            container: document.getElementById('animation'),
+            renderer: 'svg',
+            loop: true,
+            autoplay: true,
+            path: '_content/K7.Clients.Shared.UI/animations/splash.json'
+        });
+    </script>
+</body>
+</html>

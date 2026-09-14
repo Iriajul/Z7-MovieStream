@@ -1,0 +1,75 @@
+@page "/admin/api-keys"
+@layout AdminLayout
+@using K7.Server.Domain.Enums
+@using K7.Shared.Dtos
+@inject IStringLocalizer<AdminApiKeysPanel> L
+@inject IStringLocalizer<SharedResource> S
+@inject IK7Snackbar Snackbar
+@inject IApiKeyAdminService ApiKeyAdminService
+
+<div class="full-bleed-page">
+    <div class="data-page-toolbar">
+        <h5 class="data-page-toolbar__title">@L["Title"]</h5>
+        <div class="data-page-toolbar__end">
+            @if (!_loading && _apiKeys.Count > 0)
+            {
+                <K7ResultCount Count="_apiKeys.Count" />
+            }
+            <K7Button StartIcon="@Phosphor.Plus" Variant="filled" Color="primary"
+                       OnClick="ShowCreateDialog" aria-label="@L["AriaCreate"]">
+                @L["CreateKey"]
+            </K7Button>
+        </div>
+    </div>
+
+    <div class="data-page-body" aria-live="polite">
+        @if (_loading)
+        {
+            <K7ProgressBar Indeterminate="true" />
+        }
+        else if (_apiKeys.Count == 0)
+        {
+            <K7EmptyState Icon="@Phosphor.Key" Title="@L["Empty"]" Subtitle="@L["EmptyHint"]" />
+        }
+        else
+        {
+            <K7DataTable TItem="ApiKeyDto" Items="_apiKeys" RowHeight="60"
+                         ShowToolbar="false" Surface="false" Height="100%"
+                         RowId="@(k => $"apikey-{k.Id}")">
+                <K7DataColumn TItem="ApiKeyDto" Title="@L["HeaderName"]" Hideable="false">
+                    <CellTemplate>
+                        <div class="d-flex flex-col">
+                            <p>@context.Name</p>
+                            <span class="text-caption" style="color: var(--color-text-muted);">@context.KeyPrefix...</span>
+                        </div>
+                    </CellTemplate>
+                </K7DataColumn>
+                <K7DataColumn TItem="ApiKeyDto" Title="@L["HeaderScope"]" Width="120px">
+                    <CellTemplate>
+                        <K7Chip Size="sm" Color="default">@GetScopeLabel(context.Scope)</K7Chip>
+                    </CellTemplate>
+                </K7DataColumn>
+                <K7DataColumn TItem="ApiKeyDto" Title="@L["HeaderCreated"]" Width="160px">
+                    <CellTemplate>
+                        <span class="text-caption">@FormatDate(context.CreatedAt)</span>
+                    </CellTemplate>
+                </K7DataColumn>
+                <K7DataColumn TItem="ApiKeyDto" Title="@L["HeaderExpires"]" Width="160px">
+                    <CellTemplate>
+                        <span class="text-caption">@(context.ExpiresAt is null ? L["Never"] : FormatDate(context.ExpiresAt.Value))</span>
+                    </CellTemplate>
+                </K7DataColumn>
+                <K7DataColumn TItem="ApiKeyDto" Title="@L["HeaderLastUsed"]" Width="160px">
+                    <CellTemplate>
+                        <span class="text-caption">@(context.LastUsedAt is null ? L["Never"] : FormatDate(context.LastUsedAt.Value))</span>
+                    </CellTemplate>
+                </K7DataColumn>
+                <K7DataColumn TItem="ApiKeyDto" Title="@L["HeaderActions"]" Width="80px" Hideable="false">
+                    <CellTemplate>
+                        <K7IconButton Icon="@Phosphor.Trash" OnClick="@(() => RevokeKey(context))" AriaLabel="@L["AriaRevoke"]" />
+                    </CellTemplate>
+                </K7DataColumn>
+            </K7DataTable>
+        }
+    </div>
+</div>

@@ -1,0 +1,459 @@
+using K7.Server.Application.Common.Services;
+using K7.Server.Application.Helpers;
+using K7.Server.Domain.Entities;
+using K7.Server.Domain.Entities.Medias;
+using K7.Server.Domain.Entities.Metadatas;
+using K7.Server.Domain.Entities.Metadatas.Files;
+using K7.Server.Domain.Entities.Metadatas.PersonRoles;
+using K7.Server.Domain.Entities.Ratings;
+using K7.Server.Domain.Entities.Users;
+using K7.Server.Domain.Enums;
+using K7.Shared.Dtos.Entities;
+using K7.Shared.Dtos.Entities.Medias;
+
+namespace K7.Server.Application.Common.Mappings;
+
+public static class MediaMappings
+{
+    extension(BaseMedia domain)
+    {
+        public MediaDto ToMediaDto(
+            IReadOnlyDictionary<Guid, ItemPlaybackBookmark>? itemBookmarks = null) => domain switch
+        {
+            Movie movie => new MovieDto()
+            {
+                Id = domain.Id,
+                Title = domain.Title,
+                SortTitle = domain.SortTitle,
+                OriginalTitle = domain.OriginalTitle,
+                ReleaseDate = domain.ReleaseDate,
+                Pictures = domain.Pictures.Select(p => p.ToMetadataPictureDto()).ToList(),
+                PersonRoles = domain.PersonRoles.Select(r => r.ToLitePersonRoleDto()).ToList(),
+                Ratings = domain.Ratings.Select(r => r.ToRatingDto()).ToList(),
+                IndexedFiles = domain.IndexedFiles.Select(f => f.ToIndexedFileDto()).ToList(),
+                RemoteIndexedFiles = domain.RemoteIndexedFiles.Select(f => f.ToRemoteIndexedFileDto()).ToList(),
+                Genres = domain.GetGenreDisplayNames(),
+                LockedFields = domain.LockedFields.ToList(),
+                ExternalIds = domain.ExternalIds.Select(e => e.ToExternalIdDto()).ToList(),
+                Overview = movie.Overview,
+                OriginalLanguage = movie.OriginalLanguage,
+                TagLine = movie.Tagline,
+                ContentRating = movie.GetContentRatingDisplayName(),
+                Budget = movie.Budget,
+                Revenue = movie.Revenue,
+                Studios = movie.GetStudioDisplayNames(),
+                Trailers = domain.Trailers?.Select(t => t.ToTrailerDto()).ToList() ?? [],
+                UserState = MapUserState(domain, itemBookmarks),
+                LastMetadataRefreshedAt = domain.LastMetadataRefreshedAt
+            },
+            MusicAlbum album => new MusicAlbumDto()
+            {
+                Id = domain.Id,
+                Title = domain.Title,
+                SortTitle = domain.SortTitle,
+                OriginalTitle = domain.OriginalTitle,
+                ReleaseDate = domain.ReleaseDate,
+                Pictures = domain.Pictures.Select(p => p.ToMetadataPictureDto()).ToList(),
+                PersonRoles = domain.PersonRoles.Select(r => r.ToLitePersonRoleDto()).ToList(),
+                Ratings = domain.Ratings.Select(r => r.ToRatingDto()).ToList(),
+                IndexedFiles = domain.IndexedFiles.Select(f => f.ToIndexedFileDto()).ToList(),
+                RemoteIndexedFiles = domain.RemoteIndexedFiles.Select(f => f.ToRemoteIndexedFileDto()).ToList(),
+                Genres = domain.GetGenreDisplayNames(),
+                LockedFields = domain.LockedFields.ToList(),
+                ExternalIds = domain.ExternalIds.Select(e => e.ToExternalIdDto()).ToList(),
+                Overview = album.Overview,
+                ArtistId = album.ArtistId,
+                ArtistName = album.Artist?.Title,
+                Tracks = album.Tracks.Select(t => (LiteMusicTrackDto)t.ToLiteMediaDto(itemBookmarks: itemBookmarks)).ToList(),
+                UserState = MapUserState(domain, itemBookmarks),
+                LastMetadataRefreshedAt = domain.LastMetadataRefreshedAt
+            },
+            MusicTrack track => new MusicTrackDto()
+            {
+                Id = domain.Id,
+                Title = domain.Title,
+                SortTitle = domain.SortTitle,
+                OriginalTitle = domain.OriginalTitle,
+                ReleaseDate = domain.ReleaseDate,
+                Pictures = (track.Album?.Pictures ?? domain.Pictures).Select(p => p.ToMetadataPictureDto()).ToList(),
+                PersonRoles = domain.PersonRoles.Select(r => r.ToLitePersonRoleDto()).ToList(),
+                Ratings = domain.Ratings.Select(r => r.ToRatingDto()).ToList(),
+                IndexedFiles = domain.IndexedFiles.Select(f => f.ToIndexedFileDto()).ToList(),
+                RemoteIndexedFiles = domain.RemoteIndexedFiles.Select(f => f.ToRemoteIndexedFileDto()).ToList(),
+                Genres = domain.GetGenreDisplayNames(),
+                LockedFields = domain.LockedFields.ToList(),
+                ExternalIds = domain.ExternalIds.Select(e => e.ToExternalIdDto()).ToList(),
+                AlbumId = track.AlbumId,
+                AlbumTitle = track.Album?.Title,
+                ArtistId = track.ArtistId ?? track.Album?.ArtistId,
+                ArtistName = track.Artist?.Title ?? track.Album?.Artist?.Title,
+                TrackNumber = track.TrackNumber,
+                DiscNumber = track.DiscNumber,
+                Lyrics = track.Lyrics,
+                LyricsLrc = track.LyricsLrc,
+                LoudnessLufs = track.AudioAnalysis?.LoudnessLufs,
+                WaveformPeaks = track.AudioAnalysis?.WaveformPeaks,
+                FadeInDuration = track.AudioAnalysis?.FadeInDuration,
+                FadeOutDuration = track.AudioAnalysis?.FadeOutDuration,
+                ReplayGainTrackGain = track.AudioAnalysis?.ReplayGainTrackGain,
+                UserState = MapUserState(domain, itemBookmarks),
+                LastMetadataRefreshedAt = domain.LastMetadataRefreshedAt
+            },
+            MusicArtist artist => new MusicArtistDto()
+            {
+                Id = domain.Id,
+                Title = domain.Title,
+                SortTitle = domain.SortTitle,
+                OriginalTitle = domain.OriginalTitle,
+                ReleaseDate = domain.ReleaseDate,
+                Pictures = domain.Pictures.Select(p => p.ToMetadataPictureDto()).ToList(),
+                PersonRoles = domain.PersonRoles.Select(r => r.ToLitePersonRoleDto()).ToList(),
+                Ratings = domain.Ratings.Select(r => r.ToRatingDto()).ToList(),
+                IndexedFiles = domain.IndexedFiles.Select(f => f.ToIndexedFileDto()).ToList(),
+                RemoteIndexedFiles = domain.RemoteIndexedFiles.Select(f => f.ToRemoteIndexedFileDto()).ToList(),
+                Genres = domain.GetGenreDisplayNames(),
+                LockedFields = domain.LockedFields.ToList(),
+                ExternalIds = domain.ExternalIds.Select(e => e.ToExternalIdDto()).ToList(),
+                ArtistType = artist.ArtistType,
+                Biography = artist.Biography,
+                Country = artist.Country,
+                Albums = artist.Albums.Select(a => (MusicAlbumDto)a.ToMediaDto(itemBookmarks)).ToList(),
+                UserState = MapUserState(domain, itemBookmarks),
+                LastMetadataRefreshedAt = domain.LastMetadataRefreshedAt
+            },
+            Serie serie => MapSerieDto(domain, serie, itemBookmarks),
+            SerieSeason season => new SerieSeasonDto()
+            {
+                Id = domain.Id,
+                Title = domain.Title,
+                SortTitle = domain.SortTitle,
+                OriginalTitle = domain.OriginalTitle,
+                ReleaseDate = domain.ReleaseDate,
+                Pictures = domain.Pictures.Select(p => p.ToMetadataPictureDto()).ToList(),
+                PersonRoles = domain.PersonRoles.Select(r => r.ToLitePersonRoleDto()).ToList(),
+                Ratings = domain.Ratings.Select(r => r.ToRatingDto()).ToList(),
+                IndexedFiles = domain.IndexedFiles.Select(f => f.ToIndexedFileDto()).ToList(),
+                RemoteIndexedFiles = domain.RemoteIndexedFiles.Select(f => f.ToRemoteIndexedFileDto()).ToList(),
+                Genres = domain.GetGenreDisplayNames(),
+                LockedFields = domain.LockedFields.ToList(),
+                ExternalIds = domain.ExternalIds.Select(e => e.ToExternalIdDto()).ToList(),
+                SeasonNumber = season.SeasonNumber,
+                Overview = season.Overview,
+                SerieId = season.SerieId,
+                SerieTitle = season.Serie?.Title,
+                Episodes = season.Episodes
+                    .OrderBy(e => e.EpisodeNumber)
+                    .Select(e => (LiteSerieEpisodeDto)e.ToLiteMediaDto(itemBookmarks: itemBookmarks))
+                    .ToList(),
+                UserState = MapUserState(domain, itemBookmarks),
+                LastMetadataRefreshedAt = domain.LastMetadataRefreshedAt
+            },
+            SerieEpisode episode => new SerieEpisodeDto()
+            {
+                Id = domain.Id,
+                Title = domain.Title,
+                SortTitle = domain.SortTitle,
+                OriginalTitle = domain.OriginalTitle,
+                ReleaseDate = domain.ReleaseDate,
+                Pictures = domain.Pictures.Select(p => p.ToMetadataPictureDto()).ToList(),
+                PersonRoles = domain.PersonRoles.Select(r => r.ToLitePersonRoleDto()).ToList(),
+                Ratings = domain.Ratings.Select(r => r.ToRatingDto()).ToList(),
+                IndexedFiles = domain.IndexedFiles.Select(f => f.ToIndexedFileDto()).ToList(),
+                RemoteIndexedFiles = domain.RemoteIndexedFiles.Select(f => f.ToRemoteIndexedFileDto()).ToList(),
+                Genres = domain.GetGenreDisplayNames(),
+                LockedFields = domain.LockedFields.ToList(),
+                ExternalIds = domain.ExternalIds.Select(e => e.ToExternalIdDto()).ToList(),
+                EpisodeNumber = episode.EpisodeNumber,
+                SeasonNumber = episode.Season?.SeasonNumber ?? 0,
+                Overview = episode.Overview,
+                AirDate = episode.AirDate,
+                Runtime = episode.Runtime,
+                SerieId = episode.SerieId,
+                SeasonId = episode.SeasonId,
+                SerieTitle = episode.Serie?.Title,
+                SeasonTitle = episode.Season?.Title,
+                UserState = MapUserState(domain, itemBookmarks),
+                LastMetadataRefreshedAt = domain.LastMetadataRefreshedAt
+            },
+            _ => throw new NotSupportedException($"Unknown type: {domain.GetType().Name}")
+        };
+
+        public LiteMediaDto ToLiteMediaDto(
+            IReadOnlyDictionary<Guid, int>? serieSeasonCounts = null,
+            IReadOnlyDictionary<Guid, IReadOnlyList<MetadataPictureSize>>? pictureSizes = null,
+            IReadOnlyDictionary<Guid, ItemPlaybackBookmark>? itemBookmarks = null)
+        {
+            MetadataPictureDto MapPicture(MetadataPicture picture) => picture.ToMetadataPictureDto(pictureSizes);
+            List<MetadataPictureDto> MapPictures(IEnumerable<MetadataPicture> pictures) =>
+                pictures.Select(MapPicture).ToList();
+
+            LiteSerieEpisodeDto MapSerieEpisode(SerieEpisode episode)
+            {
+                var indexedFile = domain.IndexedFiles.FirstOrDefault();
+                var remoteIndexedFile = domain.RemoteIndexedFiles.FirstOrDefault();
+
+                return new LiteSerieEpisodeDto()
+                {
+                    Id = domain.Id,
+                    Title = domain.Title,
+                    SortTitle = domain.SortTitle,
+                    ReleaseDate = domain.ReleaseDate,
+                    Created = domain.Created,
+                    Pictures = MapPictures(domain.Pictures),
+                    EpisodeNumber = episode.EpisodeNumber,
+                    SeasonNumber = episode.Season?.SeasonNumber ?? 0,
+                    SerieSeasonCount = SerieSeasonCountHelper.ResolveCount(episode.SerieId, episode.Serie, serieSeasonCounts),
+                    Duration = (indexedFile?.FileMetadata as VideoFileMetadata)?.Duration.TotalSeconds
+                        ?? remoteIndexedFile?.Duration?.TotalSeconds,
+                    Overview = episode.Overview,
+                    SerieId = episode.SerieId,
+                    SerieTitle = episode.Serie?.Title,
+                    SerieReleaseDate = episode.Serie?.ReleaseDate,
+                    StillImageId = domain.Pictures
+                        .Where(p => p.Type == MetadataPictureType.Still)
+                        .Select(p => (Guid?)p.Id)
+                        .FirstOrDefault(),
+                    IndexedFileId = indexedFile?.Id,
+                    RemoteIndexedFileId = remoteIndexedFile?.Id,
+                    SeriePictures = episode.Serie?.Pictures is { } seriePictures ? MapPictures(seriePictures) : null,
+                    SeasonPictures = episode.Season?.Pictures is { } seasonPictures ? MapPictures(seasonPictures) : null,
+                    UserState = MapUserState(domain, itemBookmarks),
+                    UserRating = GetUserRating(domain)
+                };
+            }
+
+            return domain switch
+            {
+                Movie movie => new LiteMovieDto()
+                {
+                    Id = domain.Id,
+                    Title = domain.Title,
+                    SortTitle = domain.SortTitle,
+                    ReleaseDate = domain.ReleaseDate,
+                    Created = domain.Created,
+                    Pictures = MapPictures(domain.Pictures),
+                    UserState = MapUserState(domain, itemBookmarks),
+                    UserRating = GetUserRating(domain)
+                },
+                MusicAlbum album => new LiteMusicAlbumDto()
+                {
+                    Id = domain.Id,
+                    Title = domain.Title,
+                    SortTitle = domain.SortTitle,
+                    ReleaseDate = domain.ReleaseDate,
+                    Created = domain.Created,
+                    Pictures = MapPictures(domain.Pictures),
+                    ArtistId = album.ArtistId,
+                    ArtistName = album.Artist?.Title,
+                    UserState = MapUserState(domain, itemBookmarks),
+                    UserRating = GetUserRating(domain)
+                },
+                MusicTrack track => new LiteMusicTrackDto()
+                {
+                    Id = domain.Id,
+                    Title = domain.Title,
+                    SortTitle = domain.SortTitle,
+                    ReleaseDate = domain.ReleaseDate,
+                    Created = domain.Created,
+                    Pictures = MapPictures(track.Album?.Pictures ?? domain.Pictures),
+                    AlbumId = track.AlbumId,
+                    TrackNumber = track.TrackNumber,
+                    IndexedFileId = domain.IndexedFiles.FirstOrDefault()?.Id,
+                    RemoteIndexedFileId = domain.RemoteIndexedFiles.FirstOrDefault()?.Id,
+                    Duration = (domain.IndexedFiles.FirstOrDefault()?.FileMetadata as AudioFileMetadata)?.Duration.TotalSeconds
+                        ?? domain.RemoteIndexedFiles.FirstOrDefault()?.Duration?.TotalSeconds,
+                    AlbumTitle = track.Album?.Title,
+                    ArtistName = track.Artist?.Title ?? track.Album?.Artist?.Title,
+                    ArtistId = track.ArtistId ?? track.Album?.ArtistId,
+                    Genre = track.GetPrimaryGenreDisplayName(),
+                    LoudnessLufs = track.AudioAnalysis?.LoudnessLufs,
+                    FadeInDuration = track.AudioAnalysis?.FadeInDuration,
+                    FadeOutDuration = track.AudioAnalysis?.FadeOutDuration,
+                    ReplayGainTrackGain = track.AudioAnalysis?.ReplayGainTrackGain,
+                    ArtistCredits = track.ArtistCredits.Count > 0
+                        ? track.ArtistCredits.OrderBy(c => c.Order).Select(c => new MusicArtistCreditDto
+                        {
+                            ArtistId = c.MusicArtistId,
+                            ArtistName = c.MusicArtist?.Title ?? "",
+                            IsGuest = c.IsGuest
+                        }).ToList()
+                        : null,
+                    UserState = MapUserState(domain, itemBookmarks),
+                    UserRating = GetUserRating(domain)
+                },
+                MusicArtist artist => new LiteMusicArtistDto()
+                {
+                    Id = domain.Id,
+                    Title = domain.Title,
+                    SortTitle = domain.SortTitle,
+                    ReleaseDate = domain.ReleaseDate,
+                    Created = domain.Created,
+                    Pictures = MapPictures(domain.Pictures),
+                    ArtistType = artist.ArtistType,
+                    Country = artist.Country,
+                    Albums = artist.Albums.Count > 0
+                        ? artist.Albums.Select(a => (LiteMusicAlbumDto)a.ToLiteMediaDto()).ToList()
+                        : null,
+                    GuestAppearanceAlbums = artist.ArtistCredits.Count > 0
+                        ? artist.ArtistCredits
+                            .Where(c => c.IsGuest && c.Media is MusicTrack { Album: not null })
+                            .Select(c => ((MusicTrack)c.Media).Album)
+                            .DistinctBy(a => a.Id)
+                            .Select(a => (LiteMusicAlbumDto)a.ToLiteMediaDto())
+                            .ToList() is { Count: > 0 } guestAlbums ? guestAlbums : null
+                        : null,
+                    UserState = MapUserState(domain, itemBookmarks),
+                    UserRating = GetUserRating(domain)
+                },
+                Serie => new LiteSerieDto()
+                {
+                    Id = domain.Id,
+                    Title = domain.Title,
+                    SortTitle = domain.SortTitle,
+                    ReleaseDate = domain.ReleaseDate,
+                    Created = domain.Created,
+                    Pictures = MapPictures(domain.Pictures),
+                    UserState = MapUserState(domain, itemBookmarks),
+                    UserRating = GetUserRating(domain)
+                },
+                SerieSeason season => new LiteSerieSeasonDto()
+                {
+                    Id = domain.Id,
+                    Title = domain.Title,
+                    SortTitle = domain.SortTitle,
+                    ReleaseDate = domain.ReleaseDate,
+                    Created = domain.Created,
+                    Pictures = MapPictures(domain.Pictures),
+                    SerieId = season.SerieId,
+                    SerieTitle = season.Serie?.Title,
+                    SeasonNumber = season.SeasonNumber,
+                    EpisodeCount = SeriePlayableHelper.CountPlayableEpisodes(season.Episodes),
+                    Poster = domain.Pictures
+                        .Where(p => p.Type == MetadataPictureType.Poster)
+                        .Select(MapPicture)
+                        .FirstOrDefault(),
+                    SeriePictures = season.Serie?.Pictures is { } seriePictures ? MapPictures(seriePictures) : null,
+                    UserState = SeasonWatchStateHelper.AggregateFromEpisodes(season.Episodes.ToList())
+                        ?? MapUserState(domain, itemBookmarks),
+                    UserRating = GetUserRating(domain)
+                },
+                SerieEpisode episode => MapSerieEpisode(episode),
+                _ => throw new NotSupportedException($"Unknown type: {domain.GetType().Name}")
+            };
+        }
+    }
+
+    extension(BaseRating domain)
+    {
+        public RatingDto ToRatingDto() => new()
+        {
+            Id = domain.Id,
+            Source = domain.Source,
+            Value = domain.Value,
+            MinimumValue = domain.MinimumValue,
+            MaximumValue = domain.MaximumValue
+        };
+    }
+
+    extension(MediaDto dto)
+    {
+        public BaseMedia ToDomainEntity() => dto switch
+        {
+            MovieDto => new Movie(),
+            MusicAlbumDto => new MusicAlbum(),
+            MusicTrackDto => new MusicTrack(),
+            MusicArtistDto => new MusicArtist(),
+            SerieDto => new Serie(),
+            SerieSeasonDto => new SerieSeason(),
+            SerieEpisodeDto => new SerieEpisode(),
+            _ => throw new NotSupportedException($"Unknown type: {dto.GetType().Name}")
+        };
+    }
+
+    extension(TrailerInfo domain)
+    {
+        public TrailerDto ToTrailerDto() => new()
+        {
+            Key = domain.Key,
+            Name = domain.Name,
+            Site = domain.Site,
+            Type = domain.Type,
+            Language = domain.Language
+        };
+    }
+
+    private static SerieDto MapSerieDto(
+        BaseMedia domain,
+        Serie serie,
+        IReadOnlyDictionary<Guid, ItemPlaybackBookmark>? itemBookmarks)
+    {
+        var seriePictures = domain.Pictures.Select(p => p.ToMetadataPictureDto()).ToList();
+
+        return new SerieDto()
+        {
+            Id = domain.Id,
+            Title = domain.Title,
+            SortTitle = domain.SortTitle,
+            OriginalTitle = domain.OriginalTitle,
+            ReleaseDate = domain.ReleaseDate,
+            Pictures = seriePictures,
+            PersonRoles = domain.PersonRoles.Select(r => r.ToLitePersonRoleDto()).ToList(),
+            Ratings = domain.Ratings.Select(r => r.ToRatingDto()).ToList(),
+            IndexedFiles = domain.IndexedFiles.Select(f => f.ToIndexedFileDto()).ToList(),
+            RemoteIndexedFiles = domain.RemoteIndexedFiles.Select(f => f.ToRemoteIndexedFileDto()).ToList(),
+            Genres = domain.GetGenreDisplayNames(),
+            LockedFields = domain.LockedFields.ToList(),
+            ExternalIds = domain.ExternalIds.Select(e => e.ToExternalIdDto()).ToList(),
+            Overview = serie.Overview,
+            Status = serie.Status,
+            OriginalLanguage = serie.OriginalLanguage,
+            ContentRating = serie.GetContentRatingDisplayName(),
+            Network = serie.GetNetworkDisplayName(),
+            Studios = serie.GetStudioDisplayNames(),
+            Trailers = domain.Trailers?.Select(t => t.ToTrailerDto()).ToList() ?? [],
+            Seasons = serie.Seasons
+                .OrderBy(s => s.SeasonNumber)
+                .Select(s => new LiteSerieSeasonDto
+                {
+                    Id = s.Id,
+                    Title = s.Title,
+                    ReleaseDate = s.ReleaseDate,
+                    Pictures = s.Pictures.Select(p => p.ToMetadataPictureDto()).ToList(),
+                    SerieId = s.SerieId,
+                    SerieTitle = serie.Title,
+                    SeasonNumber = s.SeasonNumber,
+                    EpisodeCount = SeriePlayableHelper.CountPlayableEpisodes(s.Episodes),
+                    Poster = s.Pictures
+                        .Where(p => p.Type == MetadataPictureType.Poster)
+                        .Select(p => p.ToMetadataPictureDto())
+                        .FirstOrDefault(),
+                    SeriePictures = seriePictures,
+                    UserState = SeasonWatchStateHelper.AggregateFromEpisodes(s.Episodes.ToList())
+                })
+                .ToList(),
+            Runtime = serie.Seasons
+                .SelectMany(s => s.Episodes)
+                .Select(e => e.Runtime)
+                .FirstOrDefault(r => r is > 0),
+            UserState = MapUserState(domain, itemBookmarks),
+            LastMetadataRefreshedAt = domain.LastMetadataRefreshedAt
+        };
+    }
+
+    private static UserMediaStateDto? MapUserState(
+        BaseMedia media,
+        IReadOnlyDictionary<Guid, ItemPlaybackBookmark>? itemBookmarks)
+    {
+        ItemPlaybackBookmark? bookmark = null;
+        if (itemBookmarks is not null)
+            itemBookmarks.TryGetValue(media.Id, out bookmark);
+
+        if (media.UserMediaStates.FirstOrDefault() is { } state)
+            return state.ToUserMediaStateDto(bookmark);
+
+        return bookmark?.ToUserMediaStateDto();
+    }
+
+    private static int? GetUserRating(BaseMedia domain) =>
+        domain.Ratings.OfType<UserRating>().FirstOrDefault()?.Value is double v ? (int)v : null;
+}

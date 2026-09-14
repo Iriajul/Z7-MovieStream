@@ -1,0 +1,47 @@
+@namespace K7.Clients.Shared.UI.Components
+
+<div class="k7-category-card @(!string.IsNullOrEmpty(ResolvedImageUrl) ? "k7-category-card--has-image" : "") @(_menuOpen ? "k7-category-card--menu-open" : "") @Class"
+     style="--card-tone:@ComputedTone;--card-icon-color:@IconColor;@Style">
+    <div class="k7-category-card__container"
+         @ref="_longPressContainerRef"
+         data-longpress="@(ContextMenuEnabled ? "true" : null)"
+         @ontouchstart="OnTouchStart"
+         @ontouchmove="OnTouchMove"
+         @ontouchend="OnTouchEnd"
+         @ontouchend:preventDefault="@_longPressTriggered"
+         @ontouchcancel="OnTouchCancel"
+         @oncontextmenu="OnContextMenu"
+         @oncontextmenu:preventDefault="@ContextMenuEnabled">
+        <button type="button"
+                class="k7-category-card__hit focusable"
+                @onclick="OnHitClick"
+                @onkeydown="OnKeyDown"
+                @onkeyup="OnKeyUp"
+                @onfocusin="OnFocusInAsync"
+                @attributes="AdditionalAttributes">
+            @if (!string.IsNullOrEmpty(ResolvedImageUrl))
+            {
+                <div class="k7-category-card__bg" style="background-image:url('@ResolvedImageUrl')"></div>
+            }
+            <div class="k7-category-card__overlay"></div>
+
+            <div class="k7-category-card__body">
+                <div class="k7-category-card__text">
+                    <span class="k7-category-card__title">@Title</span>
+                    @if (!string.IsNullOrEmpty(Description))
+                    {
+                        <span class="k7-category-card__desc">@Description</span>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(Icon))
+                {
+                    <div class="k7-category-card__icon-badge" aria-hidden="true">
+                        <i class="ph ph-@Icon"></i>
+                    </div>
+                }
+            </div>
+        </button>
+        <div class="k7-category-card__focus-overlay" aria-hidden="true"></div>
+    </div>
+</div>

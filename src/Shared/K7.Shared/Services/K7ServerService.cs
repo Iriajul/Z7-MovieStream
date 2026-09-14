@@ -1,0 +1,2370 @@
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using K7.Server.Domain.Enums;
+using K7.Shared.Dtos;
+using K7.Shared.Dtos.Devices;
+using K7.Shared.Dtos.Diagnostics;
+using K7.Shared.Dtos.Entities;
+using K7.Shared.Dtos.Entities.Collections;
+using K7.Shared.Dtos.Entities.Medias;
+using K7.Shared.Dtos.Entities.Metadatas;
+using K7.Shared.Dtos.Entities.Persons;
+using K7.Shared.Dtos.Entities.Playlists;
+using K7.Shared.Dtos.Entities.Reviews;
+using K7.Shared.Dtos.Federation.Social;
+using K7.Shared.Dtos.Home;
+using K7.Shared.Dtos.Notifications;
+using K7.Shared.Dtos.Requests;
+using K7.Shared.Dtos.Restrictions;
+using K7.Shared.Dtos.Scrobbling;
+using K7.Shared.Dtos.Search;
+using K7.Shared.Dtos.SharedProfiles;
+using K7.Shared.Dtos.Users;
+using K7.Shared.Enums;
+using K7.Shared.Extensions;
+using K7.Shared.Interfaces;
+using K7.Shared.Json;
+using K7.Shared.QueryBuilders;
+
+namespace K7.Shared.Services;
+
+public class K7ServerService : IK7ServerService, IMediaService, ILibraryService, IPlaylistService, ICollectionService, ISearchService, IStreamingService, IDeviceApiService, IUserAdminService, IRatingService, IReviewService, ISocialUserService, IServerInfoService, IBackgroundTaskService, IDiagnosticsService, IUserPreferencesService, IServerPreferencesService, IDownloadService, INotificationAdminService, IFederationService, IApiKeyAdminService, IClientAppPasswordUserService, IMusicIntelligenceAdminService, IMusicIntelligenceClientService, ISharedProfileApi, ITranscodeAdminService, IScrobblingAdminService, IScrobblingUserService
+{
+    public HttpClient HttpClient { get; }
+    private readonly JsonSerializerOptions _serializerOptions;
+
+    public K7ServerService(HttpClient httpClient)
+    {
+        HttpClient = httpClient;
+
+        _serializerOptions = K7JsonSerializerOptions.CreateDefault();
+    }
+
+    public Uri? GetAbsoluteUri(string? relativePath)
+    {
+        return HttpClient.BaseAddress is not null && !string.IsNullOrEmpty(relativePath)
+            ? new Uri(HttpClient.BaseAddress, relativePath)
+            : null;
+    }
+
+    public async Task<Guid> CreateDeviceAsync(CreateDeviceRequest request, CancellationToken cancellationToken = default)
+    {
+        var requestUri = CreateDeviceRequestUriBuilder.Route;
+        var responseMessage = await HttpClient.PostAsJsonAsync(requestUri, request, _serializerOptions);
+        responseMessage.EnsureSuccessStatusCode();
+        var result = await responseMessage.Content.ReadFromJsonAsync<GetDeviceQuery>(_serializerOptions, cancellationToken);
+        return result!.Id;
+    }
+
+    public async Task UpdateDeviceAsync(Guid deviceId, UpdateDeviceRequest request, CancellationToken cancellationToken = default)
+    {
+        var responseMessage = await HttpClient.PutAsJsonAsync($"api/devices/{deviceId}", request, _serializerOptions, cancellationToken);
+        responseMessage.EnsureSuccessStatusCode();
+    }
+
+    public async Task AttachCurrentUserToDeviceAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        var responseMessage = await HttpClient.PostAsync($"/api/devices/{deviceId}/attach-user", null, cancellationToken);
+        responseMessage.EnsureSuccessStatusCode();
+    }
+
+    public async Task<PaginatedListDto<DeviceDto>?> GetDevicesAsync(GetDevicesQuery? query = null, CancellationToken cancellationToken = default)
+    {
+        var requestUri = GetDevicesQueryUriBuilder.Build(query);
+        return await HttpClient.GetFromJsonAsync<PaginatedListDto<DeviceDto>>(requestUri, _serializerOptions, cancellationToken);
+    }
+
+    public async Task DeleteDeviceAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/devices/{deviceId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<MediaFormatDto>> GetMediaFormatsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var formats = await HttpClient.GetFromJsonAsync<List<MediaFormatDto>>("api/media-formats", _serializerOptions, cancellationToken);
+            return formats ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    public async Task<MovieDto?> GetMovieAsync(Guid id, CancellationToken cancellationToken = default, bool bypassCache = false)
+    {
+        try
+        {
+            var url = BuildMediaUrl(id, bypassCache);
+            return await HttpClient.GetFromJsonAsync<MovieDto>(url, _serializerOptions, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            return null;
+        }
+    }
+
+    public async Task<PaginatedListDto<LiteMediaDto>?> GetLiteMediasAsync(GetMediasWithPaginationQuery query, CancellationToken cancellationToken = default)
+    {
+        var requestUri = GetMediasWithPaginationQueryUriBuilder.Build(query);
+        return await HttpClient.GetFromJsonAsync<PaginatedListDto<LiteMediaDto>>(requestUri, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<PaginatedListDto<LiteMediaDto>?> QueryMediasAsync(QueryMediasRequest request, CancellationToken cancellationToken = default)
+    {
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Query, "api/medias")
+        {
+            Content = JsonContent.Create(request, options: _serializerOptions)
+        };
+
+        using var response = await HttpClient.SendAsync(httpRequest, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<PaginatedListDto<LiteMediaDto>>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<MediaTagsDto?> GetMediaTagsAsync(GetMediaTagsQuery query, CancellationToken cancellationToken = default)
+    {
+        var requestUri = GetMediaTagsQueryUriBuilder.Build(query);
+        return await HttpClient.GetFromJsonAsync<MediaTagsDto>(requestUri, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<string>?> GetMediaBrowseFilterSuggestionsAsync(
+        GetMediaBrowseFilterSuggestionsQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var requestUri = GetMediaBrowseFilterSuggestionsQueryUriBuilder.Build(query);
+        return await HttpClient.GetFromJsonAsync<IReadOnlyList<string>>(requestUri, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<PaginatedListDto<HomeFeedItemDto>?> GetHomeFeedAsync(GetHomeFeedQuery query, CancellationToken cancellationToken = default)
+    {
+        var requestUri = GetHomeFeedQueryUriBuilder.Build(query);
+        return await HttpClient.GetFromJsonAsync<PaginatedListDto<HomeFeedItemDto>>(requestUri, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<MediaDto?> GetMediaAsync(Guid id, CancellationToken cancellationToken = default, bool bypassCache = false)
+    {
+        try
+        {
+            var url = BuildMediaUrl(id, bypassCache);
+            return await HttpClient.GetFromJsonAsync<MediaDto>(url, _serializerOptions, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            return null;
+        }
+    }
+
+    private static string BuildMediaUrl(Guid id, bool bypassCache) =>
+        bypassCache
+            ? $"api/medias/{id}?nocache={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
+            : $"api/medias/{id}";
+
+    public async Task<PersonDto?> GetPersonAsync(Guid id, CancellationToken cancellationToken = default, bool bypassCache = false)
+    {
+        var url = bypassCache
+            ? $"api/persons/{id}?nocache={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
+            : $"api/persons/{id}";
+        return await HttpClient.GetFromJsonAsync<PersonDto>(url, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<PaginatedListDto<PersonDto>?> GetPersonsAsync(GetPersonsWithPaginationQuery query, CancellationToken cancellationToken = default)
+    {
+        var requestUri = GetPersonsWithPaginationQueryUriBuilder.Build(query);
+        return await HttpClient.GetFromJsonAsync<PaginatedListDto<PersonDto>>(requestUri, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<IndexedFileStreamUri?> GetIndexedFileStreamUriAsync(GetIndexedFileStreamsUriQuery query, CancellationToken cancellationToken = default)
+    {
+        var requestUri = GetIndexedFileStreamsUriQueryUriBuilder.Build(query);
+        return await HttpClient.GetFromJsonAsync<IndexedFileStreamUri>(requestUri, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<StreamingSessionDto?> CreateStreamSessionAsync(CreateStreamSessionRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/stream-sessions", request, _serializerOptions, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            // Propagate the status code so callers can map 422 (media indexed but not probed yet)
+            // to a friendly "media preparing" message instead of a raw error.
+            throw new HttpRequestException($"Creating stream session failed with status {response.StatusCode}: {content}", inner: null, statusCode: response.StatusCode);
+        }
+
+        return await response.Content.ReadFromJsonAsync<StreamingSessionDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<StreamingSessionDto?> CreateRemoteStreamSessionAsync(CreateRemoteStreamSessionRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/remote-stream-sessions", request, _serializerOptions, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException($"Creating remote stream session failed with status {response.StatusCode}: {content}", inner: null, statusCode: response.StatusCode);
+        }
+
+        return await response.Content.ReadFromJsonAsync<StreamingSessionDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task ReportPlaybackProgressAsync(Guid mediaId, Guid sessionId, Guid referenceId, double position, double duration, int state, Guid? deviceId = null, Guid? playlistId = null, Guid? sharedProfileId = null, Guid? syncPlayGroupId = null, int? audioTrackIndex = null, int? subtitleTrackIndex = null, CancellationToken cancellationToken = default)
+    {
+        var payload = new { MediaId = mediaId, SessionId = sessionId, ReferenceId = referenceId, Position = position, Duration = duration, State = state, DeviceId = deviceId, PlaylistId = playlistId, SharedProfileId = sharedProfileId, SyncPlayGroupId = syncPlayGroupId, AudioTrackIndex = audioTrackIndex, SubtitleTrackIndex = subtitleTrackIndex };
+        var response = await HttpClient.PostAsJsonAsync("api/medias/playback-progress", payload, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<string?> GenerateEphemeralTokenAsync(Guid streamSessionId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/stream-sessions/{streamSessionId}/ephemeral-token", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<EphemeralTokenResponse>(_serializerOptions, cancellationToken);
+        return result?.Token;
+    }
+
+    public async Task RevokeEphemeralTokenAsync(Guid streamSessionId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/stream-sessions/{streamSessionId}/ephemeral-token", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task RateMediaAsync(Guid mediaId, int value, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/medias/{mediaId}/rating", new { Value = value }, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<SetMediaWatchStateResultDto?> SetMediaWatchStateAsync(Guid mediaId, bool watched, WatchStateScope scope = WatchStateScope.Item, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync(
+            $"api/medias/{mediaId}/watch-state",
+            new { Watched = watched, Scope = scope },
+            _serializerOptions,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<SetMediaWatchStateResultDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task DismissFromContinueWatchingAsync(Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/medias/{mediaId}/dismiss-continue-watching", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<WatchStatsDto?> GetWatchStatsAsync(string? mediaType = null, string period = "month", DateTime? from = null, DateTime? to = null, CancellationToken cancellationToken = default)
+    {
+        var queryParams = new List<string> { $"period={Uri.EscapeDataString(period)}" };
+        if (mediaType is not null) queryParams.Add($"mediaType={Uri.EscapeDataString(mediaType)}");
+        if (from is not null) queryParams.Add($"from={from.Value:O}");
+        if (to is not null) queryParams.Add($"to={to.Value:O}");
+        var url = $"api/stats?{string.Join("&", queryParams)}";
+        return await HttpClient.GetFromJsonAsync<WatchStatsDto>(url, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<PlaybackHistoryPageDto?> GetPlaybackHistoryAsync(int page = 1, int pageSize = 25, string? mediaType = null, string period = "month", DateTime? from = null, DateTime? to = null, CancellationToken cancellationToken = default)
+    {
+        var queryParams = new List<string> { $"page={page}", $"pageSize={pageSize}", $"period={Uri.EscapeDataString(period)}" };
+        if (mediaType is not null) queryParams.Add($"mediaType={Uri.EscapeDataString(mediaType)}");
+        if (from is not null) queryParams.Add($"from={from.Value:O}");
+        if (to is not null) queryParams.Add($"to={to.Value:O}");
+        var url = $"api/stats/history?{string.Join("&", queryParams)}";
+        return await HttpClient.GetFromJsonAsync<PlaybackHistoryPageDto>(url, _serializerOptions, cancellationToken);
+    }
+
+    public async Task ReassignPlaybackHistoryAsync(Guid referenceId, Guid? sharedProfileId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync(
+            $"api/stats/history/{referenceId}/assignment",
+            new ReassignPlaybackHistoryRequest { SharedProfileId = sharedProfileId },
+            _serializerOptions,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeletePlaybackHistoryAsync(Guid referenceId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/stats/history/{referenceId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ReassignAdminPlaybackHistoryAsync(Guid referenceId, Guid? sharedProfileId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync(
+            $"api/admin/stats/history/{referenceId}/assignment",
+            new ReassignPlaybackHistoryRequest { SharedProfileId = sharedProfileId },
+            _serializerOptions,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteAdminPlaybackHistoryAsync(Guid referenceId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/admin/stats/history/{referenceId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<IReadOnlyList<SharedProfileDto>> GetAdminSharedProfilesAsync(CancellationToken cancellationToken = default)
+    {
+        var groups = await HttpClient.GetFromJsonAsync<List<SharedProfileDto>>(
+            "api/admin/shared-profiles",
+            _serializerOptions,
+            cancellationToken);
+        return groups ?? [];
+    }
+
+    public async Task<List<LiteMediaDto>?> GetMusicRadioAsync(string radioType, Guid[]? libraryIds = null, Guid[]? libraryGroupIds = null, Guid? seedTrackId = null, Guid? seedArtistId = null, string? genre = null, int limit = 50, Guid[]? excludeIds = null, CancellationToken cancellationToken = default)
+    {
+        var queryParams = new List<string> { $"radioType={Uri.EscapeDataString(radioType)}" };
+        if (libraryIds is { Length: > 0 })
+        {
+            foreach (var libraryId in libraryIds)
+                queryParams.Add($"libraryIds={libraryId}");
+        }
+        if (libraryGroupIds is { Length: > 0 })
+        {
+            foreach (var libraryGroupId in libraryGroupIds)
+                queryParams.Add($"libraryGroupIds={libraryGroupId}");
+        }
+        if (seedTrackId.HasValue) queryParams.Add($"seedTrackId={seedTrackId.Value}");
+        if (seedArtistId.HasValue) queryParams.Add($"seedArtistId={seedArtistId.Value}");
+        if (!string.IsNullOrWhiteSpace(genre)) queryParams.Add($"genre={Uri.EscapeDataString(genre)}");
+        if (limit != 50) queryParams.Add($"limit={limit}");
+        if (excludeIds is { Length: > 0 })
+        {
+            foreach (var excludeId in excludeIds)
+                queryParams.Add($"excludeIds={excludeId}");
+        }
+        var url = $"api/music/radio?{string.Join("&", queryParams)}";
+        return await HttpClient.GetFromJsonAsync<List<LiteMediaDto>>(url, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<IEnumerable<MetadataSearchResult>> SearchMetadataAsync(string query, int? year = null, string? providerId = null, K7.Server.Domain.Enums.MediaType? mediaType = null, Guid? libraryId = null, string? language = null, CancellationToken cancellationToken = default)
+    {
+        var queryParams = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            queryParams.Add($"query={Uri.EscapeDataString(query)}");
+        }
+
+        if (year.HasValue)
+        {
+            queryParams.Add($"year={year.Value}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(providerId))
+        {
+            queryParams.Add($"providerId={Uri.EscapeDataString(providerId)}");
+        }
+
+        if (mediaType.HasValue)
+        {
+            queryParams.Add($"mediaType={(int)mediaType.Value}");
+        }
+
+        if (libraryId.HasValue)
+        {
+            queryParams.Add($"libraryId={libraryId.Value}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(language))
+        {
+            queryParams.Add($"language={Uri.EscapeDataString(language)}");
+        }
+
+        var queryString = string.Join("&", queryParams);
+        var formats = await HttpClient.GetFromJsonAsync<IEnumerable<MetadataSearchResult>>($"api/metadata/search?{queryString}", _serializerOptions, cancellationToken);
+        return formats ?? [];
+    }
+
+    public async Task ReidentifyIndexedFileAsync(Guid id, ReidentifyIndexedFileRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync($"api/indexed-files/{id}/reidentify", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ReidentifyMediaAsync(Guid id, ReidentifyMediaRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync($"api/medias/{id}/reidentify", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task RefreshMediaMetadataAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/medias/{id}/refresh-metadata", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateMediaMetadataAsync(Guid id, UpdateMediaMetadataRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/medias/{id}/metadata", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<Guid> UploadMediaPictureAsync(Guid mediaId, Stream stream, string fileName, MetadataPictureType pictureType, CancellationToken cancellationToken = default)
+    {
+        using var content = new MultipartFormDataContent();
+        content.Add(new StreamContent(stream), "file", fileName);
+        var response = await HttpClient.PostAsync($"api/medias/{mediaId}/pictures?pictureType={pictureType}", content, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task DeleteMediaPictureAsync(Guid mediaId, Guid pictureId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/medias/{mediaId}/pictures/{pictureId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<IReadOnlyList<ProviderImageDto>> GetMediaProviderImagesAsync(Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.GetAsync($"api/medias/{mediaId}/provider-images", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<ProviderImageDto>>(_serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<Guid> ImportMediaPictureFromUrlAsync(Guid mediaId, ImportMediaPictureFromUrlRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync($"api/medias/{mediaId}/pictures/import", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<Guid?> GenerateEpisodeStillFromSourceAsync(Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/medias/{mediaId}/pictures/generate-from-source", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+            return null;
+
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task RefreshPersonMetadataAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/persons/{id}/refresh-metadata", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdatePersonMetadataAsync(Guid id, UpdatePersonMetadataRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/persons/{id}/metadata", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<Guid> UploadPersonPictureAsync(Guid personId, Stream stream, string fileName, MetadataPictureType pictureType, CancellationToken cancellationToken = default)
+    {
+        using var content = new MultipartFormDataContent();
+        content.Add(new StreamContent(stream), "file", fileName);
+        var response = await HttpClient.PostAsync($"api/persons/{personId}/pictures?pictureType={pictureType}", content, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task DeletePersonPictureAsync(Guid personId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/persons/{personId}/pictures", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<Guid> ImportPersonPictureFromUrlAsync(Guid personId, ImportMediaPictureFromUrlRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync($"api/persons/{personId}/pictures/import", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ProviderImageDto>> GetPersonProviderImagesAsync(Guid personId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.GetAsync($"api/persons/{personId}/provider-images", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<ProviderImageDto>>(_serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<LiteSerieEpisodeDto?> GetNextEpisodeAsync(Guid serieId, Guid currentEpisodeId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.GetAsync($"api/medias/{serieId}/next-episode?currentEpisodeId={currentEpisodeId}", cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<LiteSerieEpisodeDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<List<LibraryDto>> GetLibrariesAsync(CancellationToken cancellationToken = default)
+    {
+        var libraries = await HttpClient.GetFromJsonAsync<List<LibraryDto>>("api/libraries", _serializerOptions, cancellationToken);
+        return libraries ?? [];
+    }
+
+    public async Task<List<LibraryGroupDto>> GetLibraryGroupsAsync(CancellationToken cancellationToken = default)
+    {
+        var groups = await HttpClient.GetFromJsonAsync<List<LibraryGroupDto>>("api/library-groups", _serializerOptions, cancellationToken);
+        return groups ?? [];
+    }
+
+    public async Task<List<LibraryStatisticsDto>> GetLibraryStatisticsAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<LibraryStatisticsDto>>("api/libraries/statistics", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<Guid> CreateLibraryAsync(CreateLibraryRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/libraries", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task IndexLibraryFilesAsync(Guid libraryId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/libraries/{libraryId}/index-files", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task RematchLibraryMediaAsync(Guid libraryId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/libraries/{libraryId}/rematch-media", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateLibraryAsync(Guid id, UpdateLibraryRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/libraries/{id}", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateLibraryGroupAsync(Guid id, UpdateLibraryGroupRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/library-groups/{id}", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteLibraryGroupAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/library-groups/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<Guid> UploadLibraryGroupCoverAsync(Guid libraryGroupId, Stream stream, string fileName, CancellationToken cancellationToken = default)
+    {
+        using var content = new MultipartFormDataContent();
+        content.Add(new StreamContent(stream), "file", fileName);
+        var response = await HttpClient.PostAsync($"api/library-groups/{libraryGroupId}/cover", content, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<Guid> SetLibraryGroupCoverFromPictureAsync(Guid libraryGroupId, Guid sourcePictureId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/library-groups/{libraryGroupId}/cover?sourcePictureId={sourcePictureId}", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<SharedProfileDto>> GetSharedProfilesAsync(CancellationToken cancellationToken = default)
+    {
+        var groups = await HttpClient.GetFromJsonAsync<List<SharedProfileDto>>("api/shared-profiles", _serializerOptions, cancellationToken);
+        return groups ?? [];
+    }
+
+    public async Task<IReadOnlyList<SharedProfileMemberCandidateDto>> GetSharedProfileMemberCandidatesAsync(CancellationToken cancellationToken = default)
+    {
+        var candidates = await HttpClient.GetFromJsonAsync<List<SharedProfileMemberCandidateDto>>("api/shared-profiles/member-candidates", _serializerOptions, cancellationToken);
+        return candidates ?? [];
+    }
+
+    public async Task<Guid> CreateSharedProfileAsync(CreateSharedProfileRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/shared-profiles", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdateSharedProfileAsync(Guid id, UpdateSharedProfileRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/shared-profiles/{id}", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteSharedProfileAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/shared-profiles/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task SetSharedProfilePinAsync(Guid id, SetSharedProfilePinRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/shared-profiles/{id}/pin", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<bool> VerifySharedProfilePinAsync(Guid id, string pin, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync($"api/shared-profiles/{id}/verify-pin", new { Pin = pin }, _serializerOptions, cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task LeaveSharedProfileAsync(Guid id, LeaveSharedProfileRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync($"api/shared-profiles/{id}/leave", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<VideoPlaybackPolicySettingsDto> GetSharedProfileVideoPlaybackPolicyAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<VideoPlaybackPolicySettingsDto>(
+            $"api/shared-profiles/{id}/video-playback-policy", _serializerOptions, cancellationToken);
+        return result ?? new VideoPlaybackPolicySettingsDto();
+    }
+
+    public async Task UpdateSharedProfileVideoPlaybackPolicyAsync(Guid id, VideoPlaybackPolicySettingsDto settings, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync(
+            $"api/shared-profiles/{id}/video-playback-policy", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<AudioPlaybackPolicySettingsDto> GetSharedProfileAudioPlaybackPolicyAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<AudioPlaybackPolicySettingsDto>(
+            $"api/shared-profiles/{id}/audio-playback-policy", _serializerOptions, cancellationToken);
+        return result ?? new AudioPlaybackPolicySettingsDto();
+    }
+
+    public async Task UpdateSharedProfileAudioPlaybackPolicyAsync(Guid id, AudioPlaybackPolicySettingsDto settings, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync(
+            $"api/shared-profiles/{id}/audio-playback-policy", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task AssignSharedProfileContentRestrictionAsync(Guid id, Guid? contentRestrictionProfileId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync(
+            $"api/shared-profiles/{id}/content-restriction",
+            new { ContentRestrictionProfileId = contentRestrictionProfileId },
+            _serializerOptions,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateSharedProfileAgeRestrictionAsync(Guid id, UpdateAgeRestrictionRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync(
+            $"api/shared-profiles/{id}/age-restriction",
+            request,
+            _serializerOptions,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetSharedProfilePlaylistIdsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<List<Guid>>(
+            $"api/shared-profiles/{id}/playlists", _serializerOptions, cancellationToken);
+        return result ?? [];
+    }
+
+    public async Task SharePlaylistToSharedProfileAsync(Guid id, Guid playlistId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/shared-profiles/{id}/playlists/{playlistId}", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UnsharePlaylistFromSharedProfileAsync(Guid id, Guid playlistId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/shared-profiles/{id}/playlists/{playlistId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<HomeLayoutDto?> GetSharedProfileHomeLayoutAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.GetAsync($"api/shared-profiles/{id}/home-layout", cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<HomeLayoutDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdateSharedProfileHomeLayoutAsync(Guid id, HomeLayoutDto layout, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync(
+            $"api/shared-profiles/{id}/home-layout", layout, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteSharedProfileHomeLayoutAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/shared-profiles/{id}/home-layout", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UploadSharedProfileAvatarAsync(Guid id, Stream stream, string fileName, CancellationToken cancellationToken = default)
+    {
+        using var content = new MultipartFormDataContent();
+        var streamContent = new StreamContent(stream);
+        streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(GetImageContentType(fileName));
+        content.Add(streamContent, "file", fileName);
+        var response = await HttpClient.PostAsync($"api/shared-profiles/{id}/avatar", content, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+    }
+
+    public async Task RemoveSharedProfileAvatarAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/shared-profiles/{id}/avatar", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<LibraryPictureDto>> GetLibraryPicturesAsync(Guid libraryId, CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<List<LibraryPictureDto>>($"api/libraries/{libraryId}/pictures", _serializerOptions, cancellationToken);
+        return result ?? [];
+    }
+
+    public async Task DeleteLibraryAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/libraries/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<MetadataProviderInfoDto>> GetMetadataProvidersAsync(LibraryMediaType? mediaType = null, CancellationToken cancellationToken = default)
+    {
+        var uri = mediaType.HasValue
+            ? $"api/metadata-providers?mediaType={mediaType.Value}"
+            : "api/metadata-providers";
+        var providers = await HttpClient.GetFromJsonAsync<List<MetadataProviderInfoDto>>(uri, _serializerOptions, cancellationToken);
+        return providers ?? [];
+    }
+
+    public async Task<DirectoryContentDto?> GetDirectoriesAsync(string? path = null, CancellationToken cancellationToken = default)
+    {
+        var requestUri = string.IsNullOrWhiteSpace(path)
+            ? "api/filesystem/directories"
+            : $"api/filesystem/directories?path={Uri.EscapeDataString(path)}";
+
+        using var response = await HttpClient.GetAsync(requestUri, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<DirectoryContentDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<PaginatedListDto<LitePlaylistDto>?> GetPlaylistsAsync(int pageNumber = 1, int pageSize = 20, MediaType? mediaType = null, LibraryItemOrderingOption? orderBy = null, CancellationToken cancellationToken = default)
+    {
+        var url = $"api/playlists?pageNumber={pageNumber}&pageSize={pageSize}";
+        if (mediaType.HasValue)
+            url += $"&mediaType={(int)mediaType.Value}";
+        if (orderBy.HasValue)
+            url += $"&orderBy={orderBy.Value}";
+        return await HttpClient.GetFromJsonAsync<PaginatedListDto<LitePlaylistDto>>(url, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<PlaylistDto?> GetPlaylistAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<PlaylistDto>($"api/playlists/{id}", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<PaginatedListDto<PlaylistItemDto>?> GetPlaylistItemsAsync(Guid playlistId, int pageNumber = 1, int pageSize = 50, bool includeUnavailable = false, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<PaginatedListDto<PlaylistItemDto>>(
+            $"api/playlists/{playlistId}/items?pageNumber={pageNumber}&pageSize={pageSize}&includeUnavailable={includeUnavailable}", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<Guid> CreatePlaylistAsync(CreatePlaylistRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/playlists", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdatePlaylistAsync(Guid id, UpdatePlaylistRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/playlists/{id}", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeletePlaylistAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/playlists/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<Guid> UploadPlaylistCoverAsync(Guid playlistId, Stream stream, string fileName, CancellationToken cancellationToken = default)
+    {
+        using var content = new MultipartFormDataContent();
+        content.Add(new StreamContent(stream), "file", fileName);
+        var response = await HttpClient.PostAsync($"api/playlists/{playlistId}/cover", content, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<Guid> SetPlaylistCoverFromPictureAsync(Guid playlistId, Guid sourcePictureId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/playlists/{playlistId}/cover?sourcePictureId={sourcePictureId}", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task RemovePlaylistCoverAsync(Guid playlistId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/playlists/{playlistId}/cover", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<Guid> AddPlaylistItemAsync(Guid playlistId, Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync($"api/playlists/{playlistId}/items", new { MediaId = mediaId }, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task RemovePlaylistItemAsync(Guid playlistId, Guid itemId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/playlists/{playlistId}/items/{itemId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task RecordPlaylistPlaybackAsync(Guid playlistId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/playlists/{playlistId}/record-playback", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<PaginatedListDto<LiteDynamicPlaylistDto>?> GetDynamicPlaylistsAsync(int pageNumber = 1, int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<PaginatedListDto<LiteDynamicPlaylistDto>>(
+            $"api/dynamic-playlists?pageNumber={pageNumber}&pageSize={pageSize}", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<DynamicPlaylistDto?> GetDynamicPlaylistAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<DynamicPlaylistDto>($"api/dynamic-playlists/{id}", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<Guid> CreateDynamicPlaylistAsync(CreateDynamicPlaylistRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/dynamic-playlists", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdateDynamicPlaylistAsync(Guid id, UpdateDynamicPlaylistRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/dynamic-playlists/{id}", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteDynamicPlaylistAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/dynamic-playlists/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task EvaluateDynamicPlaylistAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/dynamic-playlists/{id}/evaluate", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<PaginatedListDto<LiteCollectionDto>?> GetCollectionsAsync(int pageNumber = 1, int pageSize = 20, MediaType? mediaType = null, bool? isPublic = null, LibraryItemOrderingOption? orderBy = null, CancellationToken cancellationToken = default)
+    {
+        var url = $"api/collections?pageNumber={pageNumber}&pageSize={pageSize}";
+        if (mediaType.HasValue)
+            url += $"&mediaType={(int)mediaType.Value}";
+        if (isPublic.HasValue)
+            url += $"&isPublic={isPublic.Value}";
+        if (orderBy.HasValue)
+            url += $"&orderBy={orderBy.Value}";
+        return await HttpClient.GetFromJsonAsync<PaginatedListDto<LiteCollectionDto>>(url, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<CollectionDto?> GetCollectionAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<CollectionDto>($"api/collections/{id}", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<PaginatedListDto<CollectionItemDto>?> GetCollectionItemsAsync(Guid collectionId, int pageNumber = 1, int pageSize = 50, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<PaginatedListDto<CollectionItemDto>>(
+            $"api/collections/{collectionId}/items?pageNumber={pageNumber}&pageSize={pageSize}", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<Guid> CreateCollectionAsync(CreateCollectionRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/collections", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdateCollectionAsync(Guid id, UpdateCollectionRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/collections/{id}", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteCollectionAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/collections/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<Guid> UploadCollectionCoverAsync(Guid collectionId, Stream stream, string fileName, CancellationToken cancellationToken = default)
+    {
+        using var content = new MultipartFormDataContent();
+        content.Add(new StreamContent(stream), "file", fileName);
+        var response = await HttpClient.PostAsync($"api/collections/{collectionId}/cover", content, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<Guid> SetCollectionCoverFromPictureAsync(Guid collectionId, Guid sourcePictureId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/collections/{collectionId}/cover?sourcePictureId={sourcePictureId}", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task RemoveCollectionCoverAsync(Guid collectionId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/collections/{collectionId}/cover", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<Guid> AddCollectionItemAsync(Guid collectionId, Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync($"api/collections/{collectionId}/items", new { MediaId = mediaId }, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task RemoveCollectionItemAsync(Guid collectionId, Guid itemId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/collections/{collectionId}/items/{itemId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<GlobalSearchResultDto?> GlobalSearchAsync(string q, int pageSize = 10, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<GlobalSearchResultDto>($"api/search?q={Uri.EscapeDataString(q)}&pageSize={pageSize}", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<AboutInfoDto?> GetAboutInfoAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await HttpClient.GetFromJsonAsync<AboutInfoDto>("api/about", _serializerOptions, cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<ServerInfoDto?> GetServerInfoAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await HttpClient.GetFromJsonAsync<ServerInfoDto>("api/server-info", _serializerOptions, cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task UpdateDefaultLanguageAsync(string language, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/admin/settings/default-language", new { Language = language }, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateDefaultThemeAsync(string theme, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/admin/settings/default-theme", new { Theme = theme }, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<ActiveStreamDto>?> GetActiveStreamsAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<ActiveStreamDto>>("api/admin/streams", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<ServerMetricsHistoryDto?> GetServerMetricsAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<ServerMetricsHistoryDto>("api/admin/metrics", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<PlaybackHistoryPageDto?> GetAdminPlaybackHistoryAsync(int page = 1, int pageSize = 25, string? mediaType = null, Guid? userId = null, string period = "all", DateTime? from = null, DateTime? to = null, CancellationToken cancellationToken = default)
+    {
+        var queryParams = new List<string> { $"page={page}", $"pageSize={pageSize}", $"period={Uri.EscapeDataString(period)}" };
+        if (mediaType is not null) queryParams.Add($"mediaType={Uri.EscapeDataString(mediaType)}");
+        if (userId.HasValue) queryParams.Add($"userId={userId.Value}");
+        if (from.HasValue) queryParams.Add($"from={from.Value:O}");
+        if (to.HasValue) queryParams.Add($"to={to.Value:O}");
+        var url = $"api/admin/stats/history?{string.Join("&", queryParams)}";
+        return await HttpClient.GetFromJsonAsync<PlaybackHistoryPageDto>(url, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<WatchStatsDto?> GetAdminWatchStatsAsync(string? mediaType = null, string period = "month", Guid? userId = null, DateTime? from = null, DateTime? to = null, CancellationToken cancellationToken = default)
+    {
+        var queryParams = new List<string> { $"period={Uri.EscapeDataString(period)}" };
+        if (mediaType is not null) queryParams.Add($"mediaType={Uri.EscapeDataString(mediaType)}");
+        if (userId.HasValue) queryParams.Add($"userId={userId.Value}");
+        if (from.HasValue) queryParams.Add($"from={from.Value:O}");
+        if (to.HasValue) queryParams.Add($"to={to.Value:O}");
+        var url = $"api/admin/stats?{string.Join("&", queryParams)}";
+        return await HttpClient.GetFromJsonAsync<WatchStatsDto>(url, _serializerOptions, cancellationToken);
+    }
+
+    public async Task<AuthenticationInfoDto?> GetAuthenticationInfoAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<AuthenticationInfoDto>("api/admin/authentication-info", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<PasswordPolicyDto> GetPasswordPolicyAsync(CancellationToken cancellationToken = default)
+    {
+        var info = await GetServerInfoAsync(cancellationToken);
+        return info?.PasswordPolicy ?? PasswordPolicyDto.Defaults;
+    }
+
+    public async Task UpdatePasswordPolicyAsync(PasswordPolicyDto policy, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/admin/password-policy", policy, _serializerOptions, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+    }
+
+    public async Task<List<UserDto>> GetUsersAsync(CancellationToken cancellationToken = default)
+    {
+        var users = await HttpClient.GetFromJsonAsync<List<UserDto>>("api/users", _serializerOptions, cancellationToken);
+        return users ?? [];
+    }
+
+    public async Task<UserDto?> GetCurrentUserAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await HttpClient.GetFromJsonAsync<UserDto>("api/users/me", _serializerOptions, cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task UpdateUserRoleAsync(Guid userId, UpdateUserRoleRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/users/{userId}/role", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateUserCapabilitiesAsync(Guid userId, UpdateUserCapabilitiesRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/users/{userId}/capabilities", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/users/{userId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<UserDto> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/users", request, _serializerOptions, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+        return (await response.Content.ReadFromJsonAsync<UserDto>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task MergeUsersAsync(Guid sourceUserId, Guid targetUserId, MergeStrategy? strategy = null, CancellationToken cancellationToken = default)
+    {
+        var body = strategy is not null ? new MergeUsersRequest { Strategy = strategy } : null;
+        var response = await HttpClient.PostAsJsonAsync($"api/users/{sourceUserId}/merge-into/{targetUserId}", body, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ResetUserPasswordAsync(Guid userId, ResetUserPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync($"api/users/{userId}/reset-password", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateProfileAsync(UpdateProfileRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/profile", request, _serializerOptions, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+    }
+
+    public async Task UploadAvatarAsync(Stream stream, string fileName, CancellationToken cancellationToken = default)
+    {
+        using var content = new MultipartFormDataContent();
+        var streamContent = new StreamContent(stream);
+        streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(GetImageContentType(fileName));
+        content.Add(streamContent, "file", fileName);
+        var response = await HttpClient.PostAsync("api/users/me/avatar", content, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+    }
+
+    private static string GetImageContentType(string fileName)
+    {
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        return ext switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".gif" => "image/gif",
+            ".webp" => "image/webp",
+            ".svg" => "image/svg+xml",
+            _ => "application/octet-stream"
+        };
+    }
+
+    public async Task RemoveAvatarAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/users/me/avatar", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/password", request, _serializerOptions, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+    }
+
+    public async Task SetPasswordAsync(SetPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/users/me/password", request, _serializerOptions, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+    }
+
+    public async Task RemovePasswordAsync(RemovePasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Delete, "api/users/me/password")
+        {
+            Content = JsonContent.Create(request, options: _serializerOptions)
+        };
+        var response = await HttpClient.SendAsync(msg, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+    }
+
+    public async Task UpdateEmailAsync(UpdateEmailRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/email", request, _serializerOptions, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+    }
+
+    public async Task DeleteAccountAsync(DeleteAccountRequest request, CancellationToken cancellationToken = default)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Delete, "api/users/me")
+        {
+            Content = JsonContent.Create(request, options: _serializerOptions)
+        };
+        var response = await HttpClient.SendAsync(msg, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+    }
+
+    public async Task RestoreUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/admin/users/{userId}/restore", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<LoginMethodsDto> GetLoginMethodsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<LoginMethodsDto>("api/users/me/login-methods", _serializerOptions, cancellationToken);
+        return result!;
+    }
+
+    public async Task UnlinkExternalLoginAsync(string provider, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/users/me/login-methods/{Uri.EscapeDataString(provider)}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<TwoFactorStatusDto> GetTwoFactorStatusAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<TwoFactorStatusDto>("api/users/me/two-factor", _serializerOptions, cancellationToken);
+        return result!;
+    }
+
+    public async Task<TwoFactorSetupDto> BeginTwoFactorSetupAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync("api/users/me/two-factor/setup", null, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+        return (await response.Content.ReadFromJsonAsync<TwoFactorSetupDto>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<RecoveryCodesDto> VerifyTwoFactorSetupAsync(VerifyTwoFactorRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/users/me/two-factor/verify", request, _serializerOptions, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+        return (await response.Content.ReadFromJsonAsync<RecoveryCodesDto>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<RecoveryCodesDto> GenerateTwoFactorRecoveryCodesAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync("api/users/me/two-factor/recovery-codes", null, cancellationToken);
+        await response.EnsureSuccessWithDetailsAsync(cancellationToken);
+        return (await response.Content.ReadFromJsonAsync<RecoveryCodesDto>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task DisableTwoFactorAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/users/me/two-factor", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ToggleUserActiveAsync(Guid userId, bool isActive, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/users/{userId}/active", new { IsActive = isActive }, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateUserLibraryExclusionsAsync(Guid userId, UpdateUserLibraryExclusionsRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/users/{userId}/library-exclusions", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateUserMediaExclusionsAsync(Guid userId, UpdateUserMediaExclusionsRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/users/{userId}/media-exclusions", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<bool> ToggleMediaExclusionAsync(Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/users/me/media-exclusions/{mediaId}", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<ToggleExclusionResponse>(_serializerOptions, cancellationToken);
+        return result?.Excluded ?? false;
+    }
+
+    public async Task<List<LiteMediaDto>> GetSelfMediaExclusionsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<List<LiteMediaDto>>("api/users/me/media-exclusions", _serializerOptions, cancellationToken);
+        return result ?? [];
+    }
+
+    private sealed record ToggleExclusionResponse(bool Excluded);
+
+    public async Task UpdateUserPinAsync(Guid userId, string? pin, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/users/{userId}/pin", new { Pin = pin }, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<bool> VerifyUserPinAsync(Guid userId, string pin, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync($"api/users/{userId}/verify-pin", new { Pin = pin }, _serializerOptions, cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<string?> GetUserLanguageAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await HttpClient.GetFromJsonAsync<UserLanguageResponse>("api/users/me/language", _serializerOptions, cancellationToken);
+            return result?.Language;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task UpdateUserLanguageAsync(string language, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/language", new { Language = language }, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteUserLanguageAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/users/me/language", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    private sealed record UserLanguageResponse(string? Language);
+
+    public async Task<List<ContentRestrictionProfileDto>> GetContentRestrictionProfilesAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.GetAsync("api/restriction-profiles", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<List<ContentRestrictionProfileDto>>(_serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<Guid> CreateContentRestrictionProfileAsync(CreateContentRestrictionProfileRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/restriction-profiles", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdateContentRestrictionProfileAsync(Guid id, UpdateContentRestrictionProfileRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/restriction-profiles/{id}", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteContentRestrictionProfileAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/restriction-profiles/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task AssignContentRestrictionProfileAsync(Guid userId, Guid? profileId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/users/{userId}/restriction-profile", new { ProfileId = profileId }, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateUserAgeRestrictionAsync(Guid userId, UpdateAgeRestrictionRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/users/{userId}/age-restriction", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<RestrictedMediaPreviewDto>> PreviewRestrictedMediasAsync(Guid profileId, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<RestrictedMediaPreviewDto>>($"api/restriction-profiles/{profileId}/restricted-medias", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<PaginatedListDto<BackgroundTaskDto>> GetBackgroundTasksAsync(int pageNumber = 1, int pageSize = 20, IReadOnlyCollection<BackgroundTaskStatus>? statuses = null, IReadOnlyCollection<string>? names = null, IReadOnlyCollection<BackgroundTaskTriggeredBy>? triggeredBy = null, string? sortBy = null, bool sortDescending = true, CancellationToken cancellationToken = default)
+    {
+        var uri = $"api/background-tasks?pageNumber={pageNumber}&pageSize={pageSize}";
+        if (statuses is { Count: > 0 })
+        {
+            foreach (var status in statuses)
+            {
+                uri += $"&status={status}";
+            }
+        }
+        if (names is { Count: > 0 })
+        {
+            foreach (var name in names)
+            {
+                uri += $"&names={Uri.EscapeDataString(name)}";
+            }
+        }
+        if (triggeredBy is { Count: > 0 })
+        {
+            foreach (var origin in triggeredBy)
+            {
+                uri += $"&triggeredBy={origin}";
+            }
+        }
+        if (sortBy is not null)
+        {
+            uri += $"&sortBy={Uri.EscapeDataString(sortBy)}&sortDescending={sortDescending}";
+        }
+        return await HttpClient.GetFromJsonAsync<PaginatedListDto<BackgroundTaskDto>>(uri, _serializerOptions, cancellationToken) ?? new PaginatedListDto<BackgroundTaskDto>();
+    }
+
+    public async Task<BackgroundTaskDto> GetBackgroundTaskAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<BackgroundTaskDto>($"api/background-tasks/{id}", _serializerOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Task not found");
+    }
+
+    public async Task DeleteBackgroundTaskAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/background-tasks/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task CancelBackgroundTaskAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/background-tasks/{id}/cancel", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<BackgroundTaskSettingsDto> GetSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<BackgroundTaskSettingsDto>("api/admin/background-tasks/settings", _serializerOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Settings not found");
+    }
+
+    public async Task UpdateSettingsAsync(UpdateBackgroundTaskSettingsRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/admin/background-tasks/settings", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<BackgroundTaskSummaryDto> GetSummaryAsync(
+        IReadOnlyCollection<BackgroundTaskStatus>? statusFilter = null,
+        IReadOnlyCollection<string>? namesFilter = null,
+        CancellationToken cancellationToken = default)
+    {
+        var uri = "api/background-tasks/summary";
+        var queryParams = new List<string>();
+        if (statusFilter is { Count: > 0 })
+            queryParams.AddRange(statusFilter.Select(s => $"statusFilter={s}"));
+        if (namesFilter is { Count: > 0 })
+            queryParams.AddRange(namesFilter.Select(n => $"namesFilter={Uri.EscapeDataString(n)}"));
+        if (queryParams.Count > 0)
+            uri += "?" + string.Join("&", queryParams);
+
+        return await HttpClient.GetFromJsonAsync<BackgroundTaskSummaryDto>(uri, _serializerOptions, cancellationToken)
+            ?? new BackgroundTaskSummaryDto { TotalCount = 0, StatusCounts = [], TaskTypeCounts = [] };
+    }
+
+    public async Task<List<LibraryHealthSummaryDto>> GetDiagnosticsSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<LibraryHealthSummaryDto>>("api/diagnostics/summary", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<PaginatedListDto<DiagnosticItemDto>> GetDiagnosticItemsAsync(Guid? libraryId = null, DiagnosticEntityType? entityType = null, DiagnosticIssue? issue = null, IReadOnlyCollection<DiagnosticIssue>? issues = null, int pageNumber = 1, int pageSize = 20, DiagnosticSeverity? severity = null, CancellationToken cancellationToken = default)
+    {
+        var uri = $"api/diagnostics/items?pageNumber={pageNumber}&pageSize={pageSize}";
+        if (libraryId.HasValue)
+            uri += $"&libraryId={libraryId.Value}";
+        if (entityType.HasValue)
+            uri += $"&entityType={entityType.Value}";
+        if (severity.HasValue)
+            uri += $"&severity={severity.Value}";
+        // Server binds repeated `issue` as an OR set. Prefer a single explicit issue over a severity set.
+        if (issue.HasValue)
+            uri += $"&issue={issue.Value}";
+        else if (issues is { Count: > 0 })
+            foreach (var i in issues)
+                uri += $"&issue={i}";
+        return await HttpClient.GetFromJsonAsync<PaginatedListDto<DiagnosticItemDto>>(uri, _serializerOptions, cancellationToken) ?? new PaginatedListDto<DiagnosticItemDto>();
+    }
+
+    public async Task<int> FixDiagnosticItemsAsync(IReadOnlyList<Guid> entityIds, DiagnosticFixAction action, CancellationToken cancellationToken = default)
+    {
+        var request = new FixDiagnosticItemsRequest { EntityIds = entityIds, Action = action };
+        var response = await HttpClient.PostAsJsonAsync("api/diagnostics/fix", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<int>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<int> QueueDiagnosticFixesAsync(DiagnosticIssue issue, Guid? libraryId = null, CancellationToken cancellationToken = default)
+    {
+        var request = new QueueDiagnosticFixesRequest { Issue = issue, LibraryId = libraryId };
+        var response = await HttpClient.PostAsJsonAsync(
+            "api/diagnostics/queue-fixes", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<int>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetSelfLibraryExclusionsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<List<Guid>>("api/users/me/preferences/library-exclusions", _serializerOptions, cancellationToken);
+        return result ?? [];
+    }
+
+    public async Task UpdateSelfLibraryExclusionsAsync(UpdateSelfLibraryExclusionsRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/preferences/library-exclusions", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<HomeLayoutDto> GetHomeLayoutAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<HomeLayoutDto>("api/users/me/preferences/home-layout", _serializerOptions, cancellationToken);
+        return result!;
+    }
+
+    public async Task UpdateHomeLayoutAsync(HomeLayoutDto layout, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/preferences/home-layout", layout, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ResetHomeLayoutAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/users/me/preferences/home-layout", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<HomeLayoutDto?> GetServerHomeLayoutAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.GetAsync("api/server/preferences/home-layout", cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<HomeLayoutDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<HomeLayoutDto> GetEffectiveServerHomeLayoutAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<HomeLayoutDto>("api/server/preferences/home-layout/effective", _serializerOptions, cancellationToken);
+        return result ?? new HomeLayoutDto { Rows = [] };
+    }
+
+    public async Task UpdateServerHomeLayoutAsync(HomeLayoutDto layout, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/server/preferences/home-layout", layout, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteServerHomeLayoutAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/server/preferences/home-layout", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<IReadOnlyList<MediaSegmentDto>> GetMediaSegmentsAsync(Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<List<MediaSegmentDto>>($"api/medias/{mediaId}/segments", _serializerOptions, cancellationToken);
+        return result ?? [];
+    }
+
+    public async Task DetectMediaSegmentsAsync(Guid seasonId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/medias/{seasonId}/detect-segments", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public string? GetMediaThemeSongUrl(Guid mediaId) =>
+        GetAbsoluteUri($"api/medias/{mediaId}/theme")?.AbsoluteUri;
+
+    public async Task<List<LiteMediaDto>> GetSimilarMediaAsync(Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<List<LiteMediaDto>>($"api/medias/{mediaId}/similar", _serializerOptions, cancellationToken);
+        return result ?? [];
+    }
+
+    public async Task<IReadOnlyList<LiteMusicTrackDto>> GetArtistTopTracksAsync(Guid artistId, CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<List<LiteMusicTrackDto>>($"api/medias/{artistId}/top-tracks", _serializerOptions, cancellationToken);
+        return result ?? [];
+    }
+
+    public async Task<IReadOnlyList<LiteMusicArtistDto>> GetSimilarMusicArtistsAsync(Guid artistId, int count = 12, CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<List<LiteMusicArtistDto>>(
+            $"api/medias/{artistId}/similar-artists?count={count}",
+            _serializerOptions,
+            cancellationToken);
+        return result ?? [];
+    }
+
+    public async Task<IReadOnlyList<PlayedMusicTrackDto>> GetTopMusicTracksAsync(Guid[]? libraryIds = null, int count = 20, CancellationToken cancellationToken = default)
+    {
+        var query = new List<string> { $"count={count}" };
+        if (libraryIds is { Length: > 0 })
+            query.AddRange(libraryIds.Select(id => $"libraryIds={id}"));
+
+        var uri = $"api/music/top-tracks?{string.Join('&', query)}";
+        var result = await HttpClient.GetFromJsonAsync<List<PlayedMusicTrackDto>>(uri, _serializerOptions, cancellationToken);
+        return result ?? [];
+    }
+
+    public async Task<List<PersonKnownForItemDto>> GetPersonKnownForAsync(Guid personId, CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<List<PersonKnownForItemDto>>($"api/persons/{personId}/known-for", _serializerOptions, cancellationToken);
+        return result ?? [];
+    }
+
+    public async Task<ServerFeatureFlagsDto> GetServerFeatureFlagsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<ServerFeatureFlagsDto>("api/server/preferences/feature-flags", _serializerOptions, cancellationToken);
+        return result ?? new ServerFeatureFlagsDto();
+    }
+
+    public async Task UpdateServerFeatureFlagsAsync(ServerFeatureFlagsDto flags, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/server/preferences/feature-flags", flags, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<MusicIntelligenceStatusDto> GetMusicIntelligenceStatusAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<MusicIntelligenceStatusDto>("api/server/music-intelligence/status", _serializerOptions, cancellationToken);
+        return result ?? new MusicIntelligenceStatusDto();
+    }
+
+    // IFederationService
+
+    public async Task<List<PeerServerDto>> GetPeerServersAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<PeerServerDto>>("api/federation/peers", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<List<PeerRequestDto>> GetPeerRequestsAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<PeerRequestDto>>("api/federation/peers/requests", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task RequestPeerAsync(string remoteUrl, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/federation/peers/request", new { remoteUrl }, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task AcceptPeerAsync(Guid requestId, IReadOnlyList<Guid> sharedLibraryIds, bool autoShareNewLibraries = false, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync($"api/federation/peers/requests/{requestId}/accept", new { SharedLibraryIds = sharedLibraryIds, AutoShareNewLibraries = autoShareNewLibraries }, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task RejectPeerAsync(Guid requestId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/federation/peers/requests/{requestId}/reject", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdatePeerAsync(Guid peerId, UpdatePeerRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/federation/peers/{peerId}", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<bool> TestPeerAsync(Guid peerId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/federation/peers/{peerId}/test", null, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return false;
+
+        var result = await response.Content.ReadFromJsonAsync<TestPeerResponse>(_serializerOptions, cancellationToken);
+        return result?.Reachable ?? false;
+    }
+
+    public async Task RevokePeerAsync(Guid peerId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/federation/peers/{peerId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task SyncPeerAsync(Guid peerId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/federation/peers/{peerId}/sync", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<PeerShareAgreementDto>> DiscoverPeerLibrariesAsync(Guid peerId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/federation/peers/{peerId}/discover-libraries", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<List<PeerShareAgreementDto>>(_serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<IndexedFileDto?> GetRemoteFileDetailsAsync(Guid remoteFileId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.GetAsync($"api/remote-indexed-files/{remoteFileId}/details", cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return null;
+        return await response.Content.ReadFromJsonAsync<IndexedFileDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<GeneralPreferencesDto> GetEffectiveGeneralPreferencesAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<GeneralPreferencesDto>("api/users/me/preferences/general", _serializerOptions, cancellationToken);
+        return result ?? new GeneralPreferencesDto();
+    }
+
+    public async Task UpdateUserGeneralPreferencesAsync(GeneralPreferencesDto settings, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/preferences/general", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ResetUserGeneralPreferencesAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/users/me/preferences/general", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<VideoPlayerSettingsDto?> GetServerVideoPlayerSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.GetAsync("api/server/preferences/video-player", cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<VideoPlayerSettingsDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdateServerVideoPlayerSettingsAsync(VideoPlayerSettingsDto settings, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/server/preferences/video-player", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteServerVideoPlayerSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/server/preferences/video-player", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<AudioPlayerSettingsDto?> GetServerAudioPlayerSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.GetAsync("api/server/preferences/audio-player", cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<AudioPlayerSettingsDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdateServerAudioPlayerSettingsAsync(AudioPlayerSettingsDto settings, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/server/preferences/audio-player", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteServerAudioPlayerSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/server/preferences/audio-player", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<VideoPlayerSettingsDto> GetEffectiveVideoPlayerSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<VideoPlayerSettingsDto>("api/users/me/preferences/video-player", _serializerOptions, cancellationToken);
+        return result ?? new VideoPlayerSettingsDto();
+    }
+
+    public async Task UpdateUserVideoPlayerSettingsAsync(VideoPlayerSettingsDto settings, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/preferences/video-player", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ResetUserVideoPlayerSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/users/me/preferences/video-player", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<AudioPlayerSettingsDto> GetEffectiveAudioPlayerSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<AudioPlayerSettingsDto>(
+            "api/users/me/preferences/audio-player", _serializerOptions, cancellationToken);
+        return result ?? new AudioPlayerSettingsDto();
+    }
+
+    public async Task UpdateUserAudioPlayerSettingsAsync(AudioPlayerSettingsDto settings, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/preferences/audio-player", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ResetUserAudioPlayerSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/users/me/preferences/audio-player", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<VideoPlaybackPolicySettingsDto> GetEffectiveVideoPlaybackPolicySettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<VideoPlaybackPolicySettingsDto>(
+            "api/users/me/preferences/video-playback-policy", _serializerOptions, cancellationToken);
+        return result ?? new VideoPlaybackPolicySettingsDto();
+    }
+
+    public async Task UpdateUserVideoPlaybackPolicySettingsAsync(VideoPlaybackPolicySettingsDto settings, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/preferences/video-playback-policy", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ResetUserVideoPlaybackPolicySettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/users/me/preferences/video-playback-policy", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<AudioPlaybackPolicySettingsDto> GetEffectiveAudioPlaybackPolicySettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<AudioPlaybackPolicySettingsDto>(
+            "api/users/me/preferences/audio-playback-policy", _serializerOptions, cancellationToken);
+        return result ?? new AudioPlaybackPolicySettingsDto();
+    }
+
+    public async Task UpdateUserAudioPlaybackPolicySettingsAsync(AudioPlaybackPolicySettingsDto settings, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/preferences/audio-playback-policy", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ResetUserAudioPlaybackPolicySettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/users/me/preferences/audio-playback-policy", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<TrackSelectionPreferencesDto> GetEffectiveTrackSelectionPreferencesAsync(Guid? libraryId = null, CancellationToken cancellationToken = default)
+    {
+        var url = libraryId.HasValue
+            ? $"api/users/me/preferences/track-selection?libraryId={libraryId.Value}"
+            : "api/users/me/preferences/track-selection";
+        var result = await HttpClient.GetFromJsonAsync<TrackSelectionPreferencesDto>(url, _serializerOptions, cancellationToken);
+        return result ?? new TrackSelectionPreferencesDto();
+    }
+
+    public async Task UpdateUserTrackSelectionPreferencesAsync(TrackSelectionPreferencesDto preferences, Guid? libraryId = null, CancellationToken cancellationToken = default)
+    {
+        var url = libraryId.HasValue
+            ? $"api/users/me/preferences/track-selection?libraryId={libraryId.Value}"
+            : "api/users/me/preferences/track-selection";
+        var response = await HttpClient.PutAsJsonAsync(url, preferences, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ResetUserTrackSelectionPreferencesAsync(Guid? libraryId = null, CancellationToken cancellationToken = default)
+    {
+        var url = libraryId.HasValue
+            ? $"api/users/me/preferences/track-selection?libraryId={libraryId.Value}"
+            : "api/users/me/preferences/track-selection";
+        var response = await HttpClient.DeleteAsync(url, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<bool> UserSettingExistsAsync(string key, CancellationToken cancellationToken = default)
+    {
+        var url = $"api/users/me/settings/exists?key={Uri.EscapeDataString(key)}";
+        var result = await HttpClient.GetFromJsonAsync<SettingExistsResponse>(url, _serializerOptions, cancellationToken);
+        return result?.Exists ?? false;
+    }
+
+    public async Task<SyncPlayPreferencesDto> GetSyncPlayPreferencesAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<SyncPlayPreferencesDto>("api/users/me/preferences/syncplay", _serializerOptions, cancellationToken);
+        return result ?? new SyncPlayPreferencesDto();
+    }
+
+    public async Task UpdateSyncPlayPreferencesAsync(SyncPlayPreferencesDto preferences, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/preferences/syncplay", preferences, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<SharedProfilePreferencesDto> GetSharedProfilePreferencesAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await HttpClient.GetFromJsonAsync<SharedProfilePreferencesDto>("api/users/me/preferences/shared-profiles", _serializerOptions, cancellationToken);
+        return result ?? new SharedProfilePreferencesDto();
+    }
+
+    public async Task UpdateSharedProfilePreferencesAsync(SharedProfilePreferencesDto preferences, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/preferences/shared-profiles", preferences, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<TrackSelectionPreferencesDto?> GetServerTrackSelectionPreferencesAsync(Guid? libraryId = null, CancellationToken cancellationToken = default)
+    {
+        var url = libraryId.HasValue
+            ? $"api/server/preferences/track-selection?libraryId={libraryId.Value}"
+            : "api/server/preferences/track-selection";
+        var response = await HttpClient.GetAsync(url, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<TrackSelectionPreferencesDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdateServerTrackSelectionPreferencesAsync(TrackSelectionPreferencesDto preferences, Guid? libraryId = null, CancellationToken cancellationToken = default)
+    {
+        var url = libraryId.HasValue
+            ? $"api/server/preferences/track-selection?libraryId={libraryId.Value}"
+            : "api/server/preferences/track-selection";
+        var response = await HttpClient.PutAsJsonAsync(url, preferences, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteServerTrackSelectionPreferencesAsync(Guid? libraryId = null, CancellationToken cancellationToken = default)
+    {
+        var url = libraryId.HasValue
+            ? $"api/server/preferences/track-selection?libraryId={libraryId.Value}"
+            : "api/server/preferences/track-selection";
+        var response = await HttpClient.DeleteAsync(url, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<VideoPlaybackPolicySettingsDto?> GetServerVideoPlaybackPolicySettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.GetAsync("api/server/preferences/video-playback-policy", cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<VideoPlaybackPolicySettingsDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdateServerVideoPlaybackPolicySettingsAsync(VideoPlaybackPolicySettingsDto settings, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/server/preferences/video-playback-policy", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteServerVideoPlaybackPolicySettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/server/preferences/video-playback-policy", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<AudioPlaybackPolicySettingsDto?> GetServerAudioPlaybackPolicySettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.GetAsync("api/server/preferences/audio-playback-policy", cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<AudioPlaybackPolicySettingsDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdateServerAudioPlaybackPolicySettingsAsync(AudioPlaybackPolicySettingsDto settings, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/server/preferences/audio-playback-policy", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteServerAudioPlaybackPolicySettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync("api/server/preferences/audio-playback-policy", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    // IDownloadService
+
+    public async Task<DownloadDto> PrepareDownloadAsync(PrepareDownloadRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/downloads/prepare", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<DownloadDto>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<DownloadDto> GetDownloadAsync(Guid downloadId, CancellationToken cancellationToken = default)
+    {
+        return (await HttpClient.GetFromJsonAsync<DownloadDto>($"api/downloads/{downloadId}", _serializerOptions, cancellationToken))!;
+    }
+
+    public async Task DeleteDownloadAsync(Guid downloadId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/downloads/{downloadId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public string GetDownloadFileUrl(Guid downloadId)
+    {
+        return $"api/downloads/{downloadId}/file";
+    }
+
+    public async Task<List<NotificationRuleDto>> GetNotificationRulesAsync(CancellationToken cancellationToken = default)
+    {
+        return (await HttpClient.GetFromJsonAsync<List<NotificationRuleDto>>("api/notifications/rules", _serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<NotificationRuleDto> GetNotificationRuleAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return (await HttpClient.GetFromJsonAsync<NotificationRuleDto>($"api/notifications/rules/{id}", _serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<Guid> CreateNotificationRuleAsync(CreateNotificationRuleRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/notifications/rules", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdateNotificationRuleAsync(Guid id, UpdateNotificationRuleRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/notifications/rules/{id}", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteNotificationRuleAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/notifications/rules/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<TestNotificationRuleResponse> TestNotificationRuleAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/notifications/rules/{id}/test", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<TestNotificationRuleResponse>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<List<NotificationEventDescriptorDto>> GetAvailableEventsAsync(CancellationToken cancellationToken = default)
+    {
+        return (await HttpClient.GetFromJsonAsync<List<NotificationEventDescriptorDto>>("api/notifications/events", _serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<List<NotificationWebhookPresetDto>> GetWebhookPresetsAsync(CancellationToken cancellationToken = default)
+    {
+        return (await HttpClient.GetFromJsonAsync<List<NotificationWebhookPresetDto>>("api/notifications/presets", _serializerOptions, cancellationToken))!;
+    }
+
+    private sealed record EphemeralTokenResponse(string Token);
+    private sealed record TestPeerResponse(bool Reachable);
+
+    // IApiKeyAdminService
+
+    public async Task<List<ApiKeyDto>> GetApiKeysAsync(CancellationToken cancellationToken = default)
+    {
+        return (await HttpClient.GetFromJsonAsync<List<ApiKeyDto>>("api/admin/api-keys", _serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<CreateApiKeyResponse> CreateApiKeyAsync(string name, ApiKeyScope scope, DateTime? expiresAt = null, CancellationToken cancellationToken = default)
+    {
+        var request = new { Name = name, Scope = scope, ExpiresAt = expiresAt };
+        var response = await HttpClient.PostAsJsonAsync("api/admin/api-keys", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<CreateApiKeyResponse>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task RevokeApiKeyAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/admin/api-keys/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    // IClientAppPasswordUserService
+
+    public async Task<List<ClientAppPasswordDto>> GetClientAppPasswordsAsync(CancellationToken cancellationToken = default)
+    {
+        return (await HttpClient.GetFromJsonAsync<List<ClientAppPasswordDto>>("api/users/me/client-app-passwords", _serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<CreateClientAppPasswordResponse> CreateClientAppPasswordAsync(string name, CancellationToken cancellationToken = default)
+    {
+        var request = new { Name = name };
+        var response = await HttpClient.PostAsJsonAsync("api/users/me/client-app-passwords", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<CreateClientAppPasswordResponse>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task RevokeClientAppPasswordAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/users/me/client-app-passwords/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    // ITranscodeAdminService
+
+    async Task<TranscodeSettingsDto> ITranscodeAdminService.GetSettingsAsync(CancellationToken cancellationToken)
+    {
+        return (await HttpClient.GetFromJsonAsync<TranscodeSettingsDto>("api/admin/transcode/settings", _serializerOptions, cancellationToken))!;
+    }
+
+    async Task ITranscodeAdminService.UpdateSettingsAsync(TranscodeSettingsDto settings, CancellationToken cancellationToken)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/admin/transcode/settings", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    async Task<FfmpegCapabilitiesDto> ITranscodeAdminService.GetCapabilitiesAsync(CancellationToken cancellationToken)
+    {
+        return (await HttpClient.GetFromJsonAsync<FfmpegCapabilitiesDto>("api/admin/transcode/capabilities", _serializerOptions, cancellationToken))!;
+    }
+
+    async Task<FfmpegTranscodeTestResultDto> ITranscodeAdminService.TestEncoderAsync(CancellationToken cancellationToken)
+    {
+        var response = await HttpClient.PostAsync("api/admin/transcode/test", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<FfmpegTranscodeTestResultDto>(_serializerOptions, cancellationToken))!;
+    }
+
+    // IMusicIntelligenceAdminService
+
+    async Task<MusicIntelligenceSettingsDto> IMusicIntelligenceAdminService.GetSettingsAsync(CancellationToken cancellationToken)
+    {
+        return (await HttpClient.GetFromJsonAsync<MusicIntelligenceSettingsDto>("api/admin/music-intelligence", _serializerOptions, cancellationToken))!;
+    }
+
+    async Task<ScrobblingSettingsDto> IScrobblingAdminService.GetSettingsAsync(CancellationToken cancellationToken)
+    {
+        return (await HttpClient.GetFromJsonAsync<ScrobblingSettingsDto>("api/admin/scrobbling", _serializerOptions, cancellationToken))!;
+    }
+
+    async Task IScrobblingAdminService.UpdateSettingsAsync(ScrobblingSettingsDto settings, CancellationToken cancellationToken)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/admin/scrobbling", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<UserScrobblerAccountDto>> GetAccountsAsync(CancellationToken cancellationToken = default)
+    {
+        return (await HttpClient.GetFromJsonAsync<List<UserScrobblerAccountDto>>("api/scrobbling/accounts", _serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<ScrobblingAvailabilityDto> GetAvailabilityAsync(CancellationToken cancellationToken = default)
+    {
+        return (await HttpClient.GetFromJsonAsync<ScrobblingAvailabilityDto>("api/scrobbling/availability", _serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<Guid> CreateAccountAsync(CreateUserScrobblerAccountRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/scrobbling/accounts", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task UpdateAccountAsync(Guid id, UpdateUserScrobblerAccountRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/scrobbling/accounts/{id}", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteAccountAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/scrobbling/accounts/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<ScrobbleTestResultDto> TestAccountAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync($"api/scrobbling/accounts/{id}/test", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ScrobbleTestResultDto>(_serializerOptions, cancellationToken))!;
+    }
+
+    async Task<List<ScrobbleWebhookPresetDto>> IScrobblingUserService.GetWebhookPresetsAsync(CancellationToken cancellationToken)
+    {
+        return (await HttpClient.GetFromJsonAsync<List<ScrobbleWebhookPresetDto>>("api/scrobbling/presets", _serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<LastFmAuthStartDto> StartLastFmAuthAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync("api/scrobbling/lastfm/start", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<LastFmAuthStartDto>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<Guid> CompleteLastFmAuthAsync(
+        string token,
+        IReadOnlyList<string>? mediaTypes = null,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync(
+            "api/scrobbling/lastfm/complete",
+            new { token, mediaTypes },
+            _serializerOptions,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<TraktDeviceStartDto> StartTraktDeviceAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync("api/scrobbling/trakt/start", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<TraktDeviceStartDto>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<Guid?> PollTraktDeviceAsync(
+        string deviceCode,
+        IReadOnlyList<string>? mediaTypes = null,
+        string? displayName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsJsonAsync(
+            "api/scrobbling/trakt/poll",
+            new { deviceCode, mediaTypes, displayName },
+            _serializerOptions,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid?>(_serializerOptions, cancellationToken);
+    }
+
+    async Task IMusicIntelligenceAdminService.UpdateSettingsAsync(MusicIntelligenceSettingsDto settings, CancellationToken cancellationToken)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/admin/music-intelligence", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    async Task<MusicIntelligenceConnectionResultDto> IMusicIntelligenceAdminService.TestConnectionAsync(
+        MusicIntelligenceSettingsDto? draftSettings,
+        CancellationToken cancellationToken)
+    {
+        var response = await HttpClient.PostAsJsonAsync(
+            "api/admin/music-intelligence/test",
+            draftSettings,
+            _serializerOptions,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<MusicIntelligenceConnectionResultDto>(_serializerOptions, cancellationToken))!;
+    }
+
+    // IMusicIntelligenceClientService
+
+    public async Task<List<MusicIntelligenceTrackMatchDto>> GetSimilarTracksAsync(Guid trackId, int count = 20, CancellationToken cancellationToken = default)
+    {
+        return (await HttpClient.GetFromJsonAsync<List<MusicIntelligenceTrackMatchDto>>($"api/tracks/{trackId}/similar?count={count}", _serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<List<Guid>> GetSonicPathAsync(Guid fromId, Guid toId, CancellationToken cancellationToken = default)
+    {
+        return (await HttpClient.GetFromJsonAsync<List<Guid>>($"api/tracks/sonic-path?from={fromId}&to={toId}", _serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<List<MusicIntelligenceTrackMatchDto>> GetSuggestionsAsync(IEnumerable<Guid> recentTrackIds, int count = 20, CancellationToken cancellationToken = default)
+    {
+        var ids = string.Join(",", recentTrackIds);
+        return (await HttpClient.GetFromJsonAsync<List<MusicIntelligenceTrackMatchDto>>($"api/tracks/suggestions?recentIds={ids}&count={count}", _serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<List<Guid>> CreateSmartPlaylistAsync(string prompt, int count = 30, CancellationToken cancellationToken = default)
+    {
+        var request = new { Prompt = prompt, Count = count };
+        var response = await HttpClient.PostAsJsonAsync("api/playlists/ai-generate", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<List<Guid>>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<List<Guid>> SearchTracksBySonicTextAsync(string query, int count = 50, CancellationToken cancellationToken = default)
+    {
+        var request = new MusicIntelligenceSearchRequest { Query = query, Count = count };
+        var response = await HttpClient.PostAsJsonAsync("api/music-intelligence/search/sonic", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<List<Guid>>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<List<Guid>> SearchTracksByLyricsAsync(string query, int count = 50, CancellationToken cancellationToken = default)
+    {
+        var request = new MusicIntelligenceSearchRequest { Query = query, Count = count };
+        var response = await HttpClient.PostAsJsonAsync("api/music-intelligence/search/lyrics", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<List<Guid>>(_serializerOptions, cancellationToken))!;
+    }
+
+    public async Task<IReadOnlyList<MediaReviewDto>> GetMediaReviewsAsync(Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<MediaReviewDto>>($"api/medias/{mediaId}/reviews", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<IReadOnlyList<FederatedReviewDto>> GetFederatedMediaReviewsAsync(Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<FederatedReviewDto>>($"api/medias/{mediaId}/federated-reviews", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task UpsertMediaReviewAsync(Guid mediaId, UpsertMediaReviewRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync($"api/medias/{mediaId}/review", request, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<FederationPrivacySettingsDto> GetFederationPrivacyAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<FederationPrivacySettingsDto>("api/users/me/federation-privacy", _serializerOptions, cancellationToken)
+            ?? new FederationPrivacySettingsDto();
+    }
+
+    public async Task UpdateFederationPrivacyAsync(FederationPrivacySettingsDto settings, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/federation-privacy", settings, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<ReviewPreferencesDto> GetReviewPreferencesAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<ReviewPreferencesDto>("api/users/me/review-preferences", _serializerOptions, cancellationToken)
+            ?? new ReviewPreferencesDto();
+    }
+
+    public async Task UpdateReviewPreferencesAsync(ReviewPreferencesDto preferences, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/users/me/review-preferences", preferences, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<FederationSocialPolicyDto> GetFederationSocialPolicyAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<FederationSocialPolicyDto>("api/admin/federation/social-policy", _serializerOptions, cancellationToken)
+            ?? new FederationSocialPolicyDto();
+    }
+
+    public async Task UpdateFederationSocialPolicyAsync(FederationSocialPolicyDto policy, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PutAsJsonAsync("api/admin/federation/social-policy", policy, _serializerOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<IReadOnlyList<FederationGrantTargetDto>> GetFederationGrantTargetsAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<FederationGrantTargetDto>>("api/users/me/federation-privacy/grant-targets", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<IReadOnlyList<FederatedCollectionViewDto>> GetFederatedCollectionsAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<FederatedCollectionViewDto>>("api/federation/social/collections", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<IReadOnlyList<FederatedPlaylistViewDto>> GetFederatedPlaylistsAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<FederatedPlaylistViewDto>>("api/federation/social/playlists", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<IReadOnlyList<FederatedDynamicPlaylistViewDto>> GetFederatedDynamicPlaylistsAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<FederatedDynamicPlaylistViewDto>>("api/federation/social/dynamic-playlists", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<IReadOnlyList<FederatedPlaybackHistoryViewDto>> GetFederatedPlaybackHistoryAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<FederatedPlaybackHistoryViewDto>>("api/federation/social/playback-history", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<IReadOnlyList<SocialUserReviewViewDto>> GetMyMediaReviewsAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<SocialUserReviewViewDto>>("api/users/me/reviews", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<int> GetMyMediaReviewCountAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<int>("api/users/me/reviews/count", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<MyMediaReviewStateDto?> GetMyMediaReviewAsync(Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.GetAsync($"api/medias/{mediaId}/review/me", cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<MyMediaReviewStateDto>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task DeleteMediaReviewAsync(Guid mediaId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.DeleteAsync($"api/medias/{mediaId}/review", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<IReadOnlyList<SocialUserDirectoryEntryDto>> GetSocialUserDirectoryAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<SocialUserDirectoryEntryDto>>("api/users/social/directory", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<SocialUserProfileDto?> GetLocalUserProfileAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<SocialUserProfileDto>($"api/users/{userId}/social-profile", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<SocialUserProfileDto?> GetFederatedUserProfileAsync(Guid peerServerId, Guid originUserId, CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<SocialUserProfileDto>(
+            $"api/federation/peers/{peerServerId}/users/{originUserId}/social-profile", _serializerOptions, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<SharedCollectionBrowseDto>> GetSharedCollectionsAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<SharedCollectionBrowseDto>>("api/users/me/shared-collections", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<IReadOnlyList<SharedPlaylistBrowseDto>> GetSharedPlaylistsAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<List<SharedPlaylistBrowseDto>>("api/users/me/shared-playlists", _serializerOptions, cancellationToken) ?? [];
+    }
+
+    public async Task<Guid> CopyFederatedPlaylistAsync(Guid peerServerId, Guid originUserId, Guid playlistId, CancellationToken cancellationToken = default)
+    {
+        var response = await HttpClient.PostAsync(
+            $"api/federation/peers/{peerServerId}/users/{originUserId}/playlists/{playlistId}/copy",
+            null,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>(_serializerOptions, cancellationToken);
+    }
+
+    public async Task<SocialDiscoveryStateDto> GetSocialDiscoveryStateAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpClient.GetFromJsonAsync<SocialDiscoveryStateDto>("api/users/social/discovery", _serializerOptions, cancellationToken)
+            ?? new SocialDiscoveryStateDto();
+    }
+
+    private sealed record SettingExistsResponse(bool Exists);
+}

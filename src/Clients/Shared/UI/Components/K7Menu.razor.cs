@@ -1,0 +1,244 @@
+using K7.Clients.Shared.Interfaces;
+using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
+
+namespace K7.Clients.Shared.UI.Components;
+
+public partial class K7Menu : IAsyncDisposable
+{
+    [Inject] private ISpatialNavService SpatialNav { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    [Parameter, EditorRequired] public RenderFragment ActivatorContent { get; set; } = default!;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public ElementReference PositionAnchor { get; set; }
+    [Parameter] public bool HasPositionAnchor { get; set; }
+
+    private bool _open;
+    private bool _layerPushed;
+    private bool _dropdownChromeReady;
+    private bool _dropdownPlaced;
+    private bool _mobileMenuAttached;
+    private bool _openParameterSeen;
+    private bool _lastOpenParameter;
+    private ElementReference _root;
+    private ElementReference _dropdown;
+    private ElementReference _backdrop;
+    private DotNetObjectReference<LayerCloseCallback>? _closeCallbackRef;
+
+    internal void Close() => CloseAsync().FireAndForget();
+
+    private async Task CloseAsync()
+    {
+        if (!_open) return;
+        await CloseMenuInternalAsync();
+        _open = false;
+        await OpenChanged.InvokeAsync(false);
+        StateHasChanged();
+    }
+
+    private async Task Toggle()
+    {
+        if (Disabled)
+            return;
+
+        _open = !_open;
+        await OpenChanged.InvokeAsync(_open);
+
+        if (_open)
+            await OpenMenuInternalAsync();
+        else
+            await CloseMenuInternalAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Disabled && _open)
+        {
+            await CloseMenuInternalAsync();
+            _open = false;
+            if (OpenChanged.HasDelegate)
+                await OpenChanged.InvokeAsync(false);
+        }
+
+        // Controlled (@bind-Open): parent owns Open.
+        if (OpenChanged.HasDelegate)
+        {
+            if (_open == Open)
+                return;
+
+            _open = Open && !Disabled;
+            if (_open)
+                await OpenMenuInternalAsync();
+            else
+                await CloseMenuInternalAsync();
+            return;
+        }
+
+        // Uncontrolled: do not treat the default Open=false as "close" on every parent
+        // re-render (e.g. remote panel 1 Hz ticks). Only react when Open actually changes.
+        if (!_openParameterSeen)
+        {
+            _openParameterSeen = true;
+            _lastOpenParameter = Open;
+            if (Open && !_open && !Disabled)
+            {
+                _open = true;
+                await OpenMenuInternalAsync();
+            }
+
+            return;
+        }
+
+        if (_lastOpenParameter == Open)
+            return;
+
+        _lastOpenParameter = Open;
+        _open = Open && !Disabled;
+        if (_open)
+            await OpenMenuInternalAsync();
+        else
+            await CloseMenuInternalAsync();
+    }
+
+    private async Task OpenMenuInternalAsync()
+    {
+        _closeCallbackRef?.Dispose();
+        _closeCallbackRef = DotNetObjectReference.Create(new LayerCloseCallback(Close));
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            await SpatialNav.AttachLayerCallbackAsync(_dropdown, _closeCallbackRef);
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException)
+        {
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_open)
+        {
+            _layerPushed = false;
+            _dropdownChromeReady = false;
+            _dropdownPlaced = false;
+            if (_mobileMenuAttached)
+            {
+                try
+                {
+                    await DetachMobileMenuAsync();
+                }
+                catch (Exception ex) when (ex is JSException or InvalidOperationException)
+                {
+                }
+            }
+
+            return;
+        }
+
+        // Submenu swaps and parent re-renders (filter apply) must not teleport or
+        // re-anchor the panel. Restore --placed after Blazor rewrites the class
+        // attribute so a later render cannot hide an already-open menu.
+        if (_dropdownChromeReady)
+        {
+            if (!_dropdownPlaced)
+            {
+                _dropdownPlaced = true;
+                await InvokeAsync(StateHasChanged);
+            }
+
+            try
+            {
+                await JS.InvokeVoidAsync("K7.revealDropdown", _dropdown);
+            }
+            catch (Exception ex) when (ex is JSException or InvalidOperationException)
+            {
+            }
+
+            return;
+        }
+
+        try
+        {
+            if (HasPositionAnchor)
+                await JS.InvokeVoidAsync("K7.setMenuPositionAnchor", PositionAnchor);
+            else
+                await JS.InvokeVoidAsync("K7.clearMenuPositionAnchor");
+
+            await JS.InvokeVoidAsync("K7.attachMobileMenu", _root, _dropdown, _backdrop);
+            _mobileMenuAttached = true;
+            await JS.InvokeVoidAsync("K7.positionDropdownDeferred", _root, _dropdown);
+
+            if (!_layerPushed)
+            {
+                _layerPushed = true;
+                await SpatialNav.PushLayerAsync(_dropdown, "popover", new SpatialNavLayerOptions
+                {
+                    OnClose = _closeCallbackRef
+                });
+            }
+
+            _dropdownChromeReady = true;
+            _dropdownPlaced = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException)
+        {
+            // Element not yet rendered. Retry on the next render.
+        }
+    }
+
+    private async Task DetachMobileMenuAsync()
+    {
+        await JS.InvokeVoidAsync("K7.detachMobileMenu", _root, _dropdown, _backdrop);
+        _mobileMenuAttached = false;
+    }
+
+    private async Task CloseMenuInternalAsync()
+    {
+        _layerPushed = false;
+        _dropdownChromeReady = false;
+        _dropdownPlaced = false;
+        try
+        {
+            await JS.InvokeVoidAsync("K7.clearMenuPositionAnchor");
+            await JS.InvokeVoidAsync("K7.resetDropdown", _root);
+            if (_mobileMenuAttached)
+                await DetachMobileMenuAsync();
+            await SpatialNav.PopLayerAsync(_dropdown);
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException)
+        {
+            // Element already removed
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_open)
+        {
+            try
+            {
+                if (_mobileMenuAttached)
+                    await DetachMobileMenuAsync();
+                await SpatialNav.PopLayerAsync(_dropdown);
+            }
+            catch (Exception ex) when (ex is JSException or InvalidOperationException) { }
+        }
+        else if (_mobileMenuAttached)
+        {
+            try
+            {
+                await DetachMobileMenuAsync();
+            }
+            catch (Exception ex) when (ex is JSException or InvalidOperationException) { }
+        }
+
+        _closeCallbackRef?.Dispose();
+    }
+}

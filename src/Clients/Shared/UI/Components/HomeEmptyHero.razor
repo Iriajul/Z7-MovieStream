@@ -1,0 +1,57 @@
+@namespace K7.Clients.Shared.UI.Components
+@using System.Net.Http.Json
+@inject IK7ServerService ApiClient
+
+<section class="home-empty-hero">
+    <div class="home-empty-hero__posters" aria-hidden="true">
+        @if (_posterUrls.Count > 0)
+        {
+            @for (var row = 0; row < 3; row++)
+            {
+                var offset = row * 7;
+                <div class="home-empty-hero__row home-empty-hero__row--@row">
+                    @* Two identical halves so the sideways loop has no visible seam. *@
+                    @for (var copy = 0; copy < 2; copy++)
+                    {
+                        @for (var i = 0; i < 12; i++)
+                        {
+                            <img src="@_posterUrls[(offset + i) % _posterUrls.Count]" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
+                        }
+                    }
+                </div>
+            }
+        }
+    </div>
+    <div class="home-empty-hero__fade" aria-hidden="true"></div>
+
+    <div class="home-empty-hero__content">
+        <p class="home-empty-hero__eyebrow">Welcome to Z7</p>
+        <h1 class="home-empty-hero__title">@Title</h1>
+        <p class="home-empty-hero__subtitle">@Subtitle</p>
+        @if (ActionContent is not null)
+        {
+            <div class="home-empty-hero__action">@ActionContent</div>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public RenderFragment? ActionContent { get; set; }
+
+    private List<string> _posterUrls = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _posterUrls = await ApiClient.HttpClient.GetFromJsonAsync<List<string>>("api/trending-posters") ?? [];
+        }
+        catch (Exception)
+        {
+            // Decorative only: without posters the hero still renders on a plain background.
+            _posterUrls = [];
+        }
+    }
+}

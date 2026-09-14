@@ -1,0 +1,219 @@
+﻿@page "/sign-up"
+@layout K7.Server.Web.Components.Pages.Auth.AuthLayout
+
+@using System.ComponentModel.DataAnnotations
+@using K7.Server.Application.Common.Interfaces
+@using K7.Server.Domain.Constants
+@using K7.Server.Domain.Entities.Users
+@using K7.Server.Domain.Enums
+@using K7.Server.Domain.Events
+@using K7.Server.Infrastructure.Configuration
+@using K7.Server.Infrastructure.Database.Context.Identity
+@using K7.Shared.Dtos
+@using K7.Shared.Security
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Options
+
+@inject UserManager<ApplicationUser> UserManager
+@inject IUserStore<ApplicationUser> UserStore
+@inject SignInManager<ApplicationUser> SignInManager
+@inject ILogger<Register> Logger
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+@inject IApplicationDbContext ApplicationDbContext
+@inject IPasswordPolicyService PasswordPolicyService
+@inject IOptions<AuthenticationConfiguration> AuthConfig
+@inject IStringLocalizer<Register> L
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<div class="auth-card">
+    <div class="auth-card-header">
+        <h1 class="auth-title">@L["Title"]</h1>
+        <p class="auth-subtitle">@L["CreateAccount"]</p>
+    </div>
+    <div class="auth-card-body">
+        <StatusMessage Message="@Message" />
+        <EditForm Model="Input" asp-route-returnUrl="@ReturnUrl" method="post" OnValidSubmit="RegisterUser" FormName="register" Enhance="false" novalidate>
+            <DataAnnotationsValidator />
+            <div class="auth-form-stack">
+                <div class="auth-form-field">
+                    <label>@L["Username"]</label>
+                    <InputText @bind-Value="Input!.Username" type="text" class="auth-input focusable" placeholder="@L["UsernamePlaceholder"]" autocomplete="username" aria-required="true" autofocus />
+                    <ValidationMessage For="@(() => Input!.Username)" class="auth-validation" />
+                </div>
+                <div class="auth-form-field">
+                    <label>@L["EmailOptional"]</label>
+                    <AuthEmailField Name="Input.Email"
+                                    Placeholder="@L["EmailPlaceholder"]"
+                                    Value="@(Input?.Email)"
+                                    @rendermode="InteractiveServer" />
+                </div>
+                <div class="auth-form-field">
+                    <label>@L["Password"]</label>
+                    <AuthPasswordField Name="Input.Password"
+                                       Placeholder="@L["PasswordPlaceholder"]"
+                                       Policy="@_policy"
+                                       Value="@(Input?.Password)"
+                                       ShowConfirm="true"
+                                       ConfirmLabel="@L["ConfirmPassword"]"
+                                       ConfirmPlaceholder="@L["ConfirmPasswordPlaceholder"]"
+                                       ConfirmValue="@(Input?.ConfirmPassword)"
+                                       @rendermode="InteractiveServer" />
+                    <ValidationMessage For="@(() => Input!.Password)" class="auth-validation" />
+                </div>
+                <button type="submit" class="k7-btn k7-btn--filled focusable" style="width:100%;">@L["Register"]</button>
+            </div>
+        </EditForm>
+        <p class="auth-caption" style="text-align:center;margin-top:1rem;">
+            @L["AlreadyHaveAccount"]
+            <a href="@(NavigationManager.GetUriWithQueryParameters("/sign-in", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))" class="auth-link focusable" data-enhance-nav="false">@L["SignIn"]</a>
+        </p>
+    </div>
+</div>
+
+@code {
+    private IEnumerable<IdentityError>? identityErrors;
+    private PasswordPolicyDto _policy = PasswordPolicyDto.Defaults;
+
+    [SupplyParameterFromForm]
+    private InputModel? Input { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private string? Message => identityErrors is null ? null : $"Error: {string.Join(", ", identityErrors.Select(error => error.Description))}";
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        _policy = await PasswordPolicyService.GetAsync();
+
+        if (!AuthConfig.Value.Local.RegistrationEnabled)
+        {
+            RedirectManager.RedirectToWithStatus("/sign-in", L["RegistrationDisabled"].Value, HttpContext);
+        }
+    }
+
+    public async Task RegisterUser(EditContext editContext)
+    {
+        if (!AuthConfig.Value.Local.RegistrationEnabled)
+        {
+            RedirectManager.RedirectToWithStatus("/sign-in", L["RegistrationDisabled"].Value, HttpContext);
+            return;
+        }
+
+        if (!EmailFormat.IsValidOptional(Input!.Email))
+        {
+            identityErrors = [new IdentityError { Description = L["InvalidEmail"] }];
+            return;
+        }
+
+        if (!string.Equals(Input.Password, Input.ConfirmPassword, StringComparison.Ordinal))
+        {
+            identityErrors = [new IdentityError { Description = L["PasswordMismatch"] }];
+            return;
+        }
+
+        if (!PasswordPolicy.IsSatisfiedBy(Input.Password, _policy))
+        {
+            identityErrors = [new IdentityError { Description = L["PasswordPolicyNotMet"] }];
+            return;
+        }
+
+        var user = CreateUser();
+
+        await UserStore.SetUserNameAsync(user, Input.Username.Trim(), CancellationToken.None);
+        if (!string.IsNullOrWhiteSpace(Input.Email))
+        {
+            var emailStore = GetEmailStore();
+            await emailStore.SetEmailAsync(user, Input.Email.Trim(), CancellationToken.None);
+        }
+
+        var result = await UserManager.CreateAsync(user, Input.Password);
+
+        if (!result.Succeeded)
+        {
+            identityErrors = result.Errors;
+            return;
+        }
+
+        Logger.LogInformation("User created a new account with password.");
+
+        await UserManager.AddToRoleAsync(user, Roles.User);
+
+        var userId = await UserManager.GetUserIdAsync(user);
+        var existingDomainUser = await ApplicationDbContext.Users.SingleOrDefaultAsync(u => u.IdentityUserId == userId, CancellationToken.None);
+        if (existingDomainUser is null)
+        {
+            var domainUser = new User
+            {
+                Id = Guid.NewGuid(),
+                IdentityUserId = userId
+            };
+
+            domainUser.AddDomainEvent(new UserCreatedEvent(
+                domainUser.Id,
+                Input.Username.Trim(),
+                string.IsNullOrWhiteSpace(Input.Email) ? null : Input.Email.Trim(),
+                Roles.User,
+                UserCreationOrigin.Registration));
+
+            ApplicationDbContext.Users.Add(domainUser);
+            await ApplicationDbContext.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await SignInManager.SignInAsync(user, isPersistent: false);
+        RedirectManager.RedirectTo(ReturnUrl);
+    }
+
+    private static ApplicationUser CreateUser()
+    {
+        try
+        {
+            return Activator.CreateInstance<ApplicationUser>();
+        }
+        catch
+        {
+            throw new InvalidOperationException($"Can't create an instance of '{nameof(ApplicationUser)}'. " +
+                $"Ensure that '{nameof(ApplicationUser)}' is not an abstract class and has a parameterless constructor.");
+        }
+    }
+
+    private IUserEmailStore<ApplicationUser> GetEmailStore()
+    {
+        if (!UserManager.SupportsUserEmail)
+        {
+            throw new NotSupportedException("The default UI requires a user store with email support.");
+        }
+        return (IUserEmailStore<ApplicationUser>)UserStore;
+    }
+
+    private sealed class InputModel
+    {
+        [Required]
+        [Display(Name = "Username")]
+        public string Username { get; set; } = "";
+
+        [Display(Name = "Email")]
+        public string? Email
+        {
+            get;
+            set => field = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        [Required]
+        [StringLength(PasswordPolicyDto.MaxRequiredLength)]
+        [DataType(DataType.Password)]
+        [Display(Name = "Password")]
+        public string Password { get; set; } = "";
+
+        [DataType(DataType.Password)]
+        [Display(Name = "Confirm password")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+}

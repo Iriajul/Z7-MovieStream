@@ -1,0 +1,12 @@
+@page "/settings/history"
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<Settings> L
+
+<PageTitle>@L["TabHistory"]</PageTitle>
+
+@code {
+    protected override void OnInitialized()
+    {
+        NavigationManager.NavigateTo("/my-space/history", replace: true);
+    }
+}

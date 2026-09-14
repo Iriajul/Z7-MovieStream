@@ -1,0 +1,37 @@
+@inject IStringLocalizer<ExcludeMediaForUsersDialog> L
+@inject IStringLocalizer<SharedResource> S
+
+<div class="k7-dialog-content">
+        @if (_loading)
+        {
+            <K7ProgressBar Indeterminate="true" />
+        }
+        else
+        {
+            <p class="text-sm mb-3" Color="secondary">
+                @string.Format(L["SelectUsers"], MediaTitle)
+            </p>
+            <div class="d-flex flex-col">
+                @foreach (var entry in _userStates)
+                {
+                    <div class="d-flex align-center justify-between">
+                        <div class="d-flex flex-col">
+                            <p class="text-sm">@(entry.User.UserName ?? entry.User.Email ?? "-")</p>
+                            @if (entry.User.IsGuest)
+                            {
+                                <span class="text-caption" Color="secondary">@S["Guest"]</span>
+                            }
+                        </div>
+                        <K7Switch Value="@entry.Excluded" ValueChanged="@(v => entry.Excluded = v)" />
+                    </div>
+                }
+            </div>
+        }
+    </div>
+    <div class="k7-dialog-actions">
+        <K7Button OnClick="Cancel">@S["Cancel"]</K7Button>
+        <K7Button Color="primary" Variant="filled" OnClick="Submit" Disabled="_saving">
+            @if (_saving) { <K7Spinner Size="sm" /> }
+            @S["Save"]
+        </K7Button>
+    </div>

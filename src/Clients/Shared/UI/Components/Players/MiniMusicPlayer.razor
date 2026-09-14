@@ -1,0 +1,84 @@
+@if (Audio.IsVisible && DisplayedTrack is not null)
+{
+    <div class="music-mini-player">
+        <div class="mini-player-progress @(_seekbarFocusable ? "focusable" : "")" @ref="_progressBarRef"
+             tabindex="@(_seekbarFocusable ? 0 : -1)"
+             role="slider"
+             aria-label="@S["SeekBar"]"
+             aria-valuemin="0" aria-valuemax="100"
+             aria-valuenow="@((int)DisplayPercent)"
+             @onkeydown="OnProgressKeyDown"
+             @onpointerdown="OnProgressPointerDown"
+             @onpointermove="OnProgressPointerMove"
+             @onpointerup="OnProgressPointerUp">
+            <div class="progress-buffered" style="width: @(BufferedPercent.ToString(System.Globalization.CultureInfo.InvariantCulture))%"></div>
+            <div class="progress-current" style="width: @(DisplayPercent.ToString(System.Globalization.CultureInfo.InvariantCulture))%"></div>
+        </div>
+
+        <div class="mini-player-content">
+            <div class="mini-player-left">
+                <div class="mini-player-track-info" tabindex="0" role="button" @onclick="Audio.ToggleFullScreen" @onkeydown="OnTrackInfoKeyDown" style="cursor: pointer;">
+                    @if (!string.IsNullOrEmpty(DisplayedTrack.CoverUrl))
+                    {
+                        <K7Image Src="@DisplayedTrack.CoverUrl"
+                                  Alt="@($"{DisplayedTrack.Title} - {DisplayedTrack.Artist}")"
+                                  Width="48"
+                                  ObjectFit="cover"
+                                  Class="mini-player-cover" />
+                    }
+                    else
+                    {
+                        <K7Icon Icon="@Phosphor.MusicNote"
+                                 Class="mini-player-cover-placeholder" />
+                    }
+                    <div class="mini-player-text">
+                        <span class="mini-player-title">@DisplayedTrack.Title</span>
+                        <span class="mini-player-artist">@DisplayedTrack.Artist</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mini-player-center">
+                <div class="mini-player-controls">
+                    <div class="mini-player-fab-wrap @(IsBuffering ? "buffering" : "")" @onpointerdown="OnFabPointerDown" @onpointerup="OnFabPointerUp" @onpointerleave="OnFabPointerUp" @onkeydown="OnFabKeyDown" @onkeyup="OnFabKeyUp">
+                        <K7FabButton Icon="@PlayPauseIcon" OnClick="TogglePlayPause" AriaLabel="Play pause" />
+                    </div>
+                    <K7IconButton Icon="@Phosphor.SkipForward" OnClick="OnNext" AriaLabel="Next" />
+                </div>
+            </div>
+
+            <div class="mini-player-right">
+                <div class="mini-player-rating">
+                    <RatingStars
+                        MediaId="DisplayedTrack.MediaId"
+                        Value="DisplayedTrack.UserRating"
+                        ValueChanged="OnRatingChanged" />
+                </div>
+
+                <div class="mini-player-time">
+                    <span>@FormatTime(Audio.CurrentTime)</span>
+                    <span class="time-separator">/</span>
+                    <span>@FormatTime(Audio.Duration)</span>
+                </div>
+
+                <div class="mini-player-secondary-controls">
+                    @if (_showVolumeControls)
+                    {
+                        <div class="mini-player-volume">
+                            <K7IconButton Icon="@VolumeIcon" OnClick="ToggleMute" AriaLabel="Toggle mute" />
+                            <div class="volume-popup">
+                                <K7Slider TValue="double"
+                                           Value="Audio.Volume"
+                                           Min="0" Max="1"
+                                           Immediate="true"
+                                           ValueChanged="OnVolumeChanged" Step="0.01"
+                                           Class="mini-player-volume-slider" />
+                            </div>
+                        </div>
+                    }
+                    <K7IconButton Icon="@Phosphor.CornersOut" OnClick="Audio.ToggleFullScreen" AriaLabel="EnterFullscreen" />
+                </div>
+            </div>
+        </div>
+    </div>
+}

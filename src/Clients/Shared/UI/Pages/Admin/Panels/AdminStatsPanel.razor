@@ -1,0 +1,420 @@
+@page "/admin/stats"
+@layout AdminLayout
+@inject IServerInfoService K7ServerService
+@inject IUserAdminService UserAdminService
+@inject IStringLocalizer<AdminStatsPanel> L
+
+<div class="d-flex flex-col admin-stats-page" style="gap: var(--space-3);">
+    <div class="stats-toolbar d-flex align-center flex-wrap">
+        <h5>@L["Title"]</h5>
+
+        <K7ButtonGroup TValue="string" Options="_periodOptions" Value="_selectedPeriod" ValueChanged="OnPeriodChanged" AriaLabel="@L["Period"]" />
+
+        @if (_selectedPeriod == "custom")
+        {
+            <K7DateRangePicker From="_fromDate" To="_toDate" RangeChanged="OnDateRangeChanged"
+                               Label="@L["PickDates"]" HintSelectEnd="@L["SelectEndDate"]" />
+        }
+
+        <K7ButtonGroup TValue="string" Options="_mediaTypeOptions" Value="_selectedMediaType" ValueChanged="OnMediaTypeChanged" AriaLabel="@L["MediaType"]" />
+
+        <K7Select TValue="Guid?" Class="stats-user-select data-toolbar-field"
+                  Value="_selectedUserId" ValueChanged="OnUserChanged" Clearable="true"
+                  ToStringFunc="@(id => id is null ? L["AllUsers"] : _users.FirstOrDefault(u => u.Id == id)?.DisplayName ?? _users.FirstOrDefault(u => u.Id == id)?.UserName ?? L["AllUsers"])"
+                  FullWidth="false">
+            @foreach (var user in _users)
+            {
+                var userLabel = user.DisplayName ?? user.UserName ?? user.Email;
+                <K7SelectItem TValue="Guid?" Value="@user.Id" Text="@userLabel">@userLabel</K7SelectItem>
+            }
+        </K7Select>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="d-flex justify-center pa-16">
+            <K7Spinner />
+        </div>
+    }
+    else if (_stats is null)
+    {
+        <div class="d-flex flex-col align-center pa-16" style="opacity: 0.5;">
+            <K7Icon Name="chart-bar" Style="font-size: 48px;" />
+            <span class="text-sm">@L["NoData"]</span>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex flex-col" style="gap: var(--space-4);">
+            <div class="stats-kpi-row">
+                <K7Paper Elevation="0" Class="stats-kpi-card focusable" tabindex="0">
+                    <h4>@_stats.TotalWatchTimeHours h</h4>
+                    <span class="text-caption" style="color: var(--color-text-muted);">@L["WatchTime"]</span>
+                </K7Paper>
+                <K7Paper Elevation="0" Class="stats-kpi-card focusable" tabindex="0">
+                    <h4>@_stats.TotalPlays</h4>
+                    <span class="text-caption" style="color: var(--color-text-muted);">@L["TotalPlays"]</span>
+                </K7Paper>
+                <K7Paper Elevation="0" Class="stats-kpi-card focusable" tabindex="0">
+                    <h4>@_stats.UniqueItemsPlayed</h4>
+                    <span class="text-caption" style="color: var(--color-text-muted);">@L["UniqueItems"]</span>
+                </K7Paper>
+            </div>
+
+            @if (_isTv)
+            {
+                <div class="stats-top-grid">
+                    <StatsRankedTable Title="@L["ByHourOfDay"]" Rows="_hourRankRows" />
+                    <StatsRankedTable Title="@L["ByDayOfWeek"]" Rows="_dowRankRows" />
+                    <StatsRankedTable Title="@L["TopGenres"]" Rows="_genreRankRows" />
+                    <StatsRankedTable Title="@L["TopDevices"]" Rows="_deviceRankRows" />
+                </div>
+            }
+            else
+            {
+                @if (_playsOverTimeData.Count > 1)
+                {
+                    <K7Paper Elevation="0" Class="stats-chart-card">
+                        <h6>@L["PlaysOverTime"]</h6>
+                        <ApexChart TItem="ChartDataPoint" Options="_areaChartOptions" Height="160">
+                            <ApexPointSeries TItem="ChartDataPoint"
+                                             Items="_playsOverTimeData"
+                                             SeriesType="SeriesType.Area"
+                                             XValue="@(p => p.Label)"
+                                             YValue="@(p => p.Value)" />
+                        </ApexChart>
+                    </K7Paper>
+                }
+
+                <div class="stats-chart-row stats-chart-row--time-patterns">
+                    <K7Paper Elevation="0" Class="stats-chart-card">
+                        <h6>@L["ByHourOfDay"]</h6>
+                        @if (HasNonZeroData(_hourData))
+                        {
+                            <ApexChart TItem="ChartDataPoint" Options="_barChartOptionsHour" Height="180">
+                                <ApexPointSeries TItem="ChartDataPoint"
+                                                 Items="_hourData"
+                                                 SeriesType="SeriesType.Bar"
+                                                 XValue="@(p => p.Label)"
+                                                 YValue="@(p => p.Value)" />
+                            </ApexChart>
+                        }
+                        else
+                        {
+                            <div class="stats-empty-state">
+                                <K7Icon Icon="@Phosphor.ChartBar" />
+                                <span>@L["NoData"]</span>
+                            </div>
+                        }
+                    </K7Paper>
+                    <K7Paper Elevation="0" Class="stats-chart-card">
+                        <h6>@L["ByDayOfWeek"]</h6>
+                        @if (HasNonZeroData(_dowData))
+                        {
+                            <ApexChart TItem="ChartDataPoint" Options="_barChartOptionsDow" Height="180">
+                                <ApexPointSeries TItem="ChartDataPoint"
+                                                 Items="_dowData"
+                                                 SeriesType="SeriesType.Bar"
+                                                 XValue="@(p => p.Label)"
+                                                 YValue="@(p => p.Value)" />
+                            </ApexChart>
+                        }
+                        else
+                        {
+                            <div class="stats-empty-state">
+                                <K7Icon Icon="@Phosphor.CalendarBlank" />
+                                <span>@L["NoData"]</span>
+                            </div>
+                        }
+                    </K7Paper>
+                </div>
+
+                <div class="stats-chart-row">
+                    <K7Paper Elevation="0" Class="stats-chart-card" Style="flex: 1; min-width: 240px;">
+                        <h6>@L["TopGenres"]</h6>
+                        @if (_genreData.Count > 0)
+                        {
+                            <ApexChart TItem="ChartDataPoint" Options="_donutChartOptionsGenre" Height="220">
+                                <ApexPointSeries TItem="ChartDataPoint"
+                                                 Items="_genreData"
+                                                 SeriesType="SeriesType.Donut"
+                                                 XValue="@(p => p.Label)"
+                                                 YValue="@(p => p.Value)" />
+                            </ApexChart>
+                        }
+                        else
+                        {
+                            <div class="stats-empty-state">
+                                <K7Icon Icon="@Phosphor.MusicNotes" />
+                                <span>@L["NoData"]</span>
+                            </div>
+                        }
+                    </K7Paper>
+                    <K7Paper Elevation="0" Class="stats-chart-card" Style="flex: 1; min-width: 240px;">
+                        <h6>@L["TopDevices"]</h6>
+                        @if (_deviceData.Count > 0)
+                        {
+                            <ApexChart TItem="ChartDataPoint" Options="_donutChartOptionsDevice" Height="220">
+                                <ApexPointSeries TItem="ChartDataPoint"
+                                                 Items="_deviceData"
+                                                 SeriesType="SeriesType.Donut"
+                                                 XValue="@(p => p.Label)"
+                                                 YValue="@(p => p.Value)" />
+                            </ApexChart>
+                        }
+                        else
+                        {
+                            <div class="stats-empty-state">
+                                <K7Icon Icon="@Phosphor.Devices" />
+                                <span>@L["NoData"]</span>
+                            </div>
+                        }
+                    </K7Paper>
+                </div>
+            }
+
+            <div class="stats-top-grid">
+                <StatsMediaRankedTable Title="@TopItemsLabel" Items="_stats.TopItems" />
+                @if (ShowMusicRankings)
+                {
+                    <StatsMediaRankedTable Title="@L["TopSkipped"]" Items="_stats.TopSkippedItems" />
+                    <StatsMediaRankedTable Title="@L["TopArtists"]" Items="_stats.TopArtists" MediaTypeOverride="MusicArtist" />
+                    <StatsMediaRankedTable Title="@L["TopAlbums"]" Items="_stats.TopAlbums" MediaTypeOverride="MusicAlbum" />
+                }
+                @if (ShowShowRankings)
+                {
+                    <StatsMediaRankedTable Title="@L["TopShows"]" Items="_stats.TopShows" MediaTypeOverride="Serie" />
+                }
+            </div>
+
+            @if (!IsMusicOnly && _stats.PlaybackDetails is { } pd)
+            {
+                <h6 class="stats-section-title focusable" tabindex="0">@L["PlaybackDetailsTitle"]</h6>
+
+                @if (_isTv)
+                {
+                    <div class="stats-top-grid">
+                        <StatsRankedTable Title="@L["PlaybackDecisions"]" Rows="_decisionRankRows" />
+                        <StatsRankedTable Title="@L["Resolutions"]" Rows="_resolutionRankRows" />
+                        <StatsRankedTable Title="@L["AudioLanguages"]" Rows="_audioLangRankRows" />
+                        <StatsRankedTable Title="@L["SubtitleLanguages"]" Rows="_subtitleLangRankRows" />
+                        <StatsRankedTable Title="@L["TranscodeReasons"]" Rows="_transcodeRankRows" />
+                    </div>
+                }
+                else
+                {
+                    <div class="stats-chart-row">
+                        @if (pd.PlaybackDecisions.Count > 0)
+                        {
+                            <K7Paper Elevation="0" Class="stats-chart-card" Style="flex: 1; min-width: 200px;">
+                                <h6>@L["PlaybackDecisions"]</h6>
+                                <ApexChart TItem="ChartDataPoint" Options="_donutChartOptionsDecision" Height="200">
+                                    <ApexPointSeries TItem="ChartDataPoint"
+                                                     Items="_decisionData"
+                                                     SeriesType="SeriesType.Donut"
+                                                     XValue="@(p => p.Label)"
+                                                     YValue="@(p => p.Value)" />
+                                </ApexChart>
+                            </K7Paper>
+                        }
+                        @if (pd.TopResolutions.Count > 0)
+                        {
+                            <K7Paper Elevation="0" Class="stats-chart-card" Style="flex: 1; min-width: 200px;">
+                                <h6>@L["Resolutions"]</h6>
+                                <ApexChart TItem="ChartDataPoint" Options="_donutChartOptionsResolution" Height="200">
+                                    <ApexPointSeries TItem="ChartDataPoint"
+                                                     Items="_resolutionData"
+                                                     SeriesType="SeriesType.Donut"
+                                                     XValue="@(p => p.Label)"
+                                                     YValue="@(p => p.Value)" />
+                                </ApexChart>
+                            </K7Paper>
+                        }
+                    </div>
+
+                    <div class="stats-top-grid">
+                        <StatsRankedTable Title="@L["AudioLanguages"]" Rows="_audioLangRankRows" />
+                        <StatsRankedTable Title="@L["SubtitleLanguages"]" Rows="_subtitleLangRankRows" />
+                        <StatsRankedTable Title="@L["TranscodeReasons"]" Rows="_transcodeRankRows" />
+                    </div>
+                }
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .stats-toolbar {
+        gap: var(--space-2) var(--space-3);
+    }
+
+    .stats-toolbar > .k7-button-group {
+        height: 40px;
+        flex-shrink: 0;
+    }
+
+    .stats-toolbar > .k7-button-group .k7-button-group-item {
+        height: 100%;
+    }
+
+    .stats-toolbar .stats-user-select {
+        min-width: 180px;
+        max-width: 260px;
+        flex-shrink: 0;
+    }
+
+    .stats-toolbar .stats-user-select .k7-select-wrap,
+    .stats-toolbar .stats-user-select .k7-select {
+        height: 40px;
+        min-height: 40px;
+    }
+
+    .stats-kpi-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: var(--space-3);
+    }
+
+    .stats-kpi-card {
+        padding: var(--space-4);
+        text-align: center;
+    }
+
+    .stats-chart-card {
+        padding: var(--space-4);
+    }
+
+    .stats-section-title {
+        margin-top: var(--space-2);
+        outline: none;
+    }
+
+    .stats-empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+        min-height: 120px;
+        opacity: 0.5;
+        font-size: var(--text-sm);
+        color: var(--color-text-muted);
+    }
+
+    .stats-empty-state :deep(svg) {
+        font-size: var(--text-2xl);
+    }
+
+    .stats-chart-row {
+        display: flex;
+        gap: var(--space-3);
+        flex-wrap: wrap;
+    }
+
+    .stats-chart-row--time-patterns > * {
+        flex: 1;
+        min-width: 280px;
+    }
+
+    @@media (max-width: 1199px) {
+        .stats-chart-row--time-patterns {
+            flex-direction: column;
+        }
+
+        .stats-chart-row--time-patterns > * {
+            flex: 1 1 100%;
+            min-width: 0;
+            width: 100%;
+        }
+    }
+
+    .stats-top-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: var(--space-3);
+    }
+
+    .stats-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: var(--space-2);
+    }
+
+    .stats-table tr:nth-child(odd) {
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .stats-table tr.focusable:focus,
+    .stats-table tr.focusable:focus-visible,
+    .stats-kpi-card.focusable:focus,
+    .stats-kpi-card.focusable:focus-visible,
+    .stats-section-title.focusable:focus,
+    .stats-section-title.focusable:focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: -2px;
+        background: var(--color-surface-hover);
+    }
+
+    .stats-kpi-card.focusable:focus,
+    .stats-kpi-card.focusable:focus-visible {
+        outline-offset: 2px;
+    }
+
+    .stats-table-row--link {
+        cursor: pointer;
+    }
+
+    .stats-table td {
+        padding: var(--space-1) var(--space-2);
+        font-size: var(--font-size-sm);
+    }
+
+    .stats-table-rank {
+        width: 28px;
+        color: var(--color-text-muted);
+        text-align: right;
+        padding-right: var(--space-2);
+    }
+
+    .stats-table-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 0;
+        width: 100%;
+    }
+
+    .stats-table-lang {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .stats-table-flag {
+        flex-shrink: 0;
+    }
+
+    .stats-table-name__text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+    }
+
+    .stats-table-count {
+        text-align: right;
+        white-space: nowrap;
+        color: var(--color-primary);
+        font-weight: 500;
+    }
+
+    html.platform-tv .stats-top-grid {
+        grid-template-columns: 1fr;
+    }
+
+    html.platform-tv .admin-stats-page {
+        padding-bottom: max(var(--space-12), var(--k7-safe-bottom, 0px));
+    }
+</style>

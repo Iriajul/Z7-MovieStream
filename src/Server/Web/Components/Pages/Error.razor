@@ -1,0 +1,35 @@
+﻿@page "/Error"
+@attribute [ExcludeFromInteractiveRouting]
+@using System.Diagnostics
+@inject IStringLocalizer<Error> L
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<h1 style="color:var(--color-error)">@L["Title"]</h1>
+<p style="color:var(--color-error)">@L["Message"]</p>
+
+@if (ShowRequestId)
+{
+    <p>
+        <strong>@L["RequestId"]:</strong> <code>@RequestId</code>
+    </p>
+}
+
+<h3>@L["DevMode"]</h3>
+<p>
+    @L["DevModeHint"]
+</p>
+<p>
+    @L["DevModeWarning"]
+</p>
+
+@code{
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

@@ -1,0 +1,682 @@
+/* K7 - Global Stylesheet */
+
+/* 1. Fonts */
+@import url('./lib/fonts/epilogue/latin-700.css');
+@import url('./lib/fonts/epilogue/latin-900.css');
+@import url('./lib/fonts/manrope/latin-400.css');
+@import url('./lib/fonts/manrope/latin-500.css');
+@import url('./lib/fonts/manrope/latin-700.css');
+
+/* 2. Foundation */
+@import url('./css/reset.css');
+@import url('./css/tokens.css');
+
+/* 3. Themes */
+@import url('./css/themes/default-dark.css');
+@import url('./css/themes/default-light.css');
+
+/* 4. Phosphor Icons */
+@import url('./dist/phosphor-icons/src/regular/style.css');
+@import url('./dist/phosphor-icons/src/fill/style.css');
+
+/* 4b. Flag Icons */
+@import url('./css/flag-icons.css');
+
+/* 5. Utilities */
+@import url('./css/utilities.css');
+
+/* 6. Layout */
+@import url('./css/layout.css');
+@import url('./css/tv-feed-page.css');
+
+/* 7. Components */
+@import url('./css/components.css');
+@import url('./css/playlist-detail.css');
+@import url('./css/media-hero.css');
+
+/* ============================================================
+   Global base styles
+   ============================================================ */
+
+html, body, #app {
+    height: 100%;
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    color: var(--color-text);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar            { width: 6px; height: 6px; }
+::-webkit-scrollbar-track      { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb      { background: var(--scrollbar-thumb); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover{ background: var(--color-text-disabled); }
+/* Both-axis scrollers otherwise leave a bright system corner (e.g. admin tables). */
+::-webkit-scrollbar-corner     { background: transparent; }
+
+/* Focus ring - keyboard/D-pad */
+:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+/* Headings are not interactive; hide programmatic focus rings (e.g. legacy skip targets) */
+h1:focus:not(:focus-visible),
+h2:focus:not(:focus-visible),
+h3:focus:not(:focus-visible),
+h4:focus:not(:focus-visible),
+h5:focus:not(:focus-visible),
+h6:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
+}
+
+/* Selection */
+::selection {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+}
+
+/* Hide the default mobile tap flash (blue/grey rectangle on buttons/links). */
+html {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Native-app feel: no text selection / iOS callout in the MAUI WebView.
+   Web WASM keeps browser selection. Form controls stay selectable. */
+html.platform-maui {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+html.platform-maui input,
+html.platform-maui textarea,
+html.platform-maui select,
+html.platform-maui [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+}
+
+/* Edit mode indicator for spatial navigation */
+input[data-sn-editing="true"],
+textarea[data-sn-editing="true"] {
+    outline: 2px solid var(--color-accent) !important;
+    outline-offset: 2px;
+}
+
+/* ============================================================
+   Android TV / Leanback platform overrides
+   The Android handler injects "K7TV/1.0" into the WebView
+   user-agent. tv-layout.js adds .platform-tv on <html> before
+   Blazor mounts. Viewport targets 1920 CSS px (10-foot). Do
+   not map 1 CSS px to 1 physical px on 4K (that shrinks the UI).
+   ============================================================ */
+html.platform-tv {
+    /* 10-foot: scale all rem-based type (tokens, utilities, most pages). */
+    font-size: var(--text-lg);
+    /* Avoid hover side-effects on D-pad navigation */
+    cursor: none;
+}
+
+/* Preserve chrome on TV even when :hover sticks (mouse via scrcpy). */
+html.platform-tv .app-nav-popover,
+html.platform-tv .k7-menu-dropdown {
+    background-color: var(--color-surface);
+}
+
+html.platform-tv .app-nav-popover:hover,
+html.platform-tv .k7-menu-dropdown:hover {
+    background-color: var(--color-surface);
+}
+
+/* Sticky :hover leaves the same accent overlay as real keyboard focus.
+   While navigating with keys / on TV, only :focus-within may show it. */
+html[data-input-modality="keyboard"] .media-card:hover:not(:focus-within) .media-card-overlay,
+html[data-input-modality="keyboard"] .media-card:hover:not(:focus-within) .media-card-menu,
+html[data-input-modality="keyboard"] .k7-category-card:hover:not(:focus-within) .k7-category-card__focus-overlay,
+html[data-input-modality="keyboard"] .user-card:hover:not(:focus-within) .user-card__overlay,
+html[data-input-modality="keyboard"] .music-radio-presets__item:hover:not(:focus-within) .music-radio-presets__overlay,
+html.platform-tv .media-card:hover:not(:focus-within) .media-card-overlay,
+html.platform-tv .media-card:hover:not(:focus-within) .media-card-menu,
+html.platform-tv .k7-category-card:hover:not(:focus-within) .k7-category-card__focus-overlay,
+html.platform-tv .user-card:hover:not(:focus-within) .user-card__overlay,
+html.platform-tv .music-radio-presets__item:hover:not(:focus-within) .music-radio-presets__overlay {
+    display: none !important;
+}
+
+/* html.platform-tv :focus-visible {
+    outline: 3px solid var(--color-accent);
+    outline-offset: 3px;
+    box-shadow: var(--focus-ring), 0 0 0 6px rgba(0, 0, 0, 0.35);
+} */
+
+/* -- Typography bumps ---------------------------------------------------- */
+
+html.platform-tv h6 {
+    /* Carousel / shelf section titles */
+    font-size: var(--text-2xl);
+}
+
+html.platform-tv .overview-clickable p,
+html.platform-tv .serie-hero p,
+html.platform-tv p.overview-clickable {
+    /* Synopsis on detail pages.
+       !important overrides inline synopsis font-size. */
+    font-size: var(--text-xl) !important;
+}
+
+html.platform-tv .text-sm {
+    /* Metadata text (year, duration, dots, network) */
+    font-size: var(--text-base);
+}
+
+html.platform-tv .text-2xs,
+html.platform-tv .text-xs,
+html.platform-tv .text-caption {
+    /* Captions, secondary labels, admin/settings hints */
+    font-size: var(--text-sm);
+}
+
+html.platform-tv .person-text,
+html.platform-tv .person-title {
+    /* Person / PersonRole names */
+    font-size: var(--text-base);
+}
+
+html.platform-tv .person-subtitle {
+    font-size: var(--text-sm);
+}
+
+html.platform-tv .media-card-title {
+    /* Shelf / carousel card footers (10-foot) */
+    font-size: var(--text-base);
+}
+
+html.platform-tv .media-card-subtitle {
+    font-size: var(--text-sm);
+}
+
+html.platform-tv .k7-category-card {
+    height: 140px;
+}
+
+html.platform-tv .k7-category-card__desc {
+    font-size: var(--text-sm);
+    letter-spacing: 0.08em;
+}
+
+html.platform-tv .k7-category-card__icon-badge {
+    width: 60px;
+    height: 60px;
+    font-size: var(--text-3xl);
+}
+
+html.platform-tv .music-radio-presets__card-title {
+    font-size: var(--text-base);
+}
+
+html.platform-tv .music-radio-presets__subtitle {
+    font-size: var(--text-sm);
+}
+
+html.platform-tv .k7-dialog-title {
+    font-size: var(--text-2xl);
+}
+
+html.platform-tv .k7-empty-state__title,
+html.platform-tv .k7-empty-state__subtitle {
+    font-size: var(--text-base);
+}
+
+html.platform-tv .k7-field-error,
+html.platform-tv .k7-field-helper {
+    font-size: var(--text-sm);
+}
+
+html.platform-tv .library-list-item-title {
+    font-size: var(--text-base);
+}
+
+html.platform-tv .library-list-item-secondary,
+html.platform-tv .library-list-item-rating {
+    font-size: var(--text-sm);
+}
+
+/* -- Top navbar ---------------------------------------------------------- */
+
+html.platform-tv .app-nav-link {
+    font-size: var(--text-2xl);
+    min-height: 48px;
+}
+
+html.platform-tv .app-nav-icon {
+    font-size: var(--text-3xl);
+}
+
+html.platform-tv .app-nav-logo-text {
+    font-size: var(--text-3xl);
+}
+
+/* -- Sidebar (settings / admin) ------------------------------------------ */
+
+html.platform-tv .nav-link,
+html.platform-tv .nav-group-toggle {
+    font-size: var(--text-base);
+    min-height: 44px;
+}
+
+html.platform-tv .nav-link .nav-icon,
+html.platform-tv .nav-group-toggle .nav-icon {
+    font-size: var(--text-2xl);
+}
+
+html.platform-tv .sidebar-logo-text {
+    font-size: var(--text-2xl);
+}
+
+html.platform-tv .sidebar-search-input,
+html.platform-tv .sidebar-user-name {
+    font-size: var(--text-base);
+}
+
+html.platform-tv .nav-rail-hint {
+    font-size: var(--text-sm);
+}
+
+html.platform-tv .app-nav {
+    background: transparent;
+    border-bottom-color: transparent;
+    backdrop-filter: none;
+}
+
+html.platform-tv .app-nav-bar {
+    backdrop-filter: none;
+}
+
+html.platform-tv .app-nav-popover.open,
+html.platform-tv .k7-menu-dropdown.k7-menu-dropdown--open.k7-menu-dropdown--placed,
+html.platform-tv .k7-select-dropdown.k7-select-dropdown--open.k7-select-dropdown--placed {
+    background: var(--color-surface);
+    opacity: 1;
+}
+
+html.platform-tv .k7-menu-dropdown.k7-menu-dropdown--open:not(.k7-menu-dropdown--placed),
+html.platform-tv .k7-select-dropdown.k7-select-dropdown--open:not(.k7-select-dropdown--placed) {
+    opacity: 0;
+    visibility: hidden;
+}
+
+html.platform-tv .k7-dialog-paper {
+    animation: none;
+}
+
+.k7-virtual-grid-placeholder-focus {
+    display: block;
+    width: 100%;
+    min-height: 40%;
+    aspect-ratio: 2 / 3;
+    aspect-ratio: var(--item-ratio, 2 / 3);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-2);
+    border: 2px solid var(--color-border-subtle);
+    box-sizing: border-box;
+    outline: none;
+}
+
+.k7-virtual-grid-placeholder-focus:focus,
+.k7-virtual-grid-placeholder-focus:focus-visible {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+html.platform-tv .k7-virtual-grid-placeholder-focus:hover:not(:focus) {
+    border-color: var(--color-border-subtle);
+    box-shadow: none;
+}
+
+html.platform-tv .k7-virtual-grid-placeholder-focus:focus,
+html.platform-tv .k7-virtual-grid-placeholder-focus:focus-visible {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent);
+}
+
+html.platform-tv .k7-menu-dropdown--card-corner {
+    --k7-media-card-menu-width: 20rem;
+    max-height: none;
+    overflow-y: visible;
+}
+html.platform-tv .k7-menu-portal.k7-menu-dropdown--open {
+    max-height: none;
+    overflow-y: visible;
+}
+
+html.platform-tv .k7-avatar--sm {
+    width: 40px;
+    height: 40px;
+    font-size: var(--text-base);
+}
+
+/* -- Chips --------------------------------------------------------------- */
+
+html.platform-tv .k7-chip {
+    font-size: var(--text-base);
+    padding: var(--space-1) var(--space-4);
+}
+
+/* -- Buttons ------------------------------------------------------------- */
+
+html.platform-tv .k7-btn {
+    font-size: var(--text-base);
+    min-height: 44px;
+    padding: var(--space-3) var(--space-5);
+}
+
+html.platform-tv .k7-btn--lg {
+    font-size: var(--text-lg);
+    min-height: 52px;
+    padding: var(--space-4) var(--space-8) !important;
+}
+
+html.platform-tv .k7-icon-btn {
+    width: 52px;
+    height: 52px;
+    font-size: var(--text-2xl);
+}
+
+/* -- Menus / dropdowns --------------------------------------------------- */
+
+html.platform-tv .k7-menu-item {
+    font-size: var(--text-base);
+    padding: var(--space-3) var(--space-5);
+}
+
+html.platform-tv .k7-menu-item i,
+html.platform-tv .k7-menu-item .ph {
+    font-size: var(--text-xl);
+}
+
+/* -- Profile popover (avatar menu) --------------------------------------- */
+
+html.platform-tv .app-nav-popover .nav-link {
+    font-size: var(--text-base);
+}
+
+html.platform-tv .app-nav-popover .nav-icon {
+    font-size: var(--text-2xl);
+}
+
+html.platform-tv .app-nav-popover-username {
+    font-size: var(--text-base);
+}
+
+html.platform-tv .app-nav-popover-status {
+    font-size: var(--text-sm);
+}
+
+/* -- PersonRole avatar --------------------------------------------------- */
+
+html.platform-tv .personrole-item {
+    width: 180px;
+}
+
+html.platform-tv .personrole-item ::deep .k7-avatar {
+    width: 180px !important;
+    height: 180px !important;
+}
+
+html.platform-tv .person-footer {
+    max-width: 180px;
+}
+
+/* Keep menu activator off-screen but clickable; dropdown is portaled to body when open. */
+html.platform-tv .media-card-menu {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+    pointer-events: none;
+}
+
+html.platform-tv .media-card-menu .k7-menu-activator-inner {
+    pointer-events: auto;
+}
+
+html.platform-tv .media-card-menu--open,
+html.platform-tv .media-card--menu-open .media-card-menu {
+    clip: auto;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+}
+
+/* ============================================================
+   Blazor error UI
+   ============================================================ */
+#blazor-error-ui {
+    background: var(--color-error);
+    color: #fff;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0,0,0,.3);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: var(--z-max);
+}
+
+#blazor-error-ui .reload {
+    margin-left: 0.5rem;
+    color: #fff;
+    text-decoration: underline;
+}
+
+#blazor-error-ui .reload:focus,
+#blazor-error-ui .reload:focus-visible,
+#blazor-error-ui .dismiss:focus,
+#blazor-error-ui .dismiss:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+.blazor-error-boundary {
+    padding: 1rem 1rem 1rem 3.7rem;
+    color: white;
+    background-color: var(--color-error);
+}
+
+.blazor-error-boundary::after {
+    content: "An error has occurred.";
+}
+
+/* ============================================================
+   Preload splash
+   ============================================================ */
+#preload {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--color-bg);
+    z-index: 9999;
+    transition: opacity 400ms ease-out;
+}
+
+.preload-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.preload-animation {
+    width: min(40vw, 240px);
+    height: auto;
+    aspect-ratio: 128 / 70;
+}
+
+.preload-title {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    color: var(--color-primary);
+    letter-spacing: 2px;
+    opacity: 0;
+    animation: preload-fade-in 0.6s ease-out 0.3s forwards;
+}
+
+@keyframes preload-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   Body state helpers
+   ============================================================ */
+body.no-scroll {
+    overflow: hidden;
+}
+
+body.k7-overlay-locked {
+    overflow: hidden;
+}
+
+body.k7-overlay-locked .app-main {
+    pointer-events: none;
+    touch-action: none;
+}
+
+html.native-player-active,
+body.native-player-active {
+    background: #000 !important;
+}
+
+/* Keep #app clear too - body alone is not enough for Android WebView see-through.
+   Only after native-player-playing so load stays black (no TV white clear). */
+html.native-player-active.native-player-playing:not(.windows-web-video),
+body.native-player-active.native-player-playing:not(.windows-web-video),
+html.native-player-active.native-player-playing:not(.windows-web-video) #app,
+body.native-player-active.native-player-playing:not(.windows-web-video) #app {
+    background: transparent !important;
+}
+
+html.native-player-active:not(.windows-web-video):not(.native-player-playing) #app,
+body.native-player-active:not(.windows-web-video):not(.native-player-playing) #app {
+    background: #000 !important;
+}
+
+html.native-player-active.windows-web-video,
+body.native-player-active.windows-web-video {
+    background: #000 !important;
+}
+
+/* Android/iOS: hide WebView chrome so native MediaElement shows through a transparent surface.
+   Windows Video.js plays inside WebView2 - do NOT hide ancestors. Chromium often fails to
+   composite hardware-decoded video frames when an ancestor has visibility:hidden, which
+   yields a black player despite healthy HLS buffering. */
+body.native-player-active:not(.windows-web-video) > * {
+    visibility: hidden !important;
+}
+
+body.native-player-active:not(.windows-web-video) .video-container {
+    visibility: visible !important;
+}
+
+/* Native MediaElement path: fully transparent controls backdrop so video shows through.
+   Windows Video.js needs a non-zero alpha for WebView2 hit testing (see below). */
+body.native-player-active:not(.windows-web-video) .video-controls-overlay {
+    background-color: transparent !important;
+}
+
+/* Windows: keep shell chrome out of the way without hiding the video ancestry. */
+body.native-player-active.windows-web-video .app-nav,
+body.native-player-active.windows-web-video .app-nav-bar,
+body.native-player-active.windows-web-video .app-nav-popover,
+body.native-player-active.windows-web-video .page-viewport,
+body.native-player-active.windows-web-video .mini-player-dock,
+body.native-player-active.windows-web-video .k7-menu-dropdown {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* Windows Video.js: WebView2 passes hits through fully transparent pixels to native layers. */
+body.native-player-active.windows-web-video .video-controls-overlay {
+    background-color: rgba(0, 0, 0, 0.01) !important;
+}
+
+/* Single K7 buffering spinner - hide Video.js default (grey) spinner. */
+body.native-player-active.windows-web-video .vjs-loading-spinner,
+body.native-player-active.windows-web-video .vjs-loading-spinner:before,
+body.native-player-active.windows-web-video .vjs-loading-spinner:after,
+body.native-player-active.windows-web-video .vjs-big-play-button,
+.video-container .vjs-loading-spinner,
+.video-container .vjs-loading-spinner:before,
+.video-container .vjs-loading-spinner:after,
+.video-container .vjs-big-play-button,
+.video-container .vjs-error-display,
+.video-container .vjs-modal-dialog,
+body.native-player-active.windows-web-video .vjs-error-display,
+body.native-player-active.windows-web-video .vjs-modal-dialog,
+.video-js .vjs-error-display,
+.video-js.vjs-error .vjs-modal-dialog,
+.video-js.vjs-waiting .vjs-loading-spinner,
+.video-js.vjs-seeking .vjs-loading-spinner {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* Windows WebView2: keep the tech in the paint tree without trapping cue DOM
+   inside a stacking context below the controls overlay. */
+body.native-player-active.windows-web-video .video-js {
+    z-index: 0;
+}
+
+/* Paint cues above the full-bleed controls overlay (z-index 100000). pointer-events
+   stay none so chrome clicks still reach the overlay. */
+.video-container .vjs-text-track-display {
+    z-index: 100001 !important;
+    pointer-events: none !important;
+}
+
+/* ============================================================
+   Reconnection overlay
+   ============================================================ */
+.reconnection-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-overlay);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg);
+    opacity: 0.92;
+    pointer-events: all;
+    text-align: center;
+}
+
+.reconnection-animation {
+    width: 6rem;
+    height: 6rem;
+}

@@ -1,0 +1,40 @@
+using K7.Server.Domain.Constants;
+using K7.Server.Domain.Enums;
+
+namespace K7.Server.Domain.UnitTests.Constants;
+
+[TestFixture]
+public class DefaultCapabilitiesTests
+{
+    [Test]
+    public void ForRole_ShouldAllowGuestToReportPlaybackProgressOnly()
+    {
+        var caps = DefaultCapabilities.ForRole(Roles.Guest);
+
+        caps.Should().BeEquivalentTo([Capability.CanReportPlaybackProgress]);
+        caps.Should().NotContain(Capability.CanScrobble);
+    }
+
+    [Test]
+    public void ForRole_ShouldKeepPersonalProgressCapabilitiesForUser()
+    {
+        var caps = DefaultCapabilities.ForRole(Roles.User);
+
+        caps.Should().Contain(Capability.CanReportPlaybackProgress);
+        caps.Should().Contain(Capability.CanResumePlayback);
+        caps.Should().Contain(Capability.CanViewHistory);
+        caps.Should().Contain(Capability.CanViewStats);
+        caps.Should().Contain(Capability.CanScrobble);
+        caps.Should().NotContain(Capability.CanDeleteHistory);
+        caps.Should().NotContain(Capability.CanReassignHistory);
+    }
+
+    [Test]
+    public void ForRole_ShouldAllowAdministratorToDeleteAndReassignHistory()
+    {
+        var caps = DefaultCapabilities.ForRole(Roles.Administrator);
+
+        caps.Should().Contain(Capability.CanDeleteHistory);
+        caps.Should().Contain(Capability.CanReassignHistory);
+    }
+}

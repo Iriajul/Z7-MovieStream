@@ -1,0 +1,213 @@
+using K7.Server.Application.Helpers;
+using K7.Server.Domain.Enums;
+using K7.Shared.Dtos.Entities.Metadatas;
+
+namespace K7.Server.Application.UnitTests.Helpers;
+
+[TestFixture]
+public class MetadataImageUrlHelperTests
+{
+    [Test]
+    public void PreferHttps_ShouldUpgradeCoverArtArchiveHttpUrls()
+    {
+        var upgraded = MetadataImageUrlHelper.PreferHttps(
+            "http://coverartarchive.org/release/0d98ccb8-3e6c-442f-bdff-9f3187fa71f5/14954323808-500.jpg");
+
+        upgraded.Should().Be(
+            "https://coverartarchive.org/release/0d98ccb8-3e6c-442f-bdff-9f3187fa71f5/14954323808-500.jpg");
+    }
+
+    [Test]
+    public void PreferHttps_ShouldLeaveUnrelatedHttpUrlsUnchanged()
+    {
+        MetadataImageUrlHelper.PreferHttps("http://example.com/cover.jpg")
+            .Should().Be("http://example.com/cover.jpg");
+    }
+
+    [Test]
+    public void FilterProviderImages_ShouldUpgradeCoverArtArchiveHttpUrls()
+    {
+        var images = new List<ProviderImageDto>
+        {
+            new()
+            {
+                Url = "http://coverartarchive.org/release/abc/front.jpg",
+                ThumbnailUrl = "http://coverartarchive.org/release/abc/front-250.jpg",
+                Type = MetadataPictureType.Cover
+            }
+        };
+
+        var filtered = MetadataImageUrlHelper.FilterProviderImages(images);
+
+        filtered.Should().ContainSingle();
+        filtered[0].Url.Should().StartWith("https://");
+        filtered[0].ThumbnailUrl.Should().StartWith("https://");
+    }
+
+    [Test]
+    public void IsVectorImageUrl_ShouldReturnTrue_WhenUrlEndsWithSvg()
+    {
+        MetadataImageUrlHelper.IsVectorImageUrl("https://commons.wikimedia.org/wiki/Special:FilePath/Logo.svg")
+            .Should().BeTrue();
+    }
+
+    [Test]
+    public void TryCreateRemoteUri_ShouldAcceptSvgUrls()
+    {
+        MetadataImageUrlHelper.TryCreateRemoteUri("https://example.com/logo.svg", out var uri).Should().BeTrue();
+        uri!.OriginalString.Should().Be("https://example.com/logo.svg");
+    }
+
+    [Test]
+    public void BuildWikimediaCommonsImageUrl_ShouldEncodeFilenameWithoutRasterizing()
+    {
+        var url = MetadataImageUrlHelper.BuildWikimediaCommonsImageUrl("Some Artist.svg");
+
+        url.Should().Be("https://commons.wikimedia.org/wiki/Special:FilePath/Some%20Artist.svg");
+    }
+
+    [Test]
+    public void BuildWikimediaThumbnailUrl_ShouldRasterizeCommonsSvg_ForPickerPreview()
+    {
+        var thumb = MetadataImageUrlHelper.BuildWikimediaThumbnailUrl(
+            "https://commons.wikimedia.org/wiki/Special:FilePath/Artist.svg");
+
+        thumb.Should().Be("https://commons.wikimedia.org/wiki/Special:FilePath/Artist.svg?width=300");
+    }
+
+    [Test]
+    public void FilterProviderImages_ShouldKeepSvgImages()
+    {
+        var images = new List<ProviderImageDto>
+        {
+            new()
+            {
+                Url = "https://example.com/logo.svg",
+                ThumbnailUrl = "https://example.com/logo.svg",
+                Type = MetadataPictureType.Logo
+            },
+            new()
+            {
+                Url = "https://coverartarchive.org/front-500.jpg",
+                ThumbnailUrl = "https://coverartarchive.org/front-250.jpg",
+                Type = MetadataPictureType.Cover
+            }
+        };
+
+        MetadataImageUrlHelper.FilterProviderImages(images).Should().HaveCount(2);
+    }
+
+    [Test]
+    public void FilterProviderImages_ShouldDeduplicateByUrl_KeepingHigherQuality()
+    {
+        var images = new List<ProviderImageDto>
+        {
+            new()
+            {
+                Url = "https://artworks.thetvdb.com/banners/seasons/5d248398cea92.jpg",
+                ThumbnailUrl = "https://artworks.thetvdb.com/banners/seasons/5d248398cea92.jpg",
+                Type = MetadataPictureType.Poster,
+                Provider = "tvdb",
+                Width = 400,
+                Height = 578,
+                VoteAverage = 1
+            },
+            new()
+            {
+                Url = "https://artworks.thetvdb.com/banners/seasons/5d248398cea92.jpg",
+                ThumbnailUrl = "https://artworks.thetvdb.com/banners/seasons/5d248398cea92_t.jpg",
+                Type = MetadataPictureType.Poster,
+                Provider = "tvdb",
+                Width = 680,
+                Height = 1000,
+                VoteAverage = 5
+            }
+        };
+
+        var filtered = MetadataImageUrlHelper.FilterProviderImages(images);
+
+        filtered.Should().ContainSingle();
+        filtered[0].VoteAverage.Should().Be(5);
+        filtered[0].Width.Should().Be(680);
+    }
+
+    [Test]
+    public void GetExtensionFromContentType_ShouldMapKnownImageTypes()
+    {
+        MetadataImageUrlHelper.GetExtensionFromContentType("image/png; charset=binary")
+            .Should().Be(".png");
+        MetadataImageUrlHelper.IsVectorContentType("image/svg+xml").Should().BeTrue();
+    }
+
+    [Test]
+    public void FilterHdEpisodeStills_ShouldExcludeLowResolutionStills()
+    {
+        var images = new List<ProviderImageDto>
+        {
+            new()
+            {
+                Url = "https://tvdb.example/still.jpg",
+                ThumbnailUrl = "https://tvdb.example/still.jpg",
+                Type = MetadataPictureType.Still,
+                Provider = "tvdb",
+                Width = 640,
+                Height = 360
+            },
+            new()
+            {
+                Url = "https://tmdb.example/still.jpg",
+                ThumbnailUrl = "https://tmdb.example/still.jpg",
+                Type = MetadataPictureType.Still,
+                Provider = "tmdb",
+                Width = 1920,
+                Height = 1080,
+                VoteAverage = 5
+            }
+        };
+
+        var filtered = MetadataImageUrlHelper.FilterHdEpisodeStills(images);
+
+        filtered.Should().ContainSingle();
+        filtered[0].Provider.Should().Be("tmdb");
+    }
+
+    [Test]
+    public void ShouldReplaceEpisodeStillWithHdAlternate_ShouldReturnFalse_WhenDimensionsMeetHd()
+    {
+        MetadataImageUrlHelper.ShouldReplaceEpisodeStillWithHdAlternate(
+                1920,
+                1080,
+                new Uri("https://artworks.thetvdb.com/banners/episodes/1.jpg"))
+            .Should().BeFalse();
+    }
+
+    [Test]
+    public void ShouldReplaceEpisodeStillWithHdAlternate_ShouldReturnTrue_WhenDimensionsAreSd()
+    {
+        MetadataImageUrlHelper.ShouldReplaceEpisodeStillWithHdAlternate(640, 360, null)
+            .Should().BeTrue();
+    }
+
+    [Test]
+    public void ShouldReplaceEpisodeStillWithHdAlternate_ShouldReturnTrue_WhenUnknownSizeIsTvdbHost()
+    {
+        MetadataImageUrlHelper.ShouldReplaceEpisodeStillWithHdAlternate(
+                null,
+                null,
+                new Uri("https://artworks.thetvdb.com/banners/episodes/1.jpg"))
+            .Should().BeTrue();
+    }
+
+    [Test]
+    public void ShouldReplaceEpisodeStillWithHdAlternate_ShouldReturnFalse_WhenUnknownSizeIsTmdbOrLocal()
+    {
+        MetadataImageUrlHelper.ShouldReplaceEpisodeStillWithHdAlternate(
+                null,
+                null,
+                new Uri("https://image.tmdb.org/t/p/original/still.jpg"))
+            .Should().BeFalse();
+
+        MetadataImageUrlHelper.ShouldReplaceEpisodeStillWithHdAlternate(null, null, null)
+            .Should().BeFalse();
+    }
+}

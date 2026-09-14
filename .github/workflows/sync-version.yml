@@ -1,0 +1,56 @@
+name: Sync version
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: github.event.release.prerelease == false
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: main
+
+      - name: Sync Directory.Build.props
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import sys
+          import xml.etree.ElementTree as ET
+
+          version = os.environ["TAG"].removeprefix("v")
+          path = "Directory.Build.props"
+          tree = ET.parse(path)
+          version_node = tree.find(".//Version")
+
+          if version_node is None:
+              sys.exit("Directory.Build.props does not contain a Version node.")
+
+          version_node.text = version
+          ET.indent(tree, space="  ")
+          tree.write(path, encoding="utf-8", xml_declaration=False)
+          PY
+
+          if ! grep -Fqx "    <Version>${TAG#v}</Version>" Directory.Build.props; then
+            echo "::error::Directory.Build.props Version node was not updated."
+            exit 1
+          fi
+
+          if git diff --quiet -- Directory.Build.props; then
+            echo "::error::Directory.Build.props did not change."
+            exit 1
+          fi
+
+      - name: Commit version bump
+        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9
+        with:
+          add: Directory.Build.props
+          message: 'chore: sync version to ${{ github.event.release.tag_name }}'
+          default_author: github_actions

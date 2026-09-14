@@ -1,0 +1,167 @@
+@page "/welcome"
+@attribute [ExcludeFromInteractiveRouting]
+@layout K7.Server.Web.Components.Pages.Auth.AuthLayout
+@using K7.Server.Domain.Constants
+@using K7.Server.Infrastructure.Configuration
+@using K7.Server.Infrastructure.Database.Context.Data
+@using K7.Server.Infrastructure.Database.Context.Identity
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Options
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Navigation
+@inject K7.Server.Web.Components.Account.IdentityRedirectManager RedirectManager
+@inject IOptions<AuthenticationConfiguration> AuthConfig
+@inject IStringLocalizer<Welcome> L
+@inject K7.Server.Web.Infrastructure.TrendingPosterService TrendingPosters
+
+<PageTitle>@L["PageTitle"]</PageTitle>
+
+<header class="welcome-header">
+    <span class="welcome-header-logo" aria-label="Z7">
+        <K7.Clients.Shared.UI.Components.K7Icon Icon="@K7.Clients.Shared.UI.K7Brand.Logo" />
+    </span>
+    <a href="@_signInUrl" data-enhance-nav="false" data-initial-focus class="welcome-header-signin focusable">@L["SignIn"]</a>
+</header>
+
+<section class="welcome-scroll" data-welcome-scroll>
+    <div class="welcome-sticky">
+        <div class="welcome-wall" aria-hidden="true">
+            @for (var row = 0; row < 5; row++)
+            {
+                <div class="welcome-row welcome-row--@row">
+                    @for (var i = 0; i < 9; i++)
+                    {
+                        var slot = row * 9 + i;
+                        <div class="welcome-poster welcome-poster--@((row * 3 + i) % 8)">
+                            @if (_posterUrls.Count > 0)
+                            {
+                                <img src="@_posterUrls[slot % _posterUrls.Count]" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+        <div class="welcome-headline">
+            <p class="welcome-kicker">Now trending</p>
+            <p class="welcome-title">Every story. One shelf.</p>
+            <p class="welcome-hint" aria-hidden="true">Scroll ↓</p>
+        </div>
+        @if (_posterUrls.Count > 0)
+        {
+            <p class="welcome-credit">Posters: trending on <a href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer">TMDb</a></p>
+        }
+    </div>
+</section>
+
+<section class="welcome-cta">
+    <p class="welcome-cta-eyebrow">Welcome to Z7</p>
+    <h1 class="welcome-cta-title">Your movie night<br />starts here.</h1>
+    <p class="welcome-cta-sub">Stream your collection on any screen, with no ads and no subscriptions.</p>
+
+    <div class="welcome-cta-actions">
+        <a href="@_signInUrl" data-enhance-nav="false" class="welcome-btn welcome-btn--primary focusable">
+            <span>@L["SignIn"]</span>
+            <svg class="welcome-btn-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m-5-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </a>
+
+        @if (_guestEnabled)
+        {
+            <EditForm Model="_guestModel" method="post" OnValidSubmit="ContinueAsGuest" FormName="guest" class="welcome-guest-form">
+                <button type="submit" class="welcome-btn welcome-btn--ghost focusable">Browse as guest</button>
+            </EditForm>
+        }
+    </div>
+
+    @if (_guestEnabled)
+    {
+        <p class="welcome-cta-fineprint">Guests get limited access, set by your server admin.</p>
+    }
+</section>
+
+@code {
+    private bool _guestEnabled;
+    private AuthenticationConfiguration _auth = new();
+    private string _signInUrl = "/sign-in";
+    private object _guestModel = new();
+    private List<string> _posterUrls = [];
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            var user = HttpContext.User;
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                RedirectManager.RedirectTo(ReturnUrl ?? "/");
+                return;
+            }
+        }
+
+        _auth = AuthConfig.Value;
+        _guestEnabled = await IsGuestActiveAsync();
+        _posterUrls = (await TrendingPosters.GetShuffledAsync()).ToList();
+
+        var returnUrl = ReturnUrl ?? "/";
+        var oidcLoginUrl = Navigation.GetUriWithQueryParameters("/api/authentication/login",
+            new Dictionary<string, object?> { ["returnUrl"] = returnUrl });
+        _signInUrl = _auth.Oidc.Enabled && !_auth.Local.SignInEnabled
+            ? oidcLoginUrl
+            : Navigation.GetUriWithQueryParameters("/sign-in",
+                new Dictionary<string, object?> { ["ReturnUrl"] = returnUrl });
+
+        if (!_guestEnabled)
+        {
+            var target = _auth.Local.SignInEnabled
+                ? _signInUrl
+                : _auth.Oidc.Enabled ? oidcLoginUrl : null;
+
+            if (target is not null)
+            {
+                if (HttpMethods.IsGet(HttpContext.Request.Method) && !HttpContext.Response.HasStarted)
+                {
+                    HttpContext.Response.Redirect(target);
+                    return;
+                }
+
+                RedirectManager.RedirectTo(target);
+                return;
+            }
+        }
+    }
+
+    private async Task ContinueAsGuest()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var signInManager = scope.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>();
+
+        var guestUser = await userManager.FindByNameAsync(Roles.Guest);
+        await signInManager.SignInAsync(guestUser!, isPersistent: false);
+        RedirectManager.RedirectTo(ReturnUrl ?? "/");
+    }
+
+    private async Task<bool> IsGuestActiveAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        return await dbContext.Set<ApplicationUser>()
+            .AsNoTracking()
+            .Where(identity => identity.UserName == Roles.Guest)
+            .Join(
+                dbContext.Users.AsNoTracking(),
+                identity => identity.Id,
+                domain => domain.IdentityUserId,
+                (_, domain) => domain.IsActive)
+            .FirstOrDefaultAsync();
+    }
+}

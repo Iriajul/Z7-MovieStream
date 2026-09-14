@@ -1,0 +1,1606 @@
+using System.Text.Json;
+using K7.Clients.Shared.Enums;
+using K7.Clients.Shared.Helpers;
+using K7.Clients.Shared.Interfaces;
+using K7.Clients.Shared.Mappings;
+using K7.Clients.Shared.Models;
+using K7.Clients.Shared.Services;
+using K7.Clients.Shared.UI.Components;
+using K7.Clients.Shared.UI.Components.Dialogs;
+using K7.Clients.Shared.UI.Helpers;
+using K7.Server.Domain.Constants;
+using K7.Server.Domain.Enums;
+using K7.Shared.Dtos;
+using K7.Shared.Dtos.Entities.Medias;
+using K7.Shared.Dtos.Notifications;
+using K7.Shared.Dtos.Requests;
+using K7.Shared.Dtos.Rules;
+using K7.Shared.Extensions;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.Web.Virtualization;
+using Microsoft.JSInterop;
+
+namespace K7.Clients.Shared.UI.Pages;
+
+public partial class LibraryGroupView : IDisposable
+{
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private ILibraryGroupContextStore ContextStore { get; set; } = default!;
+    [Inject] private IFeatureAccessService FeatureAccess { get; set; } = default!;
+    [Inject] private IMusicIntelligenceClientService MusicIntelligence { get; set; } = default!;
+    [Inject] private IAudioPlayerService Audio { get; set; } = default!;
+    [Inject] private IK7Snackbar Snackbar { get; set; } = default!;
+    [Inject] private IPageFilterStorage PageFilterStorage { get; set; } = default!;
+    [Inject] private IUserAdminService UserAdminService { get; set; } = default!;
+    [Inject] private IK7DialogService DialogService { get; set; } = default!;
+    [Inject] private ILibraryService LibraryService { get; set; } = default!;
+    [Inject] private IDeviceService DeviceService { get; set; } = default!;
+    [Inject] private IFeedHubHostService FeedHub { get; set; } = default!;
+    [Inject] private IHubFocusNavigationState HubFocus { get; set; } = default!;
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
+    [Parameter]
+    public required string Id { get; set; }
+
+    private const string ContentSourceAll = "";
+    private const string ContentSourceLocal = "local";
+    // Extra rows mounted above/below the viewport so D-pad can land on the next MediaCards.
+    // Keep this modest on TV: each overscan row is a full strip of decoded posters.
+    private const int TvOverscanCount = 4;
+    private const int TvMaxColumns = 8;
+    private const int DefaultOverscanCount = 5;
+    // Desktop MediaCard footer fits in 44px; TV bumps title/subtitle so rows need more room.
+    private const int DefaultGridFooterHeight = 44;
+    private const int TvGridFooterHeight = 72;
+    private const int PageSize = 50;
+    private const int PageCacheCapacity = 32;
+    private const int PrefetchPageCount = 1;
+    private const int TvFocusLookaheadPages = 2;
+    private const int MaxConcurrentPageFetches = 4;
+    private const int TvImageWarmLookahead = 16;
+
+    private BrowseView<LiteMediaDto>? _browseView;
+    private K7DataTable<LiteMediaDto>? _dataTable;
+    private bool _loading = true;
+    private bool _canSetWatchState;
+    private bool _canExclude;
+    private bool _isAdmin;
+    private bool _isGuest;
+    private bool _isTv;
+    private bool _hubPageActive;
+    private int _overscanCount = DefaultOverscanCount;
+    private int _totalCount;
+    private bool _totalCountKnown;
+    private readonly LruCache<(string Fingerprint, int Page), (IReadOnlyList<LiteMediaDto> Items, int TotalCount)> _pageCache
+        = new(PageCacheCapacity);
+    private readonly Dictionary<Guid, MediaCardViewModel> _viewModelCache = new();
+    private readonly Dictionary<int, CancellationTokenSource> _pageFetchCts = [];
+    private readonly List<int> _pageFetchQueue = [];
+    private CancellationTokenSource? _jumpCts;
+    private readonly HashSet<int> _warmedImageSlots = [];
+    private int _lastProviderStart;
+    private int _lastProviderCount;
+    private string _queryFingerprint = "";
+    private LibraryMediaType? _libraryMediaType;
+    private IReadOnlyList<Guid>? _libraryIds;
+    private Guid[]? _libraryGroupIds;
+    private List<MediaType> _availableMediaTypes = [];
+    private List<ButtonGroupOption<MediaType>> _mediaTypeOptions = [];
+    private MediaType _selectedMediaType;
+    private MediaOrderingOption _selectedSort = MediaOrderingOption.TitleAsc;
+    private RuleGroupDto _filter = MediaBrowseFilterPresets.Empty;
+    private IntelligentSearchRequest? _intelligentSearch;
+    private List<LiteMediaDto> _intelligentSearchResults = [];
+    private bool _intelligentSearchLoading;
+    private MediaTagsDto? _tags;
+    private BrowseViewMode _browseViewMode = BrowseViewMode.Grid;
+    private bool _pendingQuerySync;
+    private string _selectedContentSource = ContentSourceAll;
+    private List<(string Value, string Label)> _contentSourceOptions = [];
+    private bool _showContentSourceFilter => _contentSourceOptions.Count > 2;
+    private bool _showCreateDynamicPlaylist
+    {
+        get =>
+        field && _intelligentSearch is null; set;
+    }
+    private bool _showWatchFilters =>
+        _selectedMediaType is MediaType.Movie or MediaType.Serie or MediaType.SerieSeason or MediaType.SerieEpisode;
+
+    private bool _showMusicPlaybackActions =>
+        _libraryMediaType == LibraryMediaType.Music
+        && ((_intelligentSearch is { Kind: IntelligentSearchKind.Sonic or IntelligentSearchKind.Lyrics })
+            || (_intelligentSearch is null && _selectedMediaType == MediaType.MusicTrack));
+
+    private bool _canPlayMusic =>
+        _totalCount > 0 && !_loading && !_intelligentSearchLoading;
+
+    // Null while the current query's total is not yet known (e.g. before the first
+    // ItemsProvider/table load resolves). Passing a definite 0 in that window makes
+    // BrowseView think results are confirmed empty before it ever asked for data.
+    private int? EffectiveTotalCount => _totalCountKnown ? _totalCount : null;
+    private string? _activeSortKey = "title";
+    private K7SortDirection _activeSortDirection = K7SortDirection.Ascending;
+    private string _tableScopeKey = "initial";
+    private DebouncedActionRunner? _catalogRefreshRunner;
+    private DebouncedActionRunner? _mediaVisualRefreshRunner;
+    private DebouncedActionRunner? _placeholderResolveRunner;
+    private readonly HashSet<Guid> _pendingVisualMediaIds = [];
+    private readonly SuppressRenderEventHandler _silentFocus = new();
+    private string? _initializedId;
+    private bool _disposed;
+
+    private Dictionary<string, object> CreateDynamicPlaylistButtonAttributes => new()
+    {
+        ["aria-label"] = L["CreateDynamicPlaylist"].Value,
+        ["title"] = L["CreateDynamicPlaylist"].Value
+    };
+
+    private static readonly List<MediaOrderingOption> SortOptions =
+    [
+        MediaOrderingOption.TitleAsc,
+        MediaOrderingOption.TitleDesc,
+        MediaOrderingOption.CreatedDesc,
+        MediaOrderingOption.CreatedAsc,
+        MediaOrderingOption.ReleaseDateDesc,
+        MediaOrderingOption.ReleaseDateAsc,
+        MediaOrderingOption.LocalRatingDesc,
+        MediaOrderingOption.LocalRatingAsc
+    ];
+
+    private int? TvMaxColumnCount => _isTv ? TvMaxColumns : null;
+
+    private MediaCardVariant GridCardVariant =>
+        MediaCardLayout.VariantForBrowseMediaType(_selectedMediaType);
+
+    private float GridAspectRatio => MediaCardLayout.GridAspectRatio(GridCardVariant);
+
+    private int GridItemWidth => MediaCardLayout.GridItemWidth(GridCardVariant);
+
+    private int GridFooterHeight => _isTv ? TvGridFooterHeight : DefaultGridFooterHeight;
+
+    private MetadataPictureSize GridPictureSize =>
+        GridCardVariant is MediaCardVariant.Backdrop
+            ? MetadataPictureSize.Medium
+            : MetadataPictureDisplayHelper.SizeForBrowsePoster(_isTv);
+
+    private string FilterStorageKey => $"library-group.{Id}";
+
+    private FeedHubKey? PageKey =>
+        Guid.TryParse(Id, out var groupId) ? FeedHubKey.ForLibraryGroup(groupId) : null;
+
+    protected override void OnInitialized()
+    {
+        ContextStore.Changed += OnContextStoreChanged;
+        ContextStore.MediaVisualChanged += OnMediaVisualChanged;
+        FeedHub.Changed += OnFeedHubChanged;
+        _hubPageActive = IsHubPageActive();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // FeedHub keep-alive re-renders this view on location/query sync. Only re-init when Id changes.
+        if (_initializedId == Id)
+            return;
+
+        _initializedId = Id;
+        _loading = true;
+        _selectedMediaType = default;
+        InvalidateBrowseCaches();
+        try
+        {
+            _isTv = await DeviceService.GetDeviceTypeAsync() == DeviceType.TV;
+            _overscanCount = _isTv ? TvOverscanCount : DefaultOverscanCount;
+            _canSetWatchState = await WatchStateActions.CanSetWatchStateAsync(FeatureAccess);
+            (_canExclude, _isAdmin) = await MediaCardExcludeActions.LoadPermissionsAsync(FeatureAccess);
+            _showCreateDynamicPlaylist = await FeatureAccess.HasCapabilityAsync(Capability.CanCreatePlaylist);
+            var role = await FeatureAccess.GetRoleAsync();
+            _isGuest = role == Roles.Guest;
+
+            var groupId = Guid.TryParse(Id, out var parsed) ? parsed : (Guid?)null;
+
+            if (groupId.HasValue)
+            {
+                var snapshot = await ContextStore.EnsureContextAsync(groupId.Value);
+                _libraryMediaType = snapshot?.MediaType;
+                _libraryIds = snapshot?.LibraryIds;
+                _libraryGroupIds = [groupId.Value];
+            }
+            else
+            {
+                _libraryGroupIds = null;
+            }
+
+            _availableMediaTypes = _libraryMediaType switch
+            {
+                LibraryMediaType.Serie => [MediaType.Serie, MediaType.SerieSeason, MediaType.SerieEpisode],
+                LibraryMediaType.Music => [MediaType.MusicArtist, MediaType.MusicAlbum, MediaType.MusicTrack],
+                _ => []
+            };
+
+            _selectedMediaType = _libraryMediaType switch
+            {
+                LibraryMediaType.Movie => MediaType.Movie,
+                LibraryMediaType.Serie => MediaType.Serie,
+                LibraryMediaType.Music => MediaType.MusicArtist,
+                _ => _availableMediaTypes.Count > 0 ? _availableMediaTypes[0] : default
+            };
+
+            _mediaTypeOptions = _availableMediaTypes
+                .Select(mt => new ButtonGroupOption<MediaType>(mt, Label: GetMediaTypeLabel(mt)))
+                .ToList();
+
+            _selectedSort = MediaOrderingOption.TitleAsc;
+            _activeSortKey = "title";
+            _activeSortDirection = K7SortDirection.Ascending;
+            _filter = MediaBrowseFilterPresets.Empty;
+            _intelligentSearch = null;
+            _intelligentSearchResults = [];
+            _browseViewMode = BrowseViewMode.Grid;
+            _selectedContentSource = ContentSourceAll;
+            _totalCount = 0;
+            _totalCountKnown = false;
+
+            await LoadContentSourceOptionsAsync();
+
+            if (LibraryGroupBrowseUrlSync.HasBrowseQuery(Navigation))
+            {
+                ApplyBrowseState(LibraryGroupBrowseUrlSync.ReadState(Navigation));
+                await SaveFiltersToStorageAsync();
+            }
+            else if (await LoadPersistedFiltersAsync())
+            {
+                _pendingQuerySync = true;
+            }
+
+            EnsureValidContentSourceSelection();
+
+            _catalogRefreshRunner?.Dispose();
+            _mediaVisualRefreshRunner?.Dispose();
+            _placeholderResolveRunner?.Dispose();
+            _pendingVisualMediaIds.Clear();
+            _catalogRefreshRunner = new DebouncedActionRunner(RefreshAfterContextChangedAsync, InvokeAsync);
+            _mediaVisualRefreshRunner = new DebouncedActionRunner(RefreshPendingMediaVisualsAsync, InvokeAsync);
+            _placeholderResolveRunner = new DebouncedActionRunner(RefreshPlaceholdersAsync, InvokeAsync, 40);
+
+            await LoadTagsAsync();
+
+            // Intelligent search needs an upfront resolve; otherwise BrowseView loads the first page.
+            if (_intelligentSearch is not null)
+                await OnIntelligentSearchChanged(_intelligentSearch);
+            else
+                await PrefetchFirstPageAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender) =>
+        LibraryGroupBrowseUrlSync.SyncAfterRender(
+            Navigation,
+            firstRender,
+            ref _pendingQuerySync,
+            BuildCurrentBrowseUrlState());
+
+    private void ApplyBrowseState(LibraryGroupBrowseUrlState state)
+    {
+        if (state.MediaType is MediaType mediaType && mediaType != default
+            && (_availableMediaTypes.Contains(mediaType)
+                || (_availableMediaTypes.Count == 0 && mediaType == _selectedMediaType)))
+        {
+            _selectedMediaType = mediaType;
+        }
+
+        if (state.Sort is MediaOrderingOption sort)
+        {
+            _selectedSort = sort;
+            (_activeSortKey, _activeSortDirection) = MapOrderingToSortKey(sort);
+        }
+
+        if (state.View is BrowseViewMode view)
+            _browseViewMode = view;
+
+        if (state.Filter is not null)
+            _filter = SanitizeFilterForCurrentUser(state.Filter);
+
+        // Guests cannot use music-intelligence search endpoints; ignore restored searches.
+        _intelligentSearch = _isGuest ? null : state.IntelligentSearch;
+
+        if (!string.IsNullOrWhiteSpace(state.ContentSource))
+            _selectedContentSource = state.ContentSource;
+    }
+
+    private RuleGroupDto SanitizeFilterForCurrentUser(RuleGroupDto filter)
+    {
+        // Watch-state presets are per-user. An In Progress filter restored from another
+        // profile (or shared URL) yields an empty library for guests with no history.
+        if (!_canSetWatchState
+            && (MediaBrowseFilterPresets.IsInProgress(filter) || MediaBrowseFilterPresets.IsUnwatched(filter)))
+        {
+            return MediaBrowseFilterPresets.Empty;
+        }
+
+        return filter;
+    }
+
+    private LibraryGroupBrowseUrlState BuildCurrentBrowseUrlState() =>
+        new(
+            MediaType: _selectedMediaType != default ? _selectedMediaType : null,
+            Sort: _selectedSort,
+            View: _browseViewMode,
+            Filter: MediaBrowseFilterPresets.IsEmpty(_filter) ? null : _filter,
+            IntelligentSearch: _intelligentSearch,
+            ContentSource: string.IsNullOrEmpty(_selectedContentSource) ? null : _selectedContentSource);
+
+    private async Task PersistFiltersAsync()
+    {
+        await SaveFiltersToStorageAsync();
+        LibraryGroupBrowseUrlSync.SyncState(Navigation, BuildCurrentBrowseUrlState());
+    }
+
+    private async Task SaveFiltersToStorageAsync()
+    {
+        try
+        {
+            var state = new LibraryGroupFilterState(
+                (int)_selectedMediaType,
+                (int)_selectedSort,
+                MediaBrowseFilterPresets.IsEmpty(_filter) ? null : JsonSerializer.Serialize(_filter),
+                _intelligentSearch is null ? null : JsonSerializer.Serialize(_intelligentSearch),
+                (int)_browseViewMode,
+                string.IsNullOrEmpty(_selectedContentSource) ? null : _selectedContentSource);
+            await PageFilterStorage.SaveAsync(FilterStorageKey, state);
+        }
+        catch
+        {
+            // Non-critical
+        }
+    }
+
+    private async Task OnBrowseViewModeChanged(BrowseViewMode mode)
+    {
+        if (_browseViewMode == mode)
+            return;
+
+        _browseViewMode = mode;
+        await PersistFiltersAsync();
+    }
+
+    private async Task CreateDynamicPlaylistFromBrowseAsync()
+    {
+        if (_intelligentSearch is not null)
+            return;
+
+        var (orderBy, orderDescending) = BrowseSortUrlMapping.ToDynamicPlaylistOrder(_selectedSort, _selectedMediaType);
+        var parameters = new K7DialogParameters<DynamicPlaylistDialog>
+        {
+            { x => x.InitialMediaType, _selectedMediaType },
+            { x => x.InitialRuleFilter, _filter },
+            { x => x.InitialOrderBy, orderBy },
+            { x => x.InitialOrderDescending, orderDescending }
+        };
+
+        var dialog = await DialogService.ShowAsync<DynamicPlaylistDialog>(
+            L["CreateDynamicPlaylistDialogTitle"],
+            parameters,
+            new K7DialogOptions { MaxWidth = K7DialogMaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: Guid id })
+            Navigation.NavigateTo($"/dynamic-playlists/{id}");
+    }
+
+    private ValueTask<ItemsProviderResult<LiteMediaDto>> ProvideMediasAsync(
+        ItemsProviderRequest request)
+    {
+        if (_intelligentSearch is not null)
+            return ValueTask.FromResult(ProvideIntelligentSearchMedias(request));
+
+        // Return the visible window immediately. Awaiting the API here would make
+        // Virtualize swap the whole window for its Placeholder, including cards
+        // already on screen. Missing slots are UnloadedBrowseItem tiles; fetch
+        // the mounted window in the background. Do not cancel on scroll: a fast
+        // wheel to the bottom would otherwise kill the landing pages and leave
+        // empty tiles forever (Virtualize then serves the placeholder cache).
+        // Jump / query changes still cancel out-of-range fetches.
+        EnsureQueryFingerprint();
+
+        var startIndex = request.StartIndex;
+        var count = request.Count;
+        if (count <= 0)
+            return ValueTask.FromResult(new ItemsProviderResult<LiteMediaDto>([], _totalCount));
+
+        var firstPage = (startIndex / PageSize) + 1;
+        var lastIndex = startIndex + count - 1;
+        if (_totalCountKnown)
+            lastIndex = Math.Min(lastIndex, _totalCount - 1);
+
+        var lastPage = lastIndex >= 0 ? (lastIndex / PageSize) + 1 : firstPage;
+        var fingerprint = _queryFingerprint;
+
+        for (var page = firstPage; page <= lastPage; page++)
+        {
+            if (_pageCache.TryGetValue((fingerprint, page), out var cached))
+            {
+                _totalCount = cached.TotalCount;
+                _totalCountKnown = true;
+                continue;
+            }
+
+            SchedulePageFetch(page, fingerprint);
+        }
+
+        SchedulePrefetchAhead(lastPage);
+
+        var windowCount = lastIndex >= startIndex ? lastIndex - startIndex + 1 : 0;
+        _lastProviderStart = startIndex;
+        _lastProviderCount = windowCount;
+        WarmWindowImages(startIndex, windowCount, fingerprint);
+
+        var window = new List<LiteMediaDto>(windowCount);
+        for (var i = 0; i < windowCount; i++)
+        {
+            var absIndex = startIndex + i;
+            if (_totalCountKnown && absIndex >= _totalCount)
+                break;
+
+            window.Add(GetCachedSlotOrPlaceholder(absIndex, fingerprint));
+        }
+
+        var total = _totalCountKnown ? _totalCount : Math.Max(_totalCount, startIndex + window.Count);
+        return ValueTask.FromResult(new ItemsProviderResult<LiteMediaDto>(window, total));
+    }
+
+    private LiteMediaDto GetCachedSlotOrPlaceholder(int absIndex, string fingerprint)
+    {
+        var page = (absIndex / PageSize) + 1;
+        var indexInPage = absIndex % PageSize;
+        if (_pageCache.TryGetValue((fingerprint, page), out var cached)
+            && indexInPage < cached.Items.Count)
+            return cached.Items[indexInPage];
+
+        return new UnloadedBrowseItem
+        {
+            Id = UnloadedBrowseItem.IdFor(absIndex),
+            SlotIndex = absIndex
+        };
+    }
+
+    private void SchedulePageFetch(int page, string fingerprint)
+    {
+        if (string.IsNullOrEmpty(fingerprint))
+            return;
+
+        if (_totalCountKnown && (page - 1) * PageSize >= _totalCount)
+            return;
+
+        if (_pageCache.TryGetValue((fingerprint, page), out _))
+            return;
+
+        if (_pageFetchCts.ContainsKey(page))
+            return;
+
+        if (_pageFetchCts.Count >= MaxConcurrentPageFetches)
+        {
+            EnqueuePageFetch(page);
+            return;
+        }
+
+        StartPageFetch(page, fingerprint);
+    }
+
+    private void EnqueuePageFetch(int page)
+    {
+        _pageFetchQueue.Remove(page);
+        _pageFetchQueue.Insert(0, page);
+    }
+
+    private void StartPageFetch(int page, string fingerprint)
+    {
+        var cts = new CancellationTokenSource();
+        _pageFetchCts[page] = cts;
+        _ = FetchPageInBackgroundAsync(page, fingerprint, cts);
+    }
+
+    private void SchedulePrefetchAhead(int lastVisiblePage)
+    {
+        if (string.IsNullOrEmpty(_queryFingerprint))
+            return;
+
+        var fingerprint = _queryFingerprint;
+        for (var offset = 1; offset <= PrefetchPageCount; offset++)
+            SchedulePageFetch(lastVisiblePage + offset, fingerprint);
+    }
+
+    private void EnsurePagesAroundSlot(int slotIndex)
+    {
+        if (slotIndex < 0 || string.IsNullOrEmpty(_queryFingerprint))
+            return;
+
+        var page = (slotIndex / PageSize) + 1;
+        var lookahead = _isTv ? TvFocusLookaheadPages : PrefetchPageCount;
+        for (var offset = 0; offset <= lookahead; offset++)
+            SchedulePageFetch(page + offset, _queryFingerprint);
+    }
+
+    private void CancelStalePageFetches(int keepFromInclusive, int keepToInclusive)
+    {
+        _pageFetchQueue.RemoveAll(page => page < keepFromInclusive || page > keepToInclusive);
+
+        foreach (var page in _pageFetchCts.Keys.ToList())
+        {
+            if (page >= keepFromInclusive && page <= keepToInclusive)
+                continue;
+
+            CancelPageFetch(page);
+        }
+
+        PumpPageFetchQueue();
+    }
+
+    private void CancelPageFetch(int page)
+    {
+        _pageFetchQueue.Remove(page);
+        if (!_pageFetchCts.Remove(page, out var cts))
+            return;
+
+        try
+        {
+            cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    private void CancelAllPageFetches()
+    {
+        _pageFetchQueue.Clear();
+        foreach (var page in _pageFetchCts.Keys.ToList())
+            CancelPageFetch(page);
+    }
+
+    private async Task FetchPageInBackgroundAsync(int page, string fingerprint, CancellationTokenSource cts)
+    {
+        try
+        {
+            var entry = await FetchAndCachePageAsync(page, cts.Token);
+            if (entry is null || fingerprint != _queryFingerprint || cts.IsCancellationRequested || _disposed)
+                return;
+
+            WarmWindowImages(_lastProviderStart, _lastProviderCount, fingerprint);
+            _placeholderResolveRunner?.Schedule();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (Exception)
+        {
+            // Best-effort lookahead; visible scroll path has its own error handling.
+        }
+        finally
+        {
+            if (_pageFetchCts.TryGetValue(page, out var current) && ReferenceEquals(current, cts))
+                _pageFetchCts.Remove(page);
+
+            cts.Dispose();
+            PumpPageFetchQueue();
+        }
+    }
+
+    private void PumpPageFetchQueue()
+    {
+        if (_disposed)
+            return;
+
+        var fingerprint = _queryFingerprint;
+        while (_pageFetchCts.Count < MaxConcurrentPageFetches && _pageFetchQueue.Count > 0)
+        {
+            var page = _pageFetchQueue[0];
+            _pageFetchQueue.RemoveAt(0);
+            if (string.IsNullOrEmpty(fingerprint)
+                || _pageCache.TryGetValue((fingerprint, page), out _)
+                || _pageFetchCts.ContainsKey(page))
+                continue;
+
+            StartPageFetch(page, fingerprint);
+        }
+    }
+
+    private void WarmWindowImages(int startIndex, int count, string fingerprint)
+    {
+        if (!_isTv || count <= 0 || string.IsNullOrEmpty(fingerprint))
+            return;
+
+        var warmCount = count + TvImageWarmLookahead;
+        var urls = new List<string>(warmCount);
+        for (var i = 0; i < warmCount; i++)
+        {
+            var absIndex = startIndex + i;
+            if (_totalCountKnown && absIndex >= _totalCount)
+                break;
+
+            if (!_warmedImageSlots.Add(absIndex))
+                continue;
+
+            var item = GetCachedSlotOrPlaceholder(absIndex, fingerprint);
+            if (item is UnloadedBrowseItem)
+            {
+                _warmedImageSlots.Remove(absIndex);
+                continue;
+            }
+
+            var url = GetGridCardViewModel(item)?.PictureUrl;
+            if (!string.IsNullOrEmpty(url))
+                urls.Add(url);
+        }
+
+        if (urls.Count == 0)
+            return;
+
+        _ = JSRuntime.InvokeVoidAsync("K7.preloadImages", urls);
+    }
+
+    private async Task PrefetchFirstPageAsync()
+    {
+        EnsureQueryFingerprint();
+        await FetchAndCachePageAsync(1, CancellationToken.None);
+        SchedulePrefetchAhead(1);
+    }
+
+    private async Task<(int Page, IReadOnlyList<LiteMediaDto> Items)?> FetchAndCachePageAsync(
+        int page,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrEmpty(_queryFingerprint)
+            && _pageCache.TryGetValue((_queryFingerprint, page), out var cached))
+        {
+            _totalCount = cached.TotalCount;
+            _totalCountKnown = true;
+            return (page, cached.Items);
+        }
+
+        var result = await k7ServerService.QueryMediasAsync(
+            BuildQuery(page, PageSize), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (result is null)
+            return null;
+
+        var totalCount = result.TotalCount ?? 0;
+        _totalCount = totalCount;
+        _totalCountKnown = true;
+
+        IReadOnlyList<LiteMediaDto> items = result.Items is { Count: > 0 }
+            ? result.Items.ToList()
+            : [];
+
+        _pageCache.Set((_queryFingerprint, page), (items, totalCount));
+        return (page, items);
+    }
+
+    private void EnsureQueryFingerprint()
+    {
+        var fingerprint = BuildQueryFingerprint();
+        if (fingerprint == _queryFingerprint)
+            return;
+
+        _queryFingerprint = fingerprint;
+        _pageCache.Clear();
+        _viewModelCache.Clear();
+        CancelAllPageFetches();
+        _warmedImageSlots.Clear();
+    }
+
+    private string BuildQueryFingerprint()
+    {
+        var libraryKey = _libraryIds is { Count: > 0 }
+            ? string.Join(',', _libraryIds.OrderBy(id => id))
+            : string.Empty;
+        var filterJson = MediaBrowseFilterPresets.IsEmpty(_filter)
+            ? string.Empty
+            : JsonSerializer.Serialize(_filter);
+        return string.Join('|',
+            libraryKey,
+            (int)_selectedMediaType,
+            (int)_selectedSort,
+            _selectedContentSource,
+            filterJson);
+    }
+
+    private void InvalidateBrowseCaches()
+    {
+        _pageCache.Clear();
+        _viewModelCache.Clear();
+        CancelAllPageFetches();
+        _warmedImageSlots.Clear();
+        _queryFingerprint = string.Empty;
+    }
+
+    private async Task<K7DataTableResult<LiteMediaDto>> LoadTableDataAsync(
+        K7DataTableState<LiteMediaDto> state, CancellationToken cancellationToken)
+    {
+        if (_intelligentSearch is not null)
+        {
+            var items = _intelligentSearchResults
+                .Skip(state.StartIndex)
+                .Take(state.Count)
+                .ToList();
+            return new K7DataTableResult<LiteMediaDto>(items, _intelligentSearchResults.Count);
+        }
+
+        try
+        {
+            var startIndex = state.StartIndex;
+            var count = state.Count;
+            var orderBy = MapSortKeyToOrdering(state.SortKey, state.SortDirection);
+
+            var firstPage = (startIndex / PageSize) + 1;
+            var lastPage = ((startIndex + count - 1) / PageSize) + 1;
+
+            var pages = Enumerable.Range(firstPage, lastPage - firstPage + 1);
+            var tasks = pages.Select(page =>
+                k7ServerService.QueryMediasAsync(
+                    BuildQuery(page, PageSize, orderBy), cancellationToken));
+
+            var results = await Task.WhenAll(tasks);
+
+            var allItems = new List<LiteMediaDto>(count);
+            foreach (var result in results)
+            {
+                if (result is null)
+                    continue;
+
+                _totalCount = result.TotalCount ?? 0;
+                _totalCountKnown = true;
+
+                if (result.Items is { Count: > 0 })
+                    allItems.AddRange(result.Items);
+            }
+
+            var offset = startIndex - (firstPage - 1) * PageSize;
+            var items = allItems.Skip(offset).Take(count).ToList();
+
+            return new K7DataTableResult<LiteMediaDto>(items, _totalCount);
+        }
+        catch (OperationCanceledException)
+        {
+            return new K7DataTableResult<LiteMediaDto>([], _totalCount);
+        }
+    }
+
+    private QueryMediasRequest BuildQuery(
+        int pageNumber,
+        int pageSize,
+        MediaOrderingOption? orderBy = null) => new()
+        {
+            // Prefer library-group scope (same as Explore/Home) so server resolves membership
+            // then applies the current user's exclusions.
+            LibraryIds = _libraryGroupIds is { Length: > 0 } ? null : _libraryIds?.ToArray(),
+            LibraryGroupIds = _libraryGroupIds,
+            MediaTypes = _selectedMediaType != default ? [_selectedMediaType] : null,
+            Filter = _filter,
+            OrderBy = orderBy is not null ? [orderBy.Value] : [_selectedSort],
+            LocalOriginOnly = _selectedContentSource == ContentSourceLocal ? true : null,
+            OriginPeerServerId = Guid.TryParse(_selectedContentSource, out var peerId) ? peerId : null,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+
+    private async Task<bool> LoadPersistedFiltersAsync()
+    {
+        try
+        {
+            var state = await PageFilterStorage.LoadAsync<LibraryGroupFilterState>(FilterStorageKey);
+            if (state is null)
+                return false;
+
+            if (Enum.IsDefined(typeof(MediaType), state.MediaType)
+                && (_availableMediaTypes.Count == 0 || _availableMediaTypes.Contains((MediaType)state.MediaType)))
+            {
+                _selectedMediaType = (MediaType)state.MediaType;
+            }
+
+            if (Enum.IsDefined(typeof(MediaOrderingOption), state.Sort))
+            {
+                _selectedSort = (MediaOrderingOption)state.Sort;
+                (_activeSortKey, _activeSortDirection) = MapOrderingToSortKey(_selectedSort);
+            }
+
+            if (state.View is int viewValue
+                && Enum.IsDefined(typeof(BrowseViewMode), viewValue))
+            {
+                _browseViewMode = (BrowseViewMode)viewValue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(state.FilterJson))
+            {
+                var loaded = JsonSerializer.Deserialize<RuleGroupDto>(state.FilterJson) ?? MediaBrowseFilterPresets.Empty;
+                _filter = SanitizeFilterForCurrentUser(loaded);
+            }
+
+            if (!_isGuest && !string.IsNullOrWhiteSpace(state.IntelligentSearchJson))
+            {
+                _intelligentSearch = JsonSerializer.Deserialize<IntelligentSearchRequest>(state.IntelligentSearchJson);
+            }
+
+            if (!string.IsNullOrWhiteSpace(state.ContentSource))
+                _selectedContentSource = state.ContentSource;
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task LoadContentSourceOptionsAsync()
+    {
+        _contentSourceOptions =
+        [
+            (ContentSourceAll, L["ContentSourceAll"].Value),
+            (ContentSourceLocal, L["ContentSourceLocal"].Value)
+        ];
+
+        try
+        {
+            if (_libraryIds is not { Count: > 0 })
+                return;
+
+            var libraries = await LibraryService.GetLibrariesAsync();
+            if (libraries is null)
+                return;
+
+            var libraryIdSet = _libraryIds.ToHashSet();
+            var peers = libraries
+                .Where(l => libraryIdSet.Contains(l.Id)
+                    && l.PeerServerId is Guid peerId
+                    && l.PeerReachable != false)
+                .GroupBy(l => l.PeerServerId!.Value)
+                .Select(g => (
+                    Value: g.Key.ToString(),
+                    Label: g.Select(l => l.PeerServerName).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))
+                        ?? g.Select(l => l.PeerServerBaseUrl).FirstOrDefault(u => !string.IsNullOrWhiteSpace(u))
+                        ?? g.Key.ToString("N")[..8]))
+                .OrderBy(p => p.Label, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            if (peers.Count == 0)
+                return;
+
+            _contentSourceOptions.AddRange(peers);
+        }
+        catch
+        {
+            // Non-critical: keep All/Local only (filter stays hidden when Count <= 2)
+        }
+    }
+
+    private void EnsureValidContentSourceSelection()
+    {
+        if (_contentSourceOptions.Any(o => o.Value == _selectedContentSource))
+            return;
+
+        _selectedContentSource = ContentSourceAll;
+    }
+
+    private async Task OnContentSourceChanged(string? value)
+    {
+        value ??= ContentSourceAll;
+        if (value == _selectedContentSource)
+            return;
+
+        _totalCount = 0;
+        _totalCountKnown = false;
+        StateHasChanged();
+        _selectedContentSource = value;
+        InvalidateBrowseCaches();
+
+        await PersistFiltersAsync();
+        await RefreshAllAsync();
+    }
+
+    private async Task LoadTagsAsync()
+    {
+        if (!Guid.TryParse(Id, out var groupId))
+        {
+            _tags = null;
+            return;
+        }
+
+        _tags = await ContextStore.EnsureTagsAsync(
+            groupId,
+            _selectedMediaType != default ? _selectedMediaType : null);
+    }
+
+    private async Task OnFilterChanged(RuleGroupDto value)
+    {
+        _filter = value;
+        if (_intelligentSearch is not null)
+        {
+            _intelligentSearch = null;
+            _intelligentSearchResults = [];
+        }
+
+        InvalidateBrowseCaches();
+        _totalCount = 0;
+        _totalCountKnown = false;
+        StateHasChanged();
+
+        await PersistFiltersAsync();
+        await RefreshAllAsync();
+    }
+
+    private async Task OnIntelligentSearchChanged(IntelligentSearchRequest? value)
+    {
+        _intelligentSearch = value;
+        _filter = MediaBrowseFilterPresets.Empty;
+        InvalidateBrowseCaches();
+
+        if (value is null)
+        {
+            _intelligentSearchResults = [];
+            _totalCount = 0;
+            _totalCountKnown = false;
+            await PersistFiltersAsync();
+            await RefreshAllAsync();
+            return;
+        }
+
+        _intelligentSearchLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            if (value.Kind == IntelligentSearchKind.SimilarArtists)
+            {
+                await ApplySimilarArtistsSearchAsync(value);
+                return;
+            }
+
+            if (_libraryMediaType == LibraryMediaType.Music)
+                _selectedMediaType = MediaType.MusicTrack;
+
+            var trackIds = await IntelligentSearchHelper.SearchTrackIdsAsync(MusicIntelligence, value);
+            if (trackIds.Count == 0)
+            {
+                Snackbar.Add(L["IntelligentSearchNoResults"], K7Severity.Info);
+                _intelligentSearchResults = [];
+                _totalCount = 0;
+                _totalCountKnown = true;
+                return;
+            }
+
+            var tracks = await IntelligentSearchHelper.LoadScopedTracksAsync(
+                k7ServerService,
+                trackIds,
+                _libraryIds?.ToArray(),
+                _libraryGroupIds);
+
+            _intelligentSearchResults = tracks.Cast<LiteMediaDto>().ToList();
+            _totalCount = _intelligentSearchResults.Count;
+            _totalCountKnown = true;
+        }
+        catch
+        {
+            // Auth/availability failures (e.g. guest hitting UserOrAbove MI endpoints) should
+            // not leave the browse page stuck on an empty intelligent-search result set.
+            Snackbar.Add(L["IntelligentSearchError"], K7Severity.Error);
+            await ClearIntelligentSearchAndBrowseAsync();
+        }
+        finally
+        {
+            _intelligentSearchLoading = false;
+            await PersistFiltersAsync();
+            await RefreshAllAsync();
+        }
+    }
+
+    private async Task ClearIntelligentSearchAndBrowseAsync()
+    {
+        _intelligentSearch = null;
+        _intelligentSearchResults = [];
+        _totalCount = 0;
+        _totalCountKnown = false;
+        InvalidateBrowseCaches();
+        await Task.CompletedTask;
+    }
+
+    private async Task ApplySimilarArtistsSearchAsync(IntelligentSearchRequest value)
+    {
+        if (_libraryMediaType == LibraryMediaType.Music)
+            _selectedMediaType = MediaType.MusicArtist;
+
+        if (value.SeedId is not { } seedId)
+        {
+            Snackbar.Add(L["IntelligentSearchNoResults"], K7Severity.Info);
+            _intelligentSearchResults = [];
+            _totalCount = 0;
+            _totalCountKnown = true;
+            return;
+        }
+
+        try
+        {
+            var artists = await k7ServerService.GetSimilarMusicArtistsAsync(seedId, count: 48);
+            _intelligentSearchResults = artists.Cast<LiteMediaDto>().ToList();
+            _totalCount = _intelligentSearchResults.Count;
+            _totalCountKnown = true;
+
+            if (_intelligentSearchResults.Count == 0)
+                Snackbar.Add(L["IntelligentSearchNoResults"], K7Severity.Info);
+        }
+        catch
+        {
+            Snackbar.Add(L["IntelligentSearchError"], K7Severity.Error);
+            _intelligentSearchResults = [];
+            _totalCount = 0;
+            _totalCountKnown = true;
+        }
+    }
+
+    private ItemsProviderResult<LiteMediaDto> ProvideIntelligentSearchMedias(ItemsProviderRequest request)
+    {
+        var items = _intelligentSearchResults
+            .Skip(request.StartIndex)
+            .Take(request.Count)
+            .ToList();
+
+        return new ItemsProviderResult<LiteMediaDto>(items, _intelligentSearchResults.Count);
+    }
+
+    private async Task PlayAllAsync()
+    {
+        var tracks = await GetPlayableTracksAsync();
+        var queueItems = IntelligentSearchHelper.ToQueueItems(tracks, apiClient, S["Untitled"]);
+        if (queueItems.Count > 0)
+            await Audio.PlayTracksAsync(queueItems, 0);
+    }
+
+    private async Task ShuffleAllAsync()
+    {
+        var tracks = await GetPlayableTracksAsync();
+        var queueItems = IntelligentSearchHelper.ToQueueItems(tracks, apiClient, S["Untitled"]);
+        if (queueItems.Count == 0)
+            return;
+
+        await Audio.PlayShuffledAsync(queueItems);
+    }
+
+    private async Task<List<LiteMusicTrackDto>> GetPlayableTracksAsync(CancellationToken cancellationToken = default)
+    {
+        if (_intelligentSearch is not null)
+            return _intelligentSearchResults.OfType<LiteMusicTrackDto>().ToList();
+
+        if (_selectedMediaType != MediaType.MusicTrack || _totalCount == 0)
+            return [];
+
+        var tracks = new List<LiteMusicTrackDto>(_totalCount);
+        var totalPages = (_totalCount + PageSize - 1) / PageSize;
+
+        for (var page = 1; page <= totalPages; page++)
+        {
+            var result = await k7ServerService.QueryMediasAsync(BuildQuery(page, PageSize), cancellationToken);
+            if (result?.Items is null)
+                break;
+
+            tracks.AddRange(result.Items.OfType<LiteMusicTrackDto>().Where(t => t.IndexedFileId.HasValue));
+        }
+
+        return tracks;
+    }
+
+    private async Task OnMediaTypeFilterChanged(MediaType value)
+    {
+        if (value == default || value == _selectedMediaType) return;
+
+        StateHasChanged();
+        _selectedMediaType = value;
+        _filter = MediaBrowseFilterPresets.Empty;
+        _intelligentSearch = null;
+        _intelligentSearchResults = [];
+        InvalidateBrowseCaches();
+        _totalCount = 0;
+        _totalCountKnown = false;
+        _tableScopeKey = $"{value}:{Guid.NewGuid():N}";
+        await LoadTagsAsync();
+        await PersistFiltersAsync();
+        await RefreshAllAsync();
+    }
+
+    private async Task OnSortChanged(MediaOrderingOption value)
+    {
+        if (value == _selectedSort) return;
+        StateHasChanged();
+        _selectedSort = value;
+        InvalidateBrowseCaches();
+
+        // Sync sort key/direction from dropdown
+        (_activeSortKey, _activeSortDirection) = MapOrderingToSortKey(value);
+
+        await PersistFiltersAsync();
+        await RefreshAllAsync();
+    }
+
+    private async Task OnTableSortChanged(SortChangedEventArgs args)
+    {
+        _activeSortKey = args.SortKey;
+        _activeSortDirection = args.Direction;
+
+        var ordering = MapSortKeyToOrdering(args.SortKey, args.Direction);
+        if (ordering is not null)
+        {
+            _selectedSort = ordering.Value;
+            InvalidateBrowseCaches();
+        }
+
+        // Table refreshes itself; refresh grid/list too if they share the provider
+        if (_browseView is not null)
+        {
+            await _browseView.RefreshAsync();
+        }
+    }
+
+    private void OnContextStoreChanged(Guid groupId)
+    {
+        if (!Guid.TryParse(Id, out var currentId) || currentId != groupId || _loading)
+            return;
+
+        _catalogRefreshRunner?.Schedule();
+    }
+
+    private void OnMediaVisualChanged(Guid groupId, Guid mediaId)
+    {
+        if (!Guid.TryParse(Id, out var currentId) || currentId != groupId || _loading)
+            return;
+
+        _pendingVisualMediaIds.Add(mediaId);
+        _mediaVisualRefreshRunner?.Schedule();
+    }
+
+    private async Task RefreshAfterContextChangedAsync()
+    {
+        if (!Guid.TryParse(Id, out var groupId))
+            return;
+
+        await ContextStore.EnsureContextAsync(groupId);
+        await LoadTagsAsync();
+        InvalidateBrowseCaches();
+        await RefreshAllAsync();
+        StateHasChanged();
+    }
+
+    private async Task RefreshPendingMediaVisualsAsync()
+    {
+        if (_pendingVisualMediaIds.Count == 0)
+            return;
+
+        var mediaIds = _pendingVisualMediaIds.ToArray();
+        _pendingVisualMediaIds.Clear();
+
+        var knownIds = mediaIds
+            .Where(id => _viewModelCache.ContainsKey(id) || PageCacheContains(id))
+            .Distinct()
+            .ToArray();
+        if (knownIds.Length == 0)
+            return;
+
+        try
+        {
+            var result = await k7ServerService.QueryMediasAsync(new QueryMediasRequest
+            {
+                Ids = knownIds,
+                LibraryIds = _libraryGroupIds is { Length: > 0 } ? null : _libraryIds?.ToArray(),
+                LibraryGroupIds = _libraryGroupIds,
+                PageNumber = 1,
+                PageSize = knownIds.Length
+            });
+
+            if (result?.Items is not { Count: > 0 })
+                return;
+
+            var changed = false;
+            foreach (var item in result.Items)
+            {
+                if (UpsertCachedMedia(item))
+                    changed = true;
+            }
+
+            if (changed)
+                StateHasChanged();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception)
+        {
+            // Best-effort soft refresh; next browse load will pick up fresh data.
+        }
+    }
+
+    private bool PageCacheContains(Guid mediaId)
+    {
+        foreach (var (_, (items, _)) in _pageCache.Snapshot())
+        {
+            foreach (var item in items)
+            {
+                if (item.Id == mediaId)
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool UpsertCachedMedia(LiteMediaDto item)
+    {
+        var changed = false;
+
+        foreach (var (key, (items, totalCount)) in _pageCache.Snapshot())
+        {
+            for (var i = 0; i < items.Count; i++)
+            {
+                if (items[i].Id != item.Id)
+                    continue;
+
+                if (!ReferenceEquals(items[i], item))
+                {
+                    var list = items as List<LiteMediaDto> ?? items.ToList();
+                    list[i] = item;
+                    _pageCache.Set(key, (list, totalCount));
+                    changed = true;
+                }
+
+                break;
+            }
+        }
+
+        var next = item.ToCardViewModel(
+            apiClient,
+            n => string.Format(S["SeasonNumber"], n),
+            episodeStillOnly: _selectedMediaType == MediaType.SerieEpisode,
+            pictureSize: GridPictureSize);
+        if (next is null)
+            return changed;
+
+        _viewModelCache.TryGetValue(item.Id, out var existing);
+        var merge = MediaCardVisualMerge.Apply(existing, next);
+        _viewModelCache[item.Id] = merge.Model;
+        return changed || merge.RequiresRender;
+    }
+
+    private async Task RefreshAllAsync()
+    {
+        if (_intelligentSearch is null)
+            await PrefetchFirstPageAsync();
+
+        if (_browseView is not null)
+        {
+            await _browseView.RefreshAsync();
+        }
+
+        if (_dataTable is not null)
+        {
+            await _dataTable.RefreshAsync();
+        }
+    }
+
+    private void NavigateToItem(LiteMediaDto item)
+    {
+        OnCardFocused(item);
+        Navigation.NavigateTo(GetItemHref(item));
+    }
+
+    private string GetCardElementId(LiteMediaDto item) => $"library-card-{Id}-{item.Id}";
+
+    private EventCallback CreateSilentCardFocusCallback(LiteMediaDto item) =>
+        EventCallback.Factory.Create(_silentFocus, () => OnCardFocused(item));
+
+    private EventCallback<FocusEventArgs> CreateUnloadedSlotFocusCallback(int slotIndex) =>
+        EventCallback.Factory.Create<FocusEventArgs>(_silentFocus, _ => EnsurePagesAroundSlot(slotIndex));
+
+    private void OnCardFocused(LiteMediaDto item)
+    {
+        if (PageKey is { } key)
+            HubFocus.Save(key, item.Id.ToString());
+    }
+
+    private bool IsHubPageActive() =>
+        PageKey is { } key
+        && FeedHub.IsHubRouteActive
+        && FeedHub.ActiveKey == key;
+
+    private void OnFeedHubChanged()
+    {
+        var active = IsHubPageActive();
+        var becameActive = active && !_hubPageActive;
+        _hubPageActive = active;
+
+        if (!becameActive)
+            return;
+
+        InvokeAsync(RestoreLastFocusedCardAsync).FireAndForget();
+    }
+
+    private async Task RestoreLastFocusedCardAsync()
+    {
+        if (PageKey is not { } key)
+            return;
+
+        var mediaId = HubFocus.GetMediaId(key);
+        if (string.IsNullOrEmpty(mediaId))
+            return;
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("K7.focusById", $"library-card-{Id}-{mediaId}", true);
+        }
+        catch (JSException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void OnColumnPickerRequested()
+    {
+        _dataTable?.ToggleColumnPicker();
+    }
+
+    private string? GetTableThumbUrl(LiteMediaDto item)
+    {
+        var picture = LiteMediaThumbnailHelper.ResolvePicture(item);
+        return picture?.GetUri(MetadataPictureSize.Small)?.OriginalString;
+    }
+
+    private static string GetItemHref(LiteMediaDto item) => item switch
+    {
+        LiteMusicArtistDto artist => $"/music/artists/{artist.Id}",
+        LiteMusicAlbumDto album => $"/music/albums/{album.Id}",
+        LiteMusicTrackDto track => $"/music/albums/{track.AlbumId}#track-{track.Id}",
+        LiteSerieDto serie => $"/series/{serie.Id}",
+        LiteSerieSeasonDto season => $"/series/{season.SerieId}/seasons/{season.SeasonNumber}",
+        LiteSerieEpisodeDto ep => $"/series/{ep.SerieId}/seasons/{ep.SeasonNumber}#ep-{ep.EpisodeNumber}",
+        _ => $"/movies/{item.Id}"
+    };
+
+    private Task RefreshPlaceholdersAsync()
+    {
+        if (_browseView is null || _loading)
+            return Task.CompletedTask;
+
+        _browseView.PatchGridSlots(i => GetCachedSlotOrPlaceholder(i, _queryFingerprint));
+        return Task.CompletedTask;
+    }
+
+    private MediaCardViewModel? GetGridCardViewModel(LiteMediaDto item)
+    {
+        if (item is UnloadedBrowseItem)
+            return null;
+
+        if (_viewModelCache.TryGetValue(item.Id, out var cached))
+            return cached;
+
+        var vm = item.ToCardViewModel(
+            apiClient,
+            n => string.Format(S["SeasonNumber"], n),
+            episodeStillOnly: _selectedMediaType == MediaType.SerieEpisode,
+            pictureSize: GridPictureSize);
+        if (vm is not null)
+            _viewModelCache[item.Id] = vm;
+        return vm;
+    }
+
+    private MediaCardViewModel? GetCardViewModel(LiteMediaDto item) =>
+        item.ToCardViewModel(
+            apiClient,
+            n => string.Format(S["SeasonNumber"], n),
+            pictureSize: GridPictureSize);
+
+    private static string? GetGridPlaceholderIcon(LiteMediaDto item) =>
+        item is LiteSerieEpisodeDto ? Phosphor.Image : null;
+
+    private static MediaCardVariant GetVariant(LiteMediaDto item) => item switch
+    {
+        LiteMusicAlbumDto or LiteMusicTrackDto or LiteMusicArtistDto => MediaCardVariant.Cover,
+        LiteSerieEpisodeDto => MediaCardVariant.Backdrop,
+        _ => MediaCardVariant.Poster
+    };
+
+    private async Task ExcludeForSelf(MediaCardViewModel item)
+    {
+        if (await MediaCardExcludeActions.ExcludeForSelfAsync(item, UserAdminService, Snackbar, S))
+            await RefreshBrowseAsync();
+    }
+
+    private async Task ExcludeForOthers(MediaCardViewModel item)
+    {
+        await MediaCardExcludeActions.ExcludeForOthersAsync(item, DialogService, Snackbar, S);
+        await RefreshBrowseAsync();
+    }
+
+    private async Task RefreshBrowseAsync()
+    {
+        InvalidateBrowseCaches();
+        if (_dataTable is not null)
+            await _dataTable.RefreshAsync();
+        if (_intelligentSearch is null)
+            await PrefetchFirstPageAsync();
+        if (_browseView is not null)
+            await _browseView.RefreshAsync();
+    }
+
+    private static MediaOrderingOption? MapSortKeyToOrdering(string? sortKey, K7SortDirection direction) =>
+        (sortKey, direction) switch
+        {
+            ("title", K7SortDirection.Ascending) => MediaOrderingOption.TitleAsc,
+            ("title", K7SortDirection.Descending) => MediaOrderingOption.TitleDesc,
+            ("releaseDate", K7SortDirection.Ascending) => MediaOrderingOption.ReleaseDateAsc,
+            ("releaseDate", K7SortDirection.Descending) => MediaOrderingOption.ReleaseDateDesc,
+            ("created", K7SortDirection.Ascending) => MediaOrderingOption.CreatedAsc,
+            ("created", K7SortDirection.Descending) => MediaOrderingOption.CreatedDesc,
+            ("localRating", K7SortDirection.Ascending) => MediaOrderingOption.LocalRatingAsc,
+            ("localRating", K7SortDirection.Descending) => MediaOrderingOption.LocalRatingDesc,
+            ("playCount", K7SortDirection.Ascending) => MediaOrderingOption.PlayCountAsc,
+            ("playCount", K7SortDirection.Descending) => MediaOrderingOption.PlayCountDesc,
+            ("lastInteracted", K7SortDirection.Ascending) => MediaOrderingOption.LastInteractedAsc,
+            ("lastInteracted", K7SortDirection.Descending) => MediaOrderingOption.LastInteractedDesc,
+            _ => null
+        };
+
+    private static (string? Key, K7SortDirection Direction) MapOrderingToSortKey(MediaOrderingOption option) =>
+        option switch
+        {
+            MediaOrderingOption.TitleAsc => ("title", K7SortDirection.Ascending),
+            MediaOrderingOption.TitleDesc => ("title", K7SortDirection.Descending),
+            MediaOrderingOption.ReleaseDateAsc => ("releaseDate", K7SortDirection.Ascending),
+            MediaOrderingOption.ReleaseDateDesc => ("releaseDate", K7SortDirection.Descending),
+            MediaOrderingOption.CreatedAsc => ("created", K7SortDirection.Ascending),
+            MediaOrderingOption.CreatedDesc => ("created", K7SortDirection.Descending),
+            MediaOrderingOption.LocalRatingAsc => ("localRating", K7SortDirection.Ascending),
+            MediaOrderingOption.LocalRatingDesc => ("localRating", K7SortDirection.Descending),
+            _ => ("title", K7SortDirection.Ascending)
+        };
+
+    private string GetSortLabel(MediaOrderingOption option) => option switch
+    {
+        MediaOrderingOption.TitleAsc => L["SortTitleAsc"],
+        MediaOrderingOption.TitleDesc => L["SortTitleDesc"],
+        MediaOrderingOption.CreatedDesc => L["SortNewest"],
+        MediaOrderingOption.CreatedAsc => L["SortOldest"],
+        MediaOrderingOption.ReleaseDateDesc => L["SortReleaseDateDesc"],
+        MediaOrderingOption.ReleaseDateAsc => L["SortReleaseDateAsc"],
+        MediaOrderingOption.LocalRatingDesc => L["SortLocalRatingDesc"],
+        MediaOrderingOption.LocalRatingAsc => L["SortLocalRatingAsc"],
+        _ => option.ToString()
+    };
+
+    private string GetMediaTypeLabel(MediaType mediaType) => mediaType switch
+    {
+        MediaType.Movie => S["MediaTypeMovies"],
+        MediaType.Serie => S["MediaTypeSeries"],
+        MediaType.SerieSeason => L["Seasons"],
+        MediaType.SerieEpisode => L["Episodes"],
+        MediaType.MusicArtist => L["Artists"],
+        MediaType.MusicAlbum => L["Albums"],
+        MediaType.MusicTrack => L["Tracks"],
+        _ => mediaType.ToString()
+    };
+
+    private static readonly IReadOnlyList<string> AlphabetLabels =
+        ["#", .. Enumerable.Range('A', 26).Select(c => ((char)c).ToString())];
+
+    private IReadOnlyList<string>? JumpLabels => _selectedSort is MediaOrderingOption.TitleAsc or MediaOrderingOption.TitleDesc
+        ? AlphabetLabels
+        : null;
+
+    private async Task OnJumpRequested(string label)
+    {
+        if (_browseView is null || _totalCount == 0) return;
+
+        try
+        {
+            var index = await FindIndexForLetterAsync(label);
+            var page = (index / PageSize) + 1;
+            CancelStalePageFetches(page, page + (_isTv ? TvFocusLookaheadPages : PrefetchPageCount));
+            _browseView.ScrollToItemIndex(index);
+            EnsurePagesAroundSlot(index);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task<int> FindIndexForLetterAsync(string label)
+    {
+        var ascending = _selectedSort is not MediaOrderingOption.TitleDesc;
+
+        if (label == "#")
+        {
+            return ascending ? 0 : _totalCount - 1;
+        }
+
+        _jumpCts?.Cancel();
+        _jumpCts?.Dispose();
+        _jumpCts = new CancellationTokenSource();
+        var cancellationToken = _jumpCts.Token;
+
+        var targetChar = char.ToUpperInvariant(label[0]);
+        var low = 0;
+        var high = _totalCount - 1;
+        var result = ascending ? _totalCount - 1 : 0;
+
+        while (low <= high)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var mid = (low + high) / 2;
+            var query = BuildQuery((mid / PageSize) + 1, PageSize);
+
+            try
+            {
+                var page = await k7ServerService.QueryMediasAsync(query, cancellationToken);
+                var offset = mid - ((mid / PageSize) * PageSize);
+                var items = page?.Items?.ToList();
+
+                if (items is null || offset >= items.Count) break;
+
+                var itemTitle = items[offset].SortTitle ?? items[offset].Title ?? "";
+                var itemChar = itemTitle.Length > 0 ? char.ToUpperInvariant(itemTitle[0]) : '#';
+                var isLetter = char.IsLetter(itemChar);
+
+                int cmp;
+                if (!isLetter && targetChar == '#')
+                {
+                    cmp = 0;
+                }
+                else if (!isLetter)
+                {
+                    cmp = ascending ? -1 : 1;
+                }
+                else
+                {
+                    cmp = ascending
+                        ? itemChar.CompareTo(targetChar)
+                        : targetChar.CompareTo(itemChar);
+                }
+
+                if (cmp < 0)
+                {
+                    low = mid + 1;
+                }
+                else
+                {
+                    result = mid;
+                    high = mid - 1;
+                }
+            }
+            catch
+            {
+                break;
+            }
+        }
+
+        return Math.Clamp(result, 0, Math.Max(0, _totalCount - 1));
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        ContextStore.Changed -= OnContextStoreChanged;
+        ContextStore.MediaVisualChanged -= OnMediaVisualChanged;
+        FeedHub.Changed -= OnFeedHubChanged;
+        _catalogRefreshRunner?.Dispose();
+        _mediaVisualRefreshRunner?.Dispose();
+        _placeholderResolveRunner?.Dispose();
+        CancelAllPageFetches();
+        _jumpCts?.Cancel();
+        _jumpCts?.Dispose();
+        _jumpCts = null;
+    }
+}

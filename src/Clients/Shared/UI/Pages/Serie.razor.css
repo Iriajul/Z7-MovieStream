@@ -1,0 +1,290 @@
+.serie-page {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    --carousel-margin-start: 40px;
+}
+
+.serie-main {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+    flex-shrink: 0;
+    z-index: 2;
+}
+
+.serie-seasons-area {
+    position: relative;
+    flex-shrink: 0;
+    padding-bottom: 32px;
+}
+
+.serie-page-scroll[data-tv-scroll] .serie-main {
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+}
+
+.serie-hero {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+.serie-logo:not(.k7-img-wrap--custom-fallback) {
+    max-height: 180px;
+    max-width: 80vw;
+}
+
+.serie-logo ::deep .k7-img {
+    max-height: 180px;
+    max-width: 80vw;
+    object-fit: scale-down;
+    object-position: left center;
+}
+
+.serie-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.serie-ratings,
+.serie-genres,
+.serie-studios {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex-wrap: wrap;
+}
+
+.serie-user-rating {
+    display: flex;
+    align-items: center;
+}
+
+.serie-meta-separator {
+    opacity: 0.4;
+}
+
+.serie-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    flex-wrap: wrap;
+}
+
+.serie-actions-primary {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: var(--space-2);
+    min-width: 0;
+    flex: 0 1 auto;
+}
+
+.serie-actions-primary--split {
+    gap: var(--space-1);
+}
+
+.serie-actions-play,
+.serie-actions-primary ::deep .serie-actions-play {
+    min-height: 48px;
+    border-radius: var(--radius-md);
+}
+
+.serie-actions-primary--split .serie-actions-play,
+.serie-actions-primary--split ::deep .serie-actions-play {
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.serie-actions-replay,
+.serie-actions-primary ::deep .serie-actions-replay {
+    flex: 0 0 auto;
+    align-self: stretch;
+    box-sizing: border-box;
+    width: 48px;
+    min-height: 48px;
+    padding: 0 !important;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.serie-actions-secondary {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+}
+
+@media (min-width: 600px) {
+    .serie-hero.media-hero {
+        padding: var(--space-10);
+    }
+}
+
+@media (max-width: 599.98px) {
+    .serie-logo:not(.k7-img-wrap--custom-fallback) {
+        max-width: none;
+        max-height: none;
+    }
+
+    .serie-logo ::deep .k7-img {
+        object-position: center bottom;
+    }
+
+    .serie-main {
+        height: var(--media-hero-available-height);
+        min-height: var(--media-hero-available-height);
+        max-height: var(--media-hero-available-height);
+        flex-shrink: 0;
+        overflow: hidden;
+    }
+
+    .serie-hero {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto;
+    }
+
+    .serie-actions.mt-6 {
+        margin-top: var(--space-3);
+    }
+
+    .serie-page {
+        --carousel-margin-start: 16px;
+    }
+
+    .serie-meta {
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-2);
+        max-width: 100%;
+        text-align: center;
+    }
+
+    .serie-ratings,
+    .serie-genres {
+        max-width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+        overflow: visible;
+        mask-image: none;
+        -webkit-mask-image: none;
+    }
+
+    .serie-meta-separator,
+    .serie-studios {
+        display: none;
+    }
+
+    .serie-actions {
+        flex-direction: column;
+        flex-wrap: nowrap;
+        align-items: stretch;
+        justify-content: flex-start;
+        gap: var(--space-3);
+        width: 100%;
+    }
+
+    .serie-actions-primary {
+        flex-direction: row;
+        align-items: stretch;
+        flex-wrap: nowrap;
+        width: auto;
+        max-width: 100%;
+        flex: 0 1 auto;
+        gap: var(--space-2);
+    }
+
+    .serie-actions-primary--split {
+        gap: var(--space-1);
+    }
+
+    .serie-actions-play,
+    .serie-actions-primary ::deep .serie-actions-play {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+        min-height: 48px;
+        justify-content: center;
+        padding: 12px 16px;
+        font-size: var(--text-base);
+    }
+
+    .serie-actions-primary ::deep .serie-actions-play .k7-icon {
+        font-size: var(--text-lg);
+    }
+
+    .serie-actions-replay,
+    .serie-actions-primary ::deep .serie-actions-replay {
+        flex: 0 0 auto;
+        align-self: stretch;
+        width: 48px;
+        min-height: 48px;
+        padding: 0 !important;
+    }
+
+    .serie-actions-secondary {
+        width: 100%;
+        flex: 0 0 auto;
+        justify-content: space-evenly;
+        gap: 0;
+        flex-wrap: nowrap;
+    }
+}
+
+::deep .carousel-wrapper {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.overview-clickable {
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    padding: 8px;
+    margin-inline: -8px;
+    transition: background-color 0.2s ease;
+}
+
+.overview-clickable:hover,
+.overview-clickable:focus-visible {
+    background-color: rgba(128, 128, 128, 0.15);
+}
+
+.serie-overview {
+    opacity: 0.85;
+    line-height: 1.6;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: var(--text-base);
+}
+
+.serie-page-scroll[data-tv-scroll] [data-tv-scroll-zone="below"] .media-card,
+.serie-page-scroll[data-tv-scroll] [data-tv-scroll-zone="below"] .media-card-link {
+    scroll-margin-bottom: 64px;
+}
+
+.serie-page-below {
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+    padding-bottom: var(--space-6);
+}
+
+.serie-page-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}

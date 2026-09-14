@@ -1,0 +1,236 @@
+@page "/persons/{Id}"
+@using K7.Server.Domain.Enums
+@using K7.Shared.Dtos.Entities.Medias
+@using K7.Shared.Dtos.Entities.Persons
+@using K7.Shared.Dtos.Entities.PersonRoles
+@using K7.Clients.Shared.UI.Components.Dialogs
+@using Microsoft.AspNetCore.Components.Authorization
+@implements IAsyncDisposable
+@inject IMediaService k7ServerService
+@inject IK7ServerService apiClient
+@inject IStringLocalizer<Person> L
+@inject IStringLocalizer<SharedResource> S
+@inject IDeviceService DeviceService
+@inject IJSRuntime JSRuntime
+<PageTitle>@_person?.Name</PageTitle>
+
+@if (_loading)
+{
+    <div class="person-page" aria-busy="true">
+        <div class="person-page-scroll media-page-scroll">
+            <div class="person-main media-hero-main">
+                <div class="person-hero media-hero">
+                    <div class="media-hero-backdrop-zone">
+                        <div class="person-portrait">
+                            <K7Skeleton Class="person-skeleton-portrait" />
+                        </div>
+                    </div>
+                    <div class="media-hero-body">
+                        <div class="person-info">
+                            <div class="person-name-row">
+                                <K7Skeleton Class="person-skeleton-name" />
+                            </div>
+                            <div class="person-meta">
+                                <K7Skeleton Class="person-skeleton-chip person-skeleton-chip--wide" />
+                                <K7Skeleton Class="person-skeleton-chip" />
+                            </div>
+                            <div class="person-skeleton-bio">
+                                <K7Skeleton Shape="text" Class="person-skeleton-line" />
+                                <K7Skeleton Shape="text" Class="person-skeleton-line person-skeleton-line--mid" />
+                                <K7Skeleton Shape="text" Class="person-skeleton-line person-skeleton-line--short" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <MediaPageContent Class="person-page-content">
+                <div class="person-content">
+                    <Carousel Skeleton="true">
+                        @for (var i = 0; i < 8; i++)
+                        {
+                            <CarouselItem>
+                                <MediaCard Skeleton="true" FooterVisible="true" />
+                            </CarouselItem>
+                        }
+                    </Carousel>
+                </div>
+            </MediaPageContent>
+        </div>
+    </div>
+}
+else if (_person is not null)
+{
+    <div class="person-page"
+         style="@DominantColorCss.ToVariableStyle("--media-dominant-color", ActiveDominantColor)">
+        <MediaPageBackdrop @ref="_tvBackdrop"
+                           ImageUrl="@ActiveBackdropUrl"
+                           HighResImageUrl="@ActiveBackdropHighResUrl"
+                           DominantColor="@ActiveDominantColor"
+                           ScrollTarget="@_tvScrollRoot"
+                           Class="media-page-backdrop--soft-still"
+                           SoftStillBlurEnabled="true" />
+
+        <div @ref="_tvScrollRoot"
+             class="person-page-scroll media-page-scroll"
+             data-tv-scroll="@(HasBelowContent ? string.Empty : null)">
+        <div class="person-main media-hero-main" data-tv-scroll-zone="main">
+            @if (string.IsNullOrEmpty(_person.Biography))
+            {
+                <div class="person-hero-actions" data-tv-scroll-zone="actions" data-initial-focus>
+                    <K7BackButton />
+                </div>
+            }
+            else
+            {
+                <K7BackButton />
+            }
+            <div class="person-hero media-hero">
+                <div class="media-hero-backdrop-zone">
+                    <div class="person-portrait">
+                        <K7Image Src="@(_portraitUrl ?? PersonPlaceholderSrc)"
+                                 Alt="@_person.Name"
+                                 Fluid="true"
+                                 ObjectFit="cover">
+                            <FallbackContent>
+                                <K7Image Src="@PersonPlaceholderSrc"
+                                         Alt="@_person.Name"
+                                         Fluid="true"
+                                         ObjectFit="cover"
+                                         ShowLoadingState="false" />
+                            </FallbackContent>
+                        </K7Image>
+                    </div>
+                </div>
+                <div class="media-hero-body">
+                    <div class="person-info">
+                        <div class="person-name-row">
+                            <h3 class="person-name">@_person.Name</h3>
+                            <AuthorizeView Roles="Administrator">
+                                <K7Menu>
+                                    <ActivatorContent>
+                                        <K7IconButton Icon="@Phosphor.DotsThreeVertical" AriaLabel="more-actions" Size="sm" />
+                                    </ActivatorContent>
+                                    <ChildContent>
+                                        <K7MenuItem Icon="arrow-clockwise" OnClick="RefreshMetadataAsync">@L["RefreshMetadata"]</K7MenuItem>
+                                        <K7MenuItem Icon="pencil-simple" OnClick="OpenEditMetadataDialogAsync">@L["EditMetadata"]</K7MenuItem>
+                                    </ChildContent>
+                                </K7Menu>
+                            </AuthorizeView>
+                        </div>
+
+                        <div class="person-meta">
+                            @if (_person.Birthday.HasValue)
+                            {
+                                <div class="person-meta-item">
+                                    <K7Icon Name="cake"  IconSize="@K7IconSize.Sm" Class="person-meta-icon" />
+                                    <span>@_person.Birthday.Value.ToString("d MMMM yyyy")</span>
+                                    @if (_person.Deathday is null)
+                                    {
+                                        <span class="person-meta-secondary">(@Age(_person.Birthday.Value) @L["YearsOld"])</span>
+                                    }
+                                </div>
+                            }
+                            @if (_person.Deathday.HasValue)
+                            {
+                                <div class="person-meta-item">
+                                    <span class="person-meta-secondary">&#x2020;</span>
+                                    <span>@_person.Deathday.Value.ToString("d MMMM yyyy")</span>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(_person.BirthPlace))
+                            {
+                                <div class="person-meta-item">
+                                    <K7Icon Name="map-pin"  IconSize="@K7IconSize.Sm" Class="person-meta-icon" />
+                                    <span>@_person.BirthPlace</span>
+                                </div>
+                            }
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(_person.Biography))
+                        {
+                            <div class="person-bio overview-clickable focusable"
+                                 data-tv-scroll-zone="actions"
+                                 data-initial-focus
+                                 tabindex="0"
+                                 role="button"
+                                 @onclick="OpenBioDialogAsync">
+                                <p class="person-bio-text">@_person.Biography</p>
+                            </div>
+                        }
+
+                    </div>
+                </div>
+            </div>
+
+                @if (HasBelowContent)
+                {
+                    <div class="media-hero-scroll-hint" aria-hidden="true">
+                        <K7Icon Icon="@Phosphor.CaretDown" />
+                    </div>
+                }
+        </div>
+
+        @if (HasBelowContent)
+        {
+            <MediaPageContent Class="person-page-content"
+                              Tinted="@(ActiveDominantColor is not null)">
+            <div class="person-content" data-tv-scroll-zone="below">
+                @if (_discography.Count > 0)
+                {
+                    <Carousel Title="@L["Discography"]">
+                        @foreach (var album in _discography)
+                        {
+                            <CarouselItem @key="album.Id">
+                                <MediaCard Model="album"
+                                           Variant="MediaCardVariant.Cover"
+                                           Href="@($"/music/albums/{album.Id}")"
+                                           OverlayEnabled="true"
+                                           FooterVisible="true" />
+                            </CarouselItem>
+                        }
+                    </Carousel>
+                }
+
+                @if (_medias.Count > 0)
+                {
+                    <Carousel Title="@L["Filmography"]">
+                        @foreach (var media in _medias)
+                        {
+                            <CarouselItem @key="media.Id">
+                                <MediaCard Model="media"
+                                           Variant="@GetFilmographyVariant(media)"
+                                           Href="@GetFilmographyHref(media)"
+                                           OverlayEnabled="true"
+                                           ProgressEnabled="_canTrackProgress"
+                                           WatchedStatusEnabled="_canTrackProgress"
+                                           FooterVisible="true"
+                                           ExcludeMenuEnabled="_canExclude"
+                                           WatchStateMenuEnabled="_canSetWatchState"
+                                           IsAdmin="_isAdmin"
+                                           OnExcludeForSelf="() => ExcludeForSelf(media)"
+                                           OnExcludeForOthers="() => ExcludeForOthers(media)" />
+                            </CarouselItem>
+                        }
+                    </Carousel>
+                }
+
+                @if (_knownForCards.Count > 0)
+                {
+                    <Carousel Title="@L["KnownFor"]">
+                        @foreach (var item in _knownForCards)
+                        {
+                            <CarouselItem @key="item.Id">
+                            <MediaCard Model="item"
+                                       FooterVisible="true"
+                                       OverlayEnabled="true"
+                                       ContextMenuEnabled="false" />
+                            </CarouselItem>
+                        }
+                    </Carousel>
+                }
+            </div>
+            </MediaPageContent>
+        }
+        </div>
+    </div>
+}

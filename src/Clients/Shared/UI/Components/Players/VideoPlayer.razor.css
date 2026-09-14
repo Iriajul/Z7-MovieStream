@@ -1,0 +1,113 @@
+.video-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 99989;
+    background-color: black;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+
+.video-container.syncplay-sidebar-open {
+    flex-direction: row;
+}
+
+.video-main {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    isolation: isolate;
+}
+
+.video-syncplay-sidebar {
+    width: 20rem;
+    height: 100%;
+    background: var(--color-surface-container, #1e1e1e);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.video-syncplay-sidebar ::deep .syncplay-overlay {
+    position: static;
+    height: 100%;
+    padding-top: 0;
+    pointer-events: auto;
+}
+
+.video-syncplay-sidebar ::deep .syncplay-actions {
+    position: static;
+    margin: 0.5rem;
+    align-self: center;
+}
+
+.video-syncplay-sidebar ::deep .syncplay-participants {
+    position: static;
+    margin: 0.5rem;
+}
+
+.video-syncplay-sidebar ::deep .syncplay-chat {
+    position: static;
+    width: auto;
+    max-height: none;
+    flex: 1;
+}
+
+.video-container.native-overlay {
+    /* Cover the detail page until MediaElement is Playing. Transparent too early shows the
+       Movie page through the HUD; leaving black after Playing covers TextureView (audio-only). */
+    background-color: #000;
+}
+
+body.native-player-playing .video-container.native-overlay {
+    background-color: transparent;
+}
+
+/* video.js's own video-js.min.css sets .video-js.vjs-fill to the same 100% width/height with
+   equal specificity; !important guarantees we win regardless of stylesheet load order. */
+.video-container ::deep .video-js {
+    width: 100% !important;
+    height: 100% !important;
+    pointer-events: none;
+    background: #000;
+    /* Keep the tech in the normal paint tree on Windows WebView2 (visibility tricks break frames). */
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.video-container ::deep .vjs-error-display,
+.video-container ::deep .vjs-modal-dialog,
+.video-container ::deep .vjs-error-display .vjs-modal-dialog-content {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.video-container ::deep .video-js .vjs-tech {
+    pointer-events: none;
+    visibility: visible !important;
+    opacity: 1 !important;
+    object-fit: contain;
+}
+
+.video-container video {
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+media-player {
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    height: 100%;
+}
+

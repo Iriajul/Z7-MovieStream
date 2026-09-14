@@ -1,0 +1,49 @@
+@namespace K7.Clients.Shared.UI.Components
+
+<div class="k7-field k7-search-select @(_open ? "k7-search-select--open" : "") @(_editing ? "k7-search-select--editing" : "") @Class" style="@Style" @ref="_root">
+    <K7TextField TValue="string"
+                 Value="@Value"
+                 ValueChanged="OnInputChanged"
+                 Variant="@Variant"
+                 Placeholder="@Placeholder"
+                 ReadOnly="@(!_editing)"
+                 ForceSpatialActivatable="true"
+                 DebounceInterval="@DebounceInterval"
+                 OnDebounceIntervalElapsed="OnDebouncedSearch"
+                 Adornment="end"
+                 AdornmentIcon="@Phosphor.MagnifyingGlass"
+                 OnFocus="OnFocus"
+                 OnFocusOut="OnFocusOut"
+                 OnKeyDown="OnInputKeyDown"
+                 OnClick="OnInputClick" />
+
+    @if (_open)
+    {
+        <div class="k7-search-select-dropdown" role="listbox" @ref="_dropdown">
+            @if (_loading)
+            {
+                <div class="k7-search-select-status">
+                    <K7Spinner Size="sm" />
+                </div>
+            }
+            else
+            {
+                @for (var i = 0; i < _suggestions.Count; i++)
+                {
+                    var suggestion = _suggestions[i];
+                    var highlighted = i == _highlightedIndex;
+                    <div class="k7-search-select-option focusable @(highlighted ? "k7-search-select-option--active" : "")"
+                         role="option"
+                         tabindex="0"
+                         aria-selected="@highlighted"
+                         @onclick="() => SelectSuggestionAsync(suggestion)"
+                         @onmousedown:preventDefault="true"
+                         @onmousedown:stopPropagation="true"
+                         @onkeydown="@(e => OnSuggestionKeyDown(e, suggestion))">
+                        @suggestion
+                    </div>
+                }
+            }
+        </div>
+    }
+</div>

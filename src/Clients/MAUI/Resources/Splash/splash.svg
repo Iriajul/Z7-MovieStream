@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Android 12+ always clips the splash icon to a circle. A wide K7 wordmark
+       gets its sides cut off. Keep this tile the brand color so the circle is
+       invisible. The full mark is the DecorView Lottie / k7_logo overlay. -->
+  <rect width="128" height="128" fill="#0d0907"/>
+</svg>

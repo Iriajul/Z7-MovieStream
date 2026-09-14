@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>K7.Server.Application</RootNamespace>
+    <AssemblyName>K7.Server.Application</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Ardalis.GuardClauses" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\K7.Shared\K7.Shared.csproj" />
+    <ProjectReference Include="..\Domain\K7.Server.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Common\Converters\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="K7.Server.Application.UnitTests" />
+    <InternalsVisibleTo Include="K7.Server.Infrastructure.MediaProcessing" />
+  </ItemGroup>
+
+</Project>

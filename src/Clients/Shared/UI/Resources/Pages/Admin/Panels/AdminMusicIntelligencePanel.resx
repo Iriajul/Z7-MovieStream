@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="Title" xml:space="preserve"><value>AudioMuse AI</value></data>
+  <data name="Enabled" xml:space="preserve"><value>Activer AudioMuse AI</value></data>
+  <data name="EnabledDescription" xml:space="preserve"><value>Recommandations musicales, radios intelligentes et playlists IA via AudioMuse.</value></data>
+  <data name="DisabledWarning" xml:space="preserve"><value>Les fonctionnalit&#233;s IA sont masqu&#233;es tant que l'int&#233;gration est d&#233;sactiv&#233;e.</value></data>
+  <data name="DisabledTitle" xml:space="preserve"><value>AudioMuse d&#233;sactiv&#233;</value></data>
+  <data name="DisabledHint" xml:space="preserve"><value>Activez l'int&#233;gration pour configurer le serveur AudioMuse et d&#233;bloquer les recommandations IA.</value></data>
+  <data name="BaseUrl" xml:space="preserve"><value>URL du serveur</value></data>
+  <data name="ApiKey" xml:space="preserve"><value>Cle API</value></data>
+  <data name="InstantPlaylistEnabled" xml:space="preserve"><value>Playlists par description (Instant Playlist)</value></data>
+  <data name="InstantPlaylistCallout" xml:space="preserve"><value>Necessite une IA tierce configuree dans AudioMuse (Ollama, OpenAI, Gemini ou Mistral). Sans cela, le mode « Par description » des Smart playlists restera inutile.</value></data>
+  <data name="Save" xml:space="preserve"><value>Sauvegarder</value></data>
+  <data name="TestConnection" xml:space="preserve"><value>Tester la connexion</value></data>
+  <data name="Connected" xml:space="preserve"><value>Connecte</value></data>
+  <data name="ConnectionFailed" xml:space="preserve"><value>Echec de connexion</value></data>
+  <data name="SaveSuccess" xml:space="preserve"><value>Configuration sauvegardee</value></data>
+  <data name="SaveError" xml:space="preserve"><value>Erreur lors de la sauvegarde</value></data>
+</root>

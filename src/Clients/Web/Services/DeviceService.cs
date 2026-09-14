@@ -1,0 +1,266 @@
+using K7.Clients.Shared.Helpers;
+using K7.Clients.Shared.Interfaces;
+using K7.Server.Domain.Enums;
+using K7.Shared;
+using K7.Shared.Dtos.Devices;
+using K7.Shared.Dtos.Entities.Medias;
+using K7.Shared.Dtos.Requests;
+using K7.Shared.Interfaces;
+using Microsoft.JSInterop;
+using OperatingSystem = K7.Server.Domain.Enums.OperatingSystem;
+
+namespace K7.Clients.Web.Services;
+
+public class DeviceService(IJSRuntime jsRuntime, IMediaService mediaService, IDeviceStorageService deviceStorageService) : IDeviceService
+{
+    private DeviceType? _cachedDeviceType;
+    private Task<DeviceType>? _deviceTypeTask;
+
+    public DeviceType? CachedDeviceType => _cachedDeviceType;
+
+    public async Task<CreateDeviceRequest> GenerateCreateDeviceRequestAsync()
+    {
+        var parsedUserAgent = await jsRuntime.InvokeAsync<ParsedUserAgent>("getParsedUserAgent")
+            ?? new ParsedUserAgent();
+        var displayScreenHeight = await jsRuntime.InvokeAsync<int>("getDisplayScreenHeight");
+        var displayScreenWidth = await jsRuntime.InvokeAsync<int>("getDisplayScreenWidth");
+        var displayResolutionHeight = await jsRuntime.InvokeAsync<int>("getDisplayResolutionHeight");
+        var displayResolutionWidth = await jsRuntime.InvokeAsync<int>("getDisplayResolutionWidth");
+        var supportedMediaFormats = await GetSupportedMediaFormatsAsync();
+        var videoProfileTokens = await GetSupportedVideoProfilesAsync();
+        var webDeviceDetails = await GetWebDeviceDetailsAsync(parsedUserAgent);
+        var deviceType = CacheDeviceType(ResolveDeviceType(parsedUserAgent.PlatformType, webDeviceDetails.RawUserAgent));
+        var browser = MapBrowser(parsedUserAgent.BrowserName);
+        var operatingSystem = MapOperatingSystem(parsedUserAgent.OsName);
+        
+        var deviceName = BuildDeviceName(deviceType, browser);
+
+        return new CreateDeviceRequest
+        {
+            DeviceUniqueId = GetDeviceUniqueId(),
+            DeviceName = deviceName,
+            ClientType = GetClientType(),
+            DeviceType = deviceType,
+            OperatingSystem = operatingSystem,
+            OperatingSystemVersion = webDeviceDetails.RawOperatingSystemVersion,
+            DisplayScreenHeight = displayScreenHeight,
+            DisplayScreenWidth = displayScreenWidth,
+            DisplayResolutionHeight = displayResolutionHeight,
+            DisplayResolutionWidth = displayResolutionWidth,
+            NativeDeviceDetails = null,
+            WebDeviceDetails = webDeviceDetails,
+            PlaybackCapabilities = new CreateDeviceRequestPlaybackCapibilities()
+            {
+                SupportedMediaFormatIds = supportedMediaFormats.Select(x => x.Id)
+                    .Concat(videoProfileTokens)
+                    .ToList(),
+                SupportedSubtitlesCodecs = ["webvtt"],
+                SupportsHDR = await GetHdrSupportAsync()
+            }
+        };
+    }
+
+    public string? GetDeviceId()
+    {
+        return deviceStorageService.Get(PreferenceKeys.DEVICE_ID);
+    }
+
+    public string? GetDeviceUniqueId()
+    {
+        return null; // Not possible in web client
+    }
+
+    public ClientType GetClientType()
+    {
+        return ClientType.Web;
+    }
+
+    public Task<DeviceType> GetDeviceTypeAsync()
+    {
+        if (_cachedDeviceType is { } cached)
+            return Task.FromResult(cached);
+
+        return _deviceTypeTask ??= ResolveDeviceTypeAsync();
+    }
+
+    private async Task<DeviceType> ResolveDeviceTypeAsync()
+    {
+        var parsedUserAgent = await jsRuntime.InvokeAsync<ParsedUserAgent>("getParsedUserAgent")
+            ?? new ParsedUserAgent();
+        var rawUserAgent = await jsRuntime.InvokeAsync<string>("getRawUserAgent");
+        return CacheDeviceType(ResolveDeviceType(parsedUserAgent.PlatformType, rawUserAgent));
+    }
+
+    private DeviceType CacheDeviceType(DeviceType deviceType)
+    {
+        _cachedDeviceType = deviceType;
+        return deviceType;
+    }
+
+    public async Task<OperatingSystem> GetOperatingSystemAsync()
+    {
+        var parsedUserAgent = await jsRuntime.InvokeAsync<ParsedUserAgent>("getParsedUserAgent")
+            ?? new ParsedUserAgent();
+        return MapOperatingSystem(parsedUserAgent.OsName);
+    }
+
+    public async Task<DeviceCodecSummaryDto> GetDeviceCodecSummaryAsync()
+    {
+        var containers = await jsRuntime.InvokeAsync<string[]>("getSupportedContainersAsync");
+        var audioCodecs = await jsRuntime.InvokeAsync<string[]>("getSupportedAudioCodecsAsync");
+        var videoCodecs = await jsRuntime.InvokeAsync<string[]>("getSupportedVideoCodecsAsync");
+        var videoProfiles = await GetSupportedVideoProfilesAsync();
+
+        return new DeviceCodecSummaryDto
+        {
+            Containers = containers ?? [],
+            AudioCodecs = audioCodecs ?? [],
+            VideoCodecs = videoCodecs ?? [],
+            VideoProfiles = [.. videoProfiles],
+            SubtitleCodecs = ["webvtt"]
+        };
+    }
+
+    public async Task<List<MediaFormatDto>> GetSupportedMediaFormatsAsync()
+    {
+        var allFormats = await mediaService.GetMediaFormatsAsync();
+
+        var supportedContainers = await jsRuntime.InvokeAsync<string[]>("getSupportedContainersAsync");
+        var supportedAudioCodecs = await jsRuntime.InvokeAsync<string[]>("getSupportedAudioCodecsAsync");
+        var supportedVideoCodecs = await jsRuntime.InvokeAsync<string[]>("getSupportedVideoCodecsAsync");
+
+        var containerSet = new HashSet<string>(supportedContainers ?? [], StringComparer.OrdinalIgnoreCase);
+        var audioSet = new HashSet<string>(supportedAudioCodecs ?? [], StringComparer.OrdinalIgnoreCase);
+        var videoSet = new HashSet<string>(supportedVideoCodecs ?? [], StringComparer.OrdinalIgnoreCase);
+
+        var supported = allFormats.Where(f => f switch
+        {
+            AudioMediaFormatDto audio =>
+                containerSet.Contains(audio.Container) &&
+                audioSet.Contains(audio.Codec),
+
+            VideoMediaFormatDto video =>
+                containerSet.Contains(video.Container) &&
+                videoSet.Contains(video.VideoCodec) &&
+                (string.IsNullOrEmpty(video.AudioCodec) || audioSet.Contains(video.AudioCodec)),
+
+            _ => false
+        }).ToList();
+
+        return supported;
+    }
+
+    private async Task<IReadOnlyList<string>> GetSupportedVideoProfilesAsync()
+    {
+        try
+        {
+            var tokens = await jsRuntime.InvokeAsync<string[]>("getSupportedVideoProfilesAsync");
+            return tokens ?? [];
+        }
+        catch (JSException)
+        {
+            return [];
+        }
+    }
+
+    public async Task<bool> GetHdrSupportAsync()
+    {
+        return await jsRuntime.InvokeAsync<bool>("getHdrSupport");
+    }
+
+    private static Browser MapBrowser(string? browserName)
+    {
+        return browserName?.ToLowerInvariant() switch
+        {
+            "chrome" => Browser.Chrome,
+            "edge" => Browser.Edge,
+            "firefox" => Browser.Firefox,
+            "opera" => Browser.Opera,
+            "safari" => Browser.Safari,
+            _ => Browser.Unknown
+        };
+    }
+
+    private static DeviceType ResolveDeviceType(string? platformType, string? rawUserAgent)
+    {
+        var mapped = MapDeviceType(platformType);
+        if (mapped == DeviceType.TV)
+            return DeviceType.TV;
+
+        return TelevisionLayout.UserAgentLooksLikeTelevision(rawUserAgent)
+            ? DeviceType.TV
+            : mapped;
+    }
+
+    private static DeviceType MapDeviceType(string? platformType)
+    {
+        return platformType?.ToLowerInvariant() switch
+        {
+            "mobile" => DeviceType.Phone,
+            "tablet" => DeviceType.Tablet,
+            "desktop" => DeviceType.Desktop,
+            "tv" => DeviceType.TV,
+            _ => DeviceType.Unknown
+        };
+    }
+
+    private static OperatingSystem MapOperatingSystem(string? osName)
+    {
+        return osName?.ToLowerInvariant() switch
+        {
+            "windows" => OperatingSystem.Windows,
+            "android" => OperatingSystem.Android,
+            "ios" => OperatingSystem.iOS,
+            "macos" => OperatingSystem.MacCatalyst,
+            _ => OperatingSystem.Unknown
+        };
+    }
+
+    private static string BuildDeviceName(DeviceType deviceType, Browser browser)
+    {
+        var platform = deviceType == DeviceType.Unknown ? "Device" : deviceType.ToString();
+        var client = browser == Browser.Unknown ? "Browser" : browser.ToString();
+        return $"{client} ({platform})";
+    }
+
+    public async Task<WebDeviceDetailsDto> GetWebDeviceDetailsAsync()
+    {
+        var parsedUserAgent = await jsRuntime.InvokeAsync<ParsedUserAgent>("getParsedUserAgent")
+            ?? new ParsedUserAgent();
+        return await GetWebDeviceDetailsAsync(parsedUserAgent);
+    }
+
+    private async Task<WebDeviceDetailsDto> GetWebDeviceDetailsAsync(ParsedUserAgent parsedUserAgent)
+    {
+        return new WebDeviceDetailsDto
+        {
+            Browser = MapBrowser(parsedUserAgent.BrowserName),
+            RawUserAgent = await jsRuntime.InvokeAsync<string>("getRawUserAgent"),
+            RawBrowserName = parsedUserAgent.BrowserName,
+            RawBrowserVersion = parsedUserAgent.BrowserVersion,
+            RawOperatingSystemName = parsedUserAgent.OsName,
+            RawOperatingSystemVersion = parsedUserAgent.OsVersion,
+            RawOperatingSystemVersionName = parsedUserAgent.OsVersionName,
+            RawPlatformType = parsedUserAgent.PlatformType
+        };
+    }
+
+    public Task<NativeDeviceDetailsDto> GetNativeDeviceDetailsAsync()
+    {
+        throw new InvalidOperationException($"Cannot fetch {nameof(NativeDeviceDetailsDto)} from web device.");
+    }
+
+    public string? GetLocalFileUrl(string? localPath) => null;
+
+    internal sealed record ParsedUserAgent
+    {
+        public string? BrowserName { get; init; }
+        public string? BrowserVersion { get; init; }
+        public string? OsName { get; init; }
+        public string? OsVersion { get; init; }
+        public string? OsVersionName { get; init; }
+        public string? PlatformType { get; init; }
+        public string? EngineName { get; init; }
+        public string? EngineVersion { get; init; }
+    }
+}

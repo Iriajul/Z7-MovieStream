@@ -1,0 +1,52 @@
+@page "/"
+
+<PageTitle>K7 Design System</PageTitle>
+
+<div class="ds-page">
+    <header class="ds-page-header">
+        <h1>K7 Design System</h1>
+        <p class="ds-lead">Component library for K7 - the self-hosted media server. Built with Blazor, targeting Web (WASM) and MAUI.</p>
+    </header>
+
+    <div class="ds-overview-grid">
+        <a href="/branding" class="ds-overview-card">
+            <K7Icon Icon="@K7Brand.Symbol"  IconSize="@K7IconSize.Lg" />
+            <h3>Branding</h3>
+            <p>Symbol, logo, color variants, splash animation.</p>
+        </a>
+        <a href="/tokens" class="ds-overview-card">
+            <K7Icon Icon="@Phosphor.Palette"  IconSize="@K7IconSize.Lg" />
+            <h3>Tokens</h3>
+            <p>Colors, typography, spacing, shadows.</p>
+        </a>
+        <a href="/components" class="ds-overview-card">
+            <K7Icon Icon="@Phosphor.SquaresFour"  IconSize="@K7IconSize.Lg" />
+            <h3>Components</h3>
+            <p>K7Alert, K7Button, K7Chip, K7Icon, K7Avatar, K7TextField, K7Select, K7Table, K7Menu, MediaCard, Carousel, and more.</p>
+        </a>
+        <a href="/players" class="ds-overview-card">
+            <K7Icon Icon="@Phosphor.PlayCircle"  IconSize="@K7IconSize.Lg" />
+            <h3>Players</h3>
+            <p>AudioPlayer, VideoPlayer, MiniMusicPlayer, SeekBar.</p>
+        </a>
+        <a href="/layout" class="ds-overview-card">
+            <K7Icon Icon="@Phosphor.AppWindow"  IconSize="@K7IconSize.Lg" />
+            <h3>Layout</h3>
+            <p>Shell structure, sidebar, mobile footer, breakpoints, and CSS custom properties.</p>
+        </a>
+    </div>
+
+    @if (UncataloguedComponents.Count > 0)
+    {
+        <section class="ds-section mt-8">
+            <h2>Uncatalogued K7 components</h2>
+            <p class="ds-lead">K7* components in Shared.UI not yet listed on the Components page.</p>
+            <ul class="ds-uncatalogued-list">
+                @foreach (var name in UncataloguedComponents)
+                {
+                    <li><code>@name</code></li>
+                }
+            </ul>
+        </section>
+    }
+</div>

@@ -1,0 +1,245 @@
+/* Shared hero layout for media detail pages (mobile: fill page-viewport above bottom nav). */
+
+/* Shell holds MediaPageBackdrop; scroll child owns overflow so a transparent
+   scrollbar sits on the backdrop (including its scrims) instead of a --color-bg strip. */
+.media-page-scroll {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.media-hero {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    flex: 1;
+    min-height: 0;
+}
+
+.media-hero-backdrop-zone {
+    flex-shrink: 0;
+}
+
+.media-hero-body {
+    flex-shrink: 0;
+}
+
+/* Sibling of .media-hero under .media-hero-main: full page width, icon centered. */
+.media-hero-scroll-hint {
+    flex-shrink: 0;
+    align-self: stretch;
+    box-sizing: border-box;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--space-1) 0 var(--space-2);
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.media-hero-scroll-hint > * {
+    animation: media-hero-bounce-hint 2s ease-in-out infinite;
+}
+
+@keyframes media-hero-bounce-hint {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(6px); }
+}
+
+@media (max-width: 599.98px) {
+    .movie-page,
+    .serie-page,
+    .person-page,
+    .episode-page,
+    .season-tv {
+        /*
+         * 100% of page-viewport (app-main already pads for the bottom nav).
+         * Do not use 100dvh here - that overshoots and tucks the hint under the nav.
+         */
+        --media-hero-available-height: 100%;
+        /* Cover the flexible image zone; wash fills from the logo through the hint. */
+        --media-backdrop-height: 65%;
+        --media-wash-tint: var(--media-dominant-color, var(--color-accent));
+        --media-wash-color: color-mix(in srgb, var(--media-wash-tint) 24%, var(--color-bg));
+        background: var(--media-wash-color);
+    }
+
+    .media-hero-main {
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        height: var(--media-hero-available-height);
+        min-height: var(--media-hero-available-height);
+        max-height: var(--media-hero-available-height);
+        position: relative;
+        isolation: isolate;
+    }
+
+    .media-hero-main > :not(.k7-back-btn) {
+        position: relative;
+        z-index: 1;
+    }
+
+    .media-hero-main > .k7-back-btn {
+        position: absolute;
+        z-index: 10;
+    }
+
+    /*
+     * Image zone grows above the logo. Logo + body + hint pack to the bottom.
+     * Wash from the logo line covers through the chevron (no backdrop hole).
+     */
+    .media-hero {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto;
+        justify-content: flex-end;
+        overflow: visible;
+    }
+
+    .media-hero-backdrop-zone {
+        position: relative;
+        flex: 1 1 auto;
+        box-sizing: border-box;
+        min-height: 28%;
+        height: auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: center;
+        padding: var(--space-4);
+        padding-top: var(--space-10);
+        padding-bottom: var(--space-2);
+        overflow: visible;
+    }
+
+    /*
+     * Starts in the logo fade, then stays opaque through body + hint so the
+     * backdrop cannot show through behind the chevron.
+     */
+    .media-hero-backdrop-zone::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 100%;
+        height: 100vh;
+        margin-top: -96px;
+        pointer-events: none;
+        z-index: 0;
+        background: linear-gradient(
+            to bottom,
+            transparent 0,
+            color-mix(in srgb, var(--media-wash-color) 45%, transparent) 40px,
+            var(--media-wash-color) 96px,
+            var(--media-wash-color) 100%
+        );
+    }
+
+    .media-hero-backdrop-zone > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .media-hero-body {
+        position: relative;
+        z-index: 1;
+        flex: 0 0 auto;
+        width: 100%;
+        margin-top: 0;
+        padding: var(--space-2) var(--space-4) var(--space-3);
+        box-sizing: border-box;
+        background: var(--media-wash-color);
+    }
+
+    .media-hero-scroll-hint {
+        flex: 0 0 auto;
+        width: 100%;
+        align-self: stretch;
+        position: relative;
+        z-index: 1;
+        background: var(--media-wash-color);
+    }
+
+    .media-hero-logo:not(.k7-img-wrap--custom-fallback) {
+        flex-shrink: 0;
+        width: min(80vw, 320px);
+        max-width: min(80vw, 320px);
+    }
+
+    .media-hero-logo .k7-img {
+        display: block;
+        width: min(80vw, 320px);
+        height: auto;
+        max-height: min(20dvh, 112px);
+        object-fit: scale-down;
+        object-position: center bottom;
+    }
+
+    .media-hero-logo.k7-img-wrap--custom-fallback {
+        text-align: center;
+        width: 100%;
+    }
+
+    .media-hero-title {
+        margin: 0;
+        text-align: center;
+        text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9);
+    }
+}
+
+@media (min-width: 600px) {
+    /* Fill page-viewport so hero min-height: 100% resolves to one screen. */
+    .movie-page,
+    .serie-page,
+    .person-page,
+    .episode-page,
+    .season-tv {
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+        --media-wash-tint: var(--media-dominant-color, var(--color-accent));
+        --media-wash-color: color-mix(in srgb, var(--media-wash-tint) 24%, var(--color-bg));
+        background: var(--media-wash-color);
+    }
+
+    .media-hero-main {
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+        height: 100%;
+        flex-shrink: 0;
+    }
+
+    .media-hero {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    /* Sibling of .media-hero under .media-hero-main: full content width. */
+    .media-hero-scroll-hint {
+        flex: 0 0 auto;
+        width: 100%;
+        align-self: stretch;
+        margin-left: 0;
+    }
+
+    .media-hero-backdrop-zone {
+        height: auto;
+        padding: 0;
+        display: block;
+    }
+
+    .media-hero-body {
+        padding: 0;
+        background: transparent;
+    }
+}

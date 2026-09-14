@@ -1,0 +1,43 @@
+@inject IStringLocalizer<CreatePlaylistDialog> L
+@inject IStringLocalizer<SharedResource> S
+@using K7.Server.Domain.Enums
+
+<div class="k7-dialog-content">
+        <div class="d-flex flex-col mt-2">
+            <K7TextField @bind-Value="_title"
+                          Label="@L["NameLabel"]"
+                          Variant="outlined"
+                          Required="true"
+                          RequiredError="@L["NameRequired"]"
+                          MaxLength="200" />
+            <K7TextField @bind-Value="_description"
+                          Label="@L["DescriptionOptional"]"
+                          Variant="outlined"
+                          Lines="3"
+                          MaxLength="2000" />
+            <K7Select TValue="MediaType" @bind-Value="_mediaType" Label="@L["MediaType"]"
+                       Variant="outlined" ToStringFunc="MediaTypeToString">
+                <K7SelectItem TValue="MediaType" Value="MediaType.MusicTrack" Text="@S["MediaTypeMusic"]">@S["MediaTypeMusic"]</K7SelectItem>
+                <K7SelectItem TValue="MediaType" Value="MediaType.Movie" Text="@S["MediaTypeMovies"]">@S["MediaTypeMovies"]</K7SelectItem>
+                <K7SelectItem TValue="MediaType" Value="MediaType.SerieEpisode" Text="@S["MediaTypeSeries"]">@S["MediaTypeSeries"]</K7SelectItem>
+            </K7Select>
+            <K7VisibilityScopeSelect Label="@L["VisibilityScope"]" @bind-Value="_visibilityScope" Variant="outlined" />
+        </div>
+    </div>
+    <div class="k7-dialog-actions">
+        <K7Button OnClick="Cancel">@S["Cancel"]</K7Button>
+        <K7Button Color="primary"
+                   Variant="filled"
+                   OnClick="SubmitAsync"
+                   Disabled="@(string.IsNullOrWhiteSpace(_title) || _isSubmitting)">
+            @if (_isSubmitting)
+            {
+                <K7Spinner Size="sm" />
+                <span>@L["Creating"]</span>
+            }
+            else
+            {
+                <span>@S["Create"]</span>
+            }
+        </K7Button>
+    </div>

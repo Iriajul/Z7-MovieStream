@@ -1,0 +1,19 @@
+@namespace K7.Clients.Shared.UI.Components.Dialogs
+@using K7.Shared.Dtos.SharedProfiles
+@using K7.Clients.Shared.Models
+@inject IStringLocalizer<LeaveSharedProfileDialog> L
+
+<div class="d-flex flex-col gap-4">
+    <p>@L["Prompt"]</p>
+    <K7Select TValue="Guid" Label="@L["NewHost"]" @bind-Value="_newHostUserId" ToStringFunc="@FormatMember">
+        @foreach (var member in OtherMembers)
+        {
+            <K7SelectItem Value="@member.UserId" Text="@(member.DisplayName ?? member.UserId.ToString())" />
+        }
+    </K7Select>
+</div>
+
+<div class="k7-dialog-actions">
+    <K7Button Variant="text" OnClick="Cancel">@L["Cancel"]</K7Button>
+    <K7Button Color="error" OnClick="Confirm" Disabled="_newHostUserId == Guid.Empty">@L["Leave"]</K7Button>
+</div>

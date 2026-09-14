@@ -1,0 +1,44 @@
+@page "/settings/hidden"
+@layout SettingsLayout
+@using K7.Clients.Shared.Enums
+@inject IStringLocalizer<Settings> L
+@inject IStringLocalizer<SharedResource> S
+
+<PageTitle>@L["HiddenPageTitle"]</PageTitle>
+
+<BrowseView TItem="MediaCardViewModel" Items="_items" Loading="_isLoading"
+            DefaultMode="BrowseViewMode.List" ListItemHeight="72">
+    <ToolbarContent>
+        <h4>@L["HiddenPageTitle"]</h4>
+    </ToolbarContent>
+    <EmptyContent>
+        <p class="hidden-page-empty">@L["HiddenPageEmpty"]</p>
+    </EmptyContent>
+    <ListTemplate Context="item">
+        @{
+            var index = _items.IndexOf(item);
+            var rowClass = index % 2 == 1 ? "hidden-item hidden-item--even" : "hidden-item";
+        }
+        <div class="@rowClass">
+            <div class="hidden-item__media">
+                @if (item.PictureUrl is not null)
+                {
+                    <K7Image Src="@item.PictureUrl" Class="hidden-item__thumbnail" ObjectFit="cover" />
+                }
+                else
+                {
+                    <div class="hidden-item__placeholder">
+                        <K7Icon Icon="@Phosphor.FilmSlate" Class="hidden-item__placeholder-icon" />
+                    </div>
+                }
+                <span class="hidden-item__title">@item.Title</span>
+            </div>
+            <div class="hidden-item__actions">
+                <K7Button Color="secondary" Variant="text" StartIcon="@Phosphor.Eye"
+                          OnClick="() => UnhideAsync(item)" Disabled="_processing.Contains(item.Id)">
+                    @L["Unhide"]
+                </K7Button>
+            </div>
+        </div>
+    </ListTemplate>
+</BrowseView>

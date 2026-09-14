@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="PageTitle" xml:space="preserve"><value>Mes téléchargements</value></data>
+  <data name="NotAvailableOnWeb" xml:space="preserve"><value>Les téléchargements ne sont disponibles que sur l'application mobile.</value></data>
+  <data name="StorageUsed" xml:space="preserve"><value>Stockage utilisé</value></data>
+  <data name="CacheUsed" xml:space="preserve"><value>Cache</value></data>
+  <data name="Items" xml:space="preserve"><value>éléments</value></data>
+  <data name="ActiveDownloads" xml:space="preserve"><value>Téléchargements actifs</value></data>
+  <data name="Music" xml:space="preserve"><value>Musique</value></data>
+  <data name="Videos" xml:space="preserve"><value>Vidéos</value></data>
+  <data name="NoDownloads" xml:space="preserve"><value>Aucun téléchargement. Téléchargez des médias pour écouter ou regarder hors-ligne.</value></data>
+  <data name="StatusQueued" xml:space="preserve"><value>En attente</value></data>
+  <data name="StatusPreparing" xml:space="preserve"><value>Préparation...</value></data>
+  <data name="StatusDownloading" xml:space="preserve"><value>Téléchargement</value></data>
+  <data name="ActiveDownloadsCount" xml:space="preserve"><value>{0} téléchargements en cours</value></data>
+  <data name="TapToView" xml:space="preserve"><value>Appuyez pour voir les détails</value></data>
+  <data name="Tracks" xml:space="preserve"><value>titres</value></data>
+  <data name="All" xml:space="preserve"><value>Tout</value></data>
+  <data name="SearchPlaceholder" xml:space="preserve"><value>Rechercher dans les téléchargements...</value></data>
+  <data name="Downloads" xml:space="preserve"><value>Téléchargements</value></data>
+</root>

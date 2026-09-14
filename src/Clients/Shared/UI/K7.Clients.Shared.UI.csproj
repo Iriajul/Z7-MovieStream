@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <RootNamespace>K7.Clients.Shared.UI</RootNamespace>
+    <AssemblyName>K7.Clients.Shared.UI</AssemblyName>
+    <EnableStaticWebAssets>true</EnableStaticWebAssets>
+    <AddDefaultStaticWebAssetsEndpoints>true</AddDefaultStaticWebAssetsEndpoints>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Blazor-ApexCharts" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+    <PackageReference Include="Microsoft.Extensions.Localization" />
+    <PackageReference Include="Microsoft.Web.LibraryManager.Build" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\K7.Clients.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="K7.Clients.ComponentTests" />
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <Content Update="libman.json">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="Pages\Layout\EmptyLayout.razor">
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+  </ItemGroup>
+
+  <!--
+    LibMan restores wwwroot/dist during the build. Static web assets are discovered from
+    Content items evaluated earlier, so first CI builds omit those files from publish/APK
+    unless we restore before discovery and re-include them as Content. PrepareForBuild
+    is required so debug restart (rebuild while the previous host is still shutting down)
+    does not run UpdateExternallyDefinedStaticWebAssets against a half-restored wwwroot.
+  -->
+  <PropertyGroup>
+    <ResolveCurrentProjectStaticWebAssetsInputsDependsOn>
+      LibraryManagerRestore;
+      IncludeLibraryManagerWwwrootContent;
+      $(ResolveCurrentProjectStaticWebAssetsInputsDependsOn)
+    </ResolveCurrentProjectStaticWebAssetsInputsDependsOn>
+    <PrepareForBuildDependsOn>
+      LibraryManagerRestore;
+      IncludeLibraryManagerWwwrootContent;
+      $(PrepareForBuildDependsOn)
+    </PrepareForBuildDependsOn>
+  </PropertyGroup>
+
+  <Target Name="IncludeLibraryManagerWwwrootContent" AfterTargets="LibraryManagerRestore">
+    <PropertyGroup>
+      <_EmblaUmd>$(MSBuildProjectDirectory)\wwwroot\dist\embla-carousel\embla-carousel.umd.js</_EmblaUmd>
+    </PropertyGroup>
+    <Error Text="LibMan asset missing: $(_EmblaUmd). Run 'dotnet tool restore' and 'dotnet tool run libman restore' in $(MSBuildProjectDirectory)."
+           Condition="!Exists('$(_EmblaUmd)')" />
+    <ItemGroup>
+      <_LibManDistFiles Include="wwwroot\dist\**\*" />
+      <Content Include="@(_LibManDistFiles)" Exclude="@(Content)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

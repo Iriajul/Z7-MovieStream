@@ -1,0 +1,45 @@
+@inject IStringLocalizer<AddToPlaylistDialog> L
+@inject IStringLocalizer<SharedResource> S
+
+<div class="k7-dialog-content">
+        @if (_loading)
+        {
+            <K7ProgressBar Indeterminate="true" />
+        }
+        else if (_playlists.Count == 0)
+        {
+            <div class="d-flex flex-col pa-4">
+                <p Color="secondary">@L["Empty"]</p>
+                <K7Button Variant="filled" Color="primary" OnClick="CreateNewPlaylist">
+                    @L["CreatePlaylist"]
+                </K7Button>
+            </div>
+        }
+        else
+        {
+            <div class="playlist-list">
+                @foreach (var playlist in _playlists)
+                {
+                    <div class="playlist-tile focusable" tabindex="0" role="button" @onclick="() => SelectPlaylist(playlist)">
+                        <K7Paper Elevation="2" Class="playlist-tile-paper">
+                            <K7Icon Icon="@Phosphor.Queue" Color="primary" />
+                            <div class="playlist-tile-info">
+                                <span class="playlist-tile-title">@playlist.Title</span>
+                                <span class="text-caption playlist-tile-count">@FormatItemCount(playlist)</span>
+                            </div>
+                        </K7Paper>
+                    </div>
+                }
+            </div>
+            <hr class="k7-divider my-2" />
+            <K7Button Variant="text"
+                       Color="primary"
+                       StartIcon="@Phosphor.Plus"
+                       OnClick="CreateNewPlaylist">
+                @L["NewPlaylist"]
+            </K7Button>
+        }
+    </div>
+    <div class="k7-dialog-actions">
+        <K7Button OnClick="Cancel">@S["Cancel"]</K7Button>
+    </div>

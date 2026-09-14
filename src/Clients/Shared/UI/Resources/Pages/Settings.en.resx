@@ -1,0 +1,97 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="PageTitle" xml:space="preserve"><value>Settings</value></data>
+  <data name="GeneralPageTitle" xml:space="preserve"><value>General</value></data>
+  <data name="DarkMode" xml:space="preserve"><value>Dark mode</value></data>
+  <data name="Theme" xml:space="preserve"><value>Theme</value></data>
+  <data name="Language" xml:space="preserve"><value>Language</value></data>
+  <data name="GeneralResetSuccess" xml:space="preserve"><value>Preferences restored to server defaults.</value></data>
+  <data name="ServerUrl" xml:space="preserve"><value>Z7 server URL</value></data>
+  <data name="FormFactor" xml:space="preserve"><value>Form factor:</value></data>
+  <data name="Hdr" xml:space="preserve"><value>HDR:</value></data>
+  <data name="Pin" xml:space="preserve"><value>PIN</value></data>
+  <data name="PinSet" xml:space="preserve"><value>A PIN is set on your account.</value></data>
+  <data name="ChangePin" xml:space="preserve"><value>Change PIN</value></data>
+  <data name="RemovePin" xml:space="preserve"><value>Remove PIN</value></data>
+  <data name="PinNotSet" xml:space="preserve"><value>No PIN is set. A PIN protects your account access on shared devices.</value></data>
+  <data name="SetPin" xml:space="preserve"><value>Set a PIN</value></data>
+  <data name="SupportedCodecs" xml:space="preserve"><value>Supported codecs</value></data>
+  <data name="WarningTitle" xml:space="preserve"><value>Warning</value></data>
+  <data name="ChangeServerUrlWarning" xml:space="preserve"><value>Changing the Z7 server URL will delete all local data related to the current server (statistics, offline files, preferences). Data on the server will not be affected.</value></data>
+  <data name="SetPinDialogTitle" xml:space="preserve"><value>Set a PIN</value></data>
+  <data name="ConfirmPinDialogTitle" xml:space="preserve"><value>Confirm PIN</value></data>
+  <data name="PinMismatch" xml:space="preserve"><value>PINs do not match.</value></data>
+  <data name="NewPinDialogTitle" xml:space="preserve"><value>New PIN</value></data>
+  <data name="ConfirmNewPinDialogTitle" xml:space="preserve"><value>Confirm new PIN</value></data>
+  <data name="RemovePinDialogTitle" xml:space="preserve"><value>Remove PIN</value></data>
+  <data name="RemovePinConfirm" xml:space="preserve"><value>Are you sure you want to remove your PIN?</value></data>
+  <data name="UserUnknown" xml:space="preserve"><value>Unable to identify current user.</value></data>
+  <data name="PinSetSuccess" xml:space="preserve"><value>PIN set successfully.</value></data>
+  <data name="PinRemovedSuccess" xml:space="preserve"><value>PIN removed.</value></data>
+  <data name="PinUpdateFailed" xml:space="preserve"><value>Failed to update PIN: {0}</value></data>
+  <data name="NextEpisodeBehavior" xml:space="preserve"><value>Next episode</value></data>
+  <data name="NextEpisodeAutoPlay" xml:space="preserve"><value>Auto-play</value></data>
+  <data name="NextEpisodeButtonOnly" xml:space="preserve"><value>Button only</value></data>
+  <data name="NextEpisodeOff" xml:space="preserve"><value>Disabled</value></data>
+  <data name="TabGeneral" xml:space="preserve"><value>General</value></data>
+  <data name="TabStats" xml:space="preserve"><value>Statistics</value></data>
+  <data name="TabHistory" xml:space="preserve"><value>History</value></data>
+  <data name="TabLibraries" xml:space="preserve"><value>Libraries</value></data>
+  <data name="TabHome" xml:space="preserve"><value>Home</value></data>
+  <data name="LibrariesPageTitle" xml:space="preserve"><value>Libraries</value></data>
+  <data name="LibrariesPageDescription" xml:space="preserve"><value>Choose which libraries to hide, and what a tap on each Explore category does.</value></data>
+  <data name="LibrariesSection" xml:space="preserve"><value>Libraries</value></data>
+  <data name="ExploreTapActionSection" xml:space="preserve"><value>Tap / click action</value></data>
+  <data name="ExploreTapSuggestions" xml:space="preserve"><value>Suggestions</value></data>
+  <data name="ExploreTapBrowse" xml:space="preserve"><value>Browse</value></data>
+  <data name="ExploreTapActionHint" xml:space="preserve"><value>Suggestions opens the explore feed. Browse opens the library page directly.</value></data>
+  <data name="LibrariesPageEmpty" xml:space="preserve"><value>No libraries available.</value></data>
+  <data name="EmptyStateTitle" xml:space="preserve"><value>Nothing to watch</value></data>
+  <data name="EmptyStateSubtitle" xml:space="preserve"><value>Your library is empty, or no content is accessible to you.</value></data>
+  <data name="LibrariesSaveSuccess" xml:space="preserve"><value>Libraries updated.</value></data>
+  <data name="HomePageTitle" xml:space="preserve"><value>Home</value></data>
+  <data name="HomePageDescription" xml:space="preserve"><value>Your home page has been customized. Reset it to return to the default layout.</value></data>
+  <data name="HomePageDefaultDescription" xml:space="preserve"><value>You are using the server default layout.</value></data>
+  <data name="HomeResetLayout" xml:space="preserve"><value>Reset layout</value></data>
+  <data name="HomeResetSuccess" xml:space="preserve"><value>Layout reset.</value></data>
+  <data name="HomeSaveSuccess" xml:space="preserve"><value>Layout saved.</value></data>
+  <data name="MoveUp" xml:space="preserve"><value>Move up</value></data>
+  <data name="MoveDown" xml:space="preserve"><value>Move down</value></data>
+  <data name="PreviewTitle" xml:space="preserve"><value>Preview</value></data>
+  <data name="PreviewRefresh" xml:space="preserve"><value>Refresh preview</value></data>
+  <data name="HiddenPageTitle" xml:space="preserve"><value>Hidden media</value></data>
+  <data name="HiddenPageEmpty" xml:space="preserve"><value>You haven't hidden any media.</value></data>
+  <data name="Unhide" xml:space="preserve"><value>Unhide</value></data>
+  <data name="SyncPlayEnabled" xml:space="preserve"><value>Enable SyncPlay invitations</value></data>
+  <data name="ThemeSongsSection" xml:space="preserve"><value>Theme song</value></data>
+  <data name="PlayThemeSongs" xml:space="preserve"><value>Enable theme songs</value></data>
+  <data name="PlayThemeSongsHint" xml:space="preserve"><value>Plays the theme in the background on series or movie pages when a theme file is available.</value></data>
+  <data name="DisableThemeSongsOnDevice" xml:space="preserve"><value>Disable on this device</value></data>
+  <data name="DisableThemeSongsOnDeviceHint" xml:space="preserve"><value>Turns off theme songs on this device only, even when theme songs are enabled for your account.</value></data>
+  <data name="LocalDataSection" xml:space="preserve"><value>Local customizations</value></data>
+  <data name="LocalDataSectionHint" xml:space="preserve"><value>Remove local settings on this device (player, sidebar, downloads, filters, etc.). The server URL and device ID are kept. You stay signed in.</value></data>
+  <data name="ClearAllPreferences" xml:space="preserve"><value>Clear preferences</value></data>
+  <data name="ClearAllPreferencesTitle" xml:space="preserve"><value>Clear preferences</value></data>
+  <data name="ClearAllPreferencesMessage" xml:space="preserve"><value>Remove local customizations on this device (player, sidebar, downloads, filters, etc.)? The server URL and device ID will be kept. The app will reload.</value></data>
+  <data name="ClearPreferencesSuccess" xml:space="preserve"><value>Local customizations cleared.</value></data>
+</root>
+

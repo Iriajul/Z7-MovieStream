@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="Title" xml:space="preserve"><value>Historique de lecture</value></data>
+  <data name="User" xml:space="preserve"><value>Utilisateur</value></data>
+  <data name="SharedProfile" xml:space="preserve"><value>Groupe</value></data>
+  <data name="AllUsers" xml:space="preserve"><value>Tous les utilisateurs</value></data>
+  <data name="All" xml:space="preserve"><value>Tous</value></data>
+  <data name="Music" xml:space="preserve"><value>Musique</value></data>
+  <data name="Movies" xml:space="preserve"><value>Films</value></data>
+  <data name="TVShows" xml:space="preserve"><value>Series</value></data>
+  <data name="MediaTitle" xml:space="preserve"><value>Titre</value></data>
+  <data name="Type" xml:space="preserve"><value>Type</value></data>
+  <data name="Date" xml:space="preserve"><value>Date</value></data>
+  <data name="Duration" xml:space="preserve"><value>Durée</value></data>
+  <data name="Device" xml:space="preserve"><value>Appareil</value></data>
+  <data name="Quality" xml:space="preserve"><value>Qualité</value></data>
+  <data name="Status" xml:space="preserve"><value>Statut</value></data>
+  <data name="MediaType" xml:space="preserve"><value>Type de média</value></data>
+  <data name="Period" xml:space="preserve"><value>Période</value></data>
+  <data name="WeekShort" xml:space="preserve"><value>Sem.</value></data>
+  <data name="MonthShort" xml:space="preserve"><value>Mois</value></data>
+  <data name="YearShort" xml:space="preserve"><value>An</value></data>
+  <data name="AllTime" xml:space="preserve"><value>Tout</value></data>
+  <data name="CustomShort" xml:space="preserve"><value>Perso.</value></data>
+  <data name="PickDates" xml:space="preserve"><value>Choisir les dates</value></data>
+  <data name="SelectEndDate" xml:space="preserve"><value>Sélectionnez la date de fin</value></data>
+  <data name="SessionDetails" xml:space="preserve"><value>Détails de la session</value></data>
+  <data name="Watched" xml:space="preserve"><value>Vu</value></data>
+  <data name="Incomplete" xml:space="preserve"><value>Incomplet</value></data>
+  <data name="Skipped" xml:space="preserve"><value>Passée</value></data>
+  <data name="DirectPlay" xml:space="preserve"><value>Direct Play</value></data>
+  <data name="Direct" xml:space="preserve"><value>Direct</value></data>
+  <data name="Library" xml:space="preserve"><value>Bibliothèque</value></data>
+  <data name="Transcode" xml:space="preserve"><value>Transcode</value></data>
+  <data name="Transmux" xml:space="preserve"><value>Transmux</value></data>
+  <data name="Subtitles" xml:space="preserve"><value>Sous-titres</value></data>
+  <data name="SubtitlesOff" xml:space="preserve"><value>Désactivés</value></data>
+  <data name="StoppedAt" xml:space="preserve"><value>Fin</value></data>
+  <data name="Resolution" xml:space="preserve"><value>Résolution</value></data>
+  <data name="VideoCodec" xml:space="preserve"><value>Codec vidéo</value></data>
+  <data name="AudioCodec" xml:space="preserve"><value>Codec audio</value></data>
+  <data name="Bitrate" xml:space="preserve"><value>Débit</value></data>
+  <data name="PlaybackInfo" xml:space="preserve"><value>Lecture</value></data>
+  <data name="Segments" xml:space="preserve"><value>Segments</value></data>
+  <data name="UserDevice" xml:space="preserve"><value>Utilisateur et appareil</value></data>
+  <data name="Client" xml:space="preserve"><value>Client</value></data>
+  <data name="StreamDetails" xml:space="preserve"><value>Détails du flux</value></data>
+  <data name="VideoDecision" xml:space="preserve"><value>Decision video</value></data>
+  <data name="AudioDecision" xml:space="preserve"><value>Decision audio</value></data>
+  <data name="TranscodeReason" xml:space="preserve"><value>Raison</value></data>
+  <data name="Source" xml:space="preserve"><value>Source</value></data>
+  <data name="Stream" xml:space="preserve"><value>Flux</value></data>
+  <data name="NoStreamData" xml:space="preserve"><value>Aucune donnée de flux disponible</value></data>
+  <data name="ClientExternal" xml:space="preserve"><value>Externe</value></data>
+  <data name="ClientNative" xml:space="preserve"><value>Native</value></data>
+  <data name="ClientWeb" xml:space="preserve"><value>Navigateur</value></data>
+  <data name="Actions" xml:space="preserve"><value>Actions</value></data>
+  <data name="Select" xml:space="preserve"><value>Sélectionner</value></data>
+  <data name="SelectAll" xml:space="preserve"><value>Tout sélectionner</value></data>
+  <data name="DeselectAll" xml:space="preserve"><value>Tout désélectionner</value></data>
+  <data name="SelectedCount" xml:space="preserve"><value>{0} sélectionné(s)</value></data>
+  <data name="ReassignTitle" xml:space="preserve"><value>Réaffecter le visionnage</value></data>
+  <data name="ReassignAria" xml:space="preserve"><value>Réaffecter ce visionnage</value></data>
+  <data name="Reassigned" xml:space="preserve"><value>Visionnage réaffecté</value></data>
+  <data name="ReassignSelected" xml:space="preserve"><value>Réaffecter</value></data>
+  <data name="ReassignSelectedTitle" xml:space="preserve"><value>Réaffecter les visionnages</value></data>
+  <data name="ReassignSelectedSuccess" xml:space="preserve"><value>{0} visionnage(s) réaffecté(s)</value></data>
+  <data name="DeleteTitle" xml:space="preserve"><value>Supprimer de l'historique</value></data>
+  <data name="DeleteConfirm" xml:space="preserve"><value>Supprimer « {0} » de l'historique ? Les compteurs de lectures de cet utilisateur seront mis à jour.</value></data>
+  <data name="DeleteSharedConfirm" xml:space="preserve"><value>Supprimer « {0} » pour tout le monde ? La ligne disparaît de l'historique du groupe. Les membres restent marqués comme ayant vu le titre.</value></data>
+  <data name="DeleteAria" xml:space="preserve"><value>Supprimer ce visionnage</value></data>
+  <data name="Deleted" xml:space="preserve"><value>Visionnage supprimé</value></data>
+  <data name="DeleteSelected" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="DeleteSelectedTitle" xml:space="preserve"><value>Supprimer de l'historique</value></data>
+  <data name="DeleteSelectedConfirm" xml:space="preserve"><value>Supprimer {0} visionnage(s) pour tout le monde ? Les lectures personnelles mettent à jour les compteurs. Les lectures de profil partagé retirent la ligne du groupe sans décocher les membres.</value></data>
+  <data name="DeleteSelectedSuccess" xml:space="preserve"><value>{0} visionnage(s) supprimé(s)</value></data>
+  <data name="DeleteSelectedError" xml:space="preserve"><value>Impossible de supprimer les visionnages sélectionnés</value></data>
+  <data name="DeleteSelectedPartial" xml:space="preserve"><value>{0} supprimé(s), {1} en échec</value></data>
+</root>

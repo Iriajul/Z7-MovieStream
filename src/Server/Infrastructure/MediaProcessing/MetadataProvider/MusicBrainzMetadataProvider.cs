@@ -1,0 +1,1196 @@
+using System.Reflection;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using K7.Server.Application.Features.Medias.Services;
+using K7.Server.Application.Common.Interfaces;
+using K7.Server.Application.Helpers;
+using K7.Server.Application.Services;
+using K7.Server.Domain.Entities;
+using K7.Server.Domain.Entities.Metadatas.External;
+using K7.Server.Domain.Enums;
+using K7.Server.Domain.Events;
+using K7.Server.Domain.Interfaces;
+using K7.Server.Domain.Models;
+using K7.Shared.Dtos.Entities.Metadatas;
+using Microsoft.Extensions.Logging;
+
+namespace K7.Server.Infrastructure.MediaProcessing.MetadataProvider;
+
+public class MusicBrainzMetadataProvider : IMetadataProvider<ExternalMusicAlbumMetadata>, IMusicAlbumReleaseAwareMetadataProvider, IMusicArtistMetadataProvider, IMetadataProviderInfo, IMetadataImageProvider, ISearchableMetadataProvider
+{
+    private const string BaseUrl = "https://musicbrainz.org/ws/2";
+    private const string CoverArtBaseUrl = "https://coverartarchive.org";
+    private const string Host = "musicbrainz.org";
+    private const string CoverArtHost = "coverartarchive.org";
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.KebabCaseLower,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    private readonly HttpClient _httpClient;
+    private readonly OutboundRateLimiter _rateLimiter;
+    private readonly ILogger<MusicBrainzMetadataProvider> _logger;
+
+    public MusicBrainzMetadataProvider(HttpClient httpClient, OutboundRateLimiter rateLimiter, ILogger<MusicBrainzMetadataProvider> logger)
+    {
+        _httpClient = httpClient;
+        _rateLimiter = rateLimiter;
+        var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd($"K7/{version}");
+        _httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        _logger = logger;
+    }
+
+    public string ProviderName => "musicbrainz";
+    public IReadOnlyList<LibraryMediaType> SupportedMediaTypes { get; } = [LibraryMediaType.Music];
+
+    public async Task<string?> SearchAsync(
+        MediaIdentification identification,
+        string? language = null,
+        string? fallbackLanguage = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(identification.MusicBrainzReleaseGroupId))
+                return identification.MusicBrainzReleaseGroupId.Trim();
+
+            if (!string.IsNullOrWhiteSpace(identification.MusicBrainzReleaseId))
+            {
+                var release = await GetReleaseWithReleaseGroupAsync(identification.MusicBrainzReleaseId.Trim(), cancellationToken);
+                if (!string.IsNullOrWhiteSpace(release?.ReleaseGroup?.Id))
+                    return release.ReleaseGroup.Id;
+
+                // Do not store a release id under the album (release-group) provider key.
+                return null;
+            }
+
+            var query = BuildSearchQuery(identification);
+            if (string.IsNullOrWhiteSpace(query))
+                return null;
+
+            var url = $"{BaseUrl}/release/?query={Uri.EscapeDataString(query)}&limit=10&fmt=json";
+
+            await _rateLimiter.WaitAsync(Host, cancellationToken);
+            var response = await _httpClient.GetFromJsonAsync<MbReleaseSearchResult>(url, JsonOptions, cancellationToken);
+            var candidates = response?.Releases?
+                .Where(r => r.Score >= 80)
+                .ToList() ?? [];
+
+            if (candidates.Count == 0)
+                return null;
+
+            var yearIndex = FindPreferredYearIndex(
+                candidates.Select(c => c.Date).ToList(),
+                identification.ReleaseYear?.Year);
+            var bestMatch = yearIndex is int i ? candidates[i] : candidates[0];
+
+            // Album ExternalId is always a release-group id - never fall back to release id.
+            if (string.IsNullOrWhiteSpace(bestMatch.ReleaseGroup?.Id))
+                return null;
+
+            return bestMatch.ReleaseGroup.Id;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "MusicBrainz search failed for {Title}", identification.AlbumName ?? identification.Title);
+            return null;
+        }
+    }
+
+    public Task<ExternalMusicAlbumMetadata> FetchMetadata(string releaseGroupId, string language, CancellationToken cancellationToken = default) =>
+        FetchMetadata(releaseGroupId, language, hints: null, cancellationToken);
+
+    public async Task<ExternalMusicAlbumMetadata> FetchMetadata(
+        string releaseGroupId,
+        string language,
+        MusicAlbumReleaseHints? hints,
+        CancellationToken cancellationToken = default)
+    {
+        // 1. Fetch release-group for genres/tags
+        var releaseGroup = await GetReleaseGroupAsync(releaseGroupId, cancellationToken);
+
+        // 2. Find the best release within the group (Lidarr-like scoring when hints are available)
+        var releaseId = await FindBestReleaseIdAsync(releaseGroupId, hints, cancellationToken);
+
+        // 3. Fetch the full release with recordings
+        var release = releaseId != null
+            ? await GetReleaseAsync(releaseId, cancellationToken)
+            : null;
+
+        // 4. Build metadata
+        var externalIds = new List<ExternalId>
+        {
+            new() { ProviderName = "musicbrainz", Value = releaseGroupId }
+        };
+
+        if (!string.IsNullOrEmpty(releaseId))
+            externalIds.Add(new ExternalId { ProviderName = "musicbrainz-release", Value = releaseId });
+
+        if (releaseGroup?.Relations is not null)
+        {
+            var wikidataUrl = releaseGroup.Relations.FirstOrDefault(r => r.Type == "wikidata")?.Url?.Resource;
+            if (!string.IsNullOrEmpty(wikidataUrl))
+            {
+                var qid = ExtractQid(wikidataUrl);
+                if (qid is not null)
+                    externalIds.Add(new ExternalId { ProviderName = "wikidata", Value = qid });
+            }
+
+            var spotifyUrl = releaseGroup.Relations
+                .FirstOrDefault(r => r.Type == "streaming music" && r.Url?.Resource?.Contains("spotify.com") == true)?.Url?.Resource;
+            if (!string.IsNullOrEmpty(spotifyUrl))
+            {
+                var spotifyId = ExtractSpotifyId(spotifyUrl);
+                if (spotifyId is not null)
+                    externalIds.Add(new ExternalId { ProviderName = "spotify", Value = spotifyId });
+            }
+        }
+
+        var officialAlbumTitle = releaseGroup?.Title ?? release?.Title;
+        var localizedAlbum = MusicBrainzLocalizedName.Resolve(
+            officialAlbumTitle,
+            releaseGroup?.SortName ?? release?.SortName,
+            ConcatAliases(releaseGroup?.Aliases, release?.Aliases),
+            language);
+        var albumTitle = string.IsNullOrWhiteSpace(localizedAlbum.Name) ? officialAlbumTitle : localizedAlbum.Name;
+        var metadata = new ExternalMusicAlbumMetadata
+        {
+            Title = albumTitle,
+            OriginalTitle = localizedAlbum.OriginalName,
+            SortTitle = localizedAlbum.SortName
+                ?? releaseGroup?.SortName
+                ?? release?.SortName
+                ?? MediaSortTitleHelper.Compute(albumTitle),
+            ReleaseDate = ParseDate(releaseGroup?.FirstReleaseDate ?? release?.Date),
+            Genres = ExtractGenreTags(releaseGroup?.Genres, releaseGroup?.Tags),
+            ExternalIds = externalIds,
+            Tracks = ExtractTracks(release, language),
+            Artists = ExtractArtists(release, language),
+            Pictures = await FetchCoverArtAsync(releaseGroupId, releaseId, cancellationToken)
+        };
+
+        return metadata;
+    }
+
+    public async Task<IEnumerable<MetadataSearchResult>> SearchMetadataAsync(
+        string query, int? year, string? providerId, MediaType? mediaType, string language, string? fallbackLanguage, CancellationToken cancellationToken)
+    {
+        if (mediaType.HasValue && mediaType != MediaType.MusicAlbum)
+            return [];
+
+        var results = new List<MetadataSearchResult>();
+
+        try
+        {
+            var trimmedProviderId = providerId?.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmedProviderId))
+            {
+                var lookup = await LookupSearchResultByProviderIdAsync(trimmedProviderId, cancellationToken);
+                if (lookup is not null)
+                    results.Add(lookup);
+
+                return results;
+            }
+
+            if (string.IsNullOrWhiteSpace(query))
+                return results;
+
+            // Same shape as auto-identify SearchAsync: release search + free/Lucene text.
+            // Do not hard-filter by year in Lucene (wrong tag/UI year zeros the real hit).
+            var url = $"{BaseUrl}/release/?query={Uri.EscapeDataString(query.Trim())}&limit=25&fmt=json";
+
+            await _rateLimiter.WaitAsync(Host, cancellationToken);
+            var response = await _httpClient.GetFromJsonAsync<MbReleaseSearchResult>(url, JsonOptions, cancellationToken);
+            var candidates = response?.Releases?
+                .Where(r => !string.IsNullOrWhiteSpace(r.ReleaseGroup?.Id))
+                .ToList() ?? [];
+
+            if (candidates.Count == 0)
+                return results;
+
+            // Soft year preference (same idea as FindPreferredYearIndex), then keep first hit per release-group.
+            IEnumerable<MbReleaseSearchEntry> ordered = candidates;
+            if (year.HasValue)
+            {
+                ordered = candidates
+                    .OrderByDescending(c => ParseYear(c.Date) == year ? 1 : 0)
+                    .ThenByDescending(c => c.Score);
+            }
+            else
+            {
+                ordered = candidates.OrderByDescending(c => c.Score);
+            }
+
+            foreach (var release in ordered.DistinctBy(r => r.ReleaseGroup!.Id).Take(10))
+            {
+                var externalId = release.ReleaseGroup!.Id;
+                var posterUrl = await TryGetCoverArtUrl(
+                    $"{CoverArtBaseUrl}/release-group/{externalId}",
+                    cancellationToken);
+
+                results.Add(new MetadataSearchResult
+                {
+                    Provider = ProviderName,
+                    ExternalId = externalId,
+                    Title = FormatSearchResultTitle(release.Title, release.ArtistCredit),
+                    Year = ParseYear(release.Date),
+                    PosterUrl = posterUrl
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "MusicBrainz metadata search failed for {Query}", query);
+        }
+
+        return results;
+    }
+
+    private async Task<MetadataSearchResult?> LookupSearchResultByProviderIdAsync(string providerId, CancellationToken cancellationToken)
+    {
+        var releaseGroup = await GetReleaseGroupAsync(providerId, cancellationToken);
+        if (releaseGroup is not null)
+        {
+            return await MapReleaseGroupToSearchResultAsync(releaseGroup, cancellationToken);
+        }
+
+        var release = await GetReleaseWithReleaseGroupAsync(providerId, cancellationToken);
+        if (release is null || string.IsNullOrWhiteSpace(release.ReleaseGroup?.Id))
+            return null;
+
+        var externalId = release.ReleaseGroup.Id;
+        var posterUrl = await TryGetCoverArtUrl($"{CoverArtBaseUrl}/release-group/{externalId}", cancellationToken)
+            ?? await TryGetCoverArtUrl($"{CoverArtBaseUrl}/release/{release.Id}", cancellationToken);
+
+        return new MetadataSearchResult
+        {
+            Provider = ProviderName,
+            ExternalId = externalId,
+            Title = FormatSearchResultTitle(release.Title, release.ArtistCredit),
+            Year = ParseYear(release.Date),
+            PosterUrl = posterUrl
+        };
+    }
+
+    private async Task<MetadataSearchResult> MapReleaseGroupToSearchResultAsync(MbReleaseGroup releaseGroup, CancellationToken cancellationToken)
+    {
+        var posterUrl = await TryGetCoverArtUrl($"{CoverArtBaseUrl}/release-group/{releaseGroup.Id}", cancellationToken);
+
+        return new MetadataSearchResult
+        {
+            Provider = ProviderName,
+            ExternalId = releaseGroup.Id,
+            Title = FormatSearchResultTitle(releaseGroup.Title, releaseGroup.ArtistCredit),
+            Year = ParseYear(releaseGroup.FirstReleaseDate),
+            PosterUrl = posterUrl
+        };
+    }
+
+    private static string FormatSearchResultTitle(string? albumTitle, IReadOnlyList<MbArtistCredit>? artistCredit)
+    {
+        var title = albumTitle?.Trim() ?? string.Empty;
+        var artist = FormatArtistCredit(artistCredit);
+        if (string.IsNullOrEmpty(artist))
+            return title;
+        if (string.IsNullOrEmpty(title))
+            return artist;
+        return $"{artist} - {title}";
+    }
+
+    private static string FormatArtistCredit(IReadOnlyList<MbArtistCredit>? artistCredit)
+    {
+        if (artistCredit is null || artistCredit.Count == 0)
+            return string.Empty;
+
+        return string.Join(", ", artistCredit
+            .Select(c => c.Artist?.Name ?? c.Name)
+            .Where(n => !string.IsNullOrWhiteSpace(n))!);
+    }
+
+    private async Task<MbRelease?> GetReleaseWithReleaseGroupAsync(string releaseId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var url = $"{BaseUrl}/release/{releaseId}?inc=release-groups&fmt=json";
+            await _rateLimiter.WaitAsync(Host, cancellationToken);
+            return await _httpClient.GetFromJsonAsync<MbRelease>(url, JsonOptions, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch MusicBrainz release {Id}", releaseId);
+            return null;
+        }
+    }
+
+    private static int? ParseYear(string? date)
+    {
+        var parsed = ParseDate(date);
+        return parsed?.Year;
+    }
+
+    internal static string BuildSearchQuery(MediaIdentification identification)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrEmpty(identification.AlbumName))
+        {
+            parts.Add($"release:\"{EscapeLucene(identification.AlbumName)}\"");
+        }
+        else if (!string.IsNullOrEmpty(identification.Title))
+        {
+            parts.Add($"release:\"{EscapeLucene(identification.Title)}\"");
+        }
+
+        var artistMbid = identification.MusicBrainzAlbumArtistId ?? identification.MusicBrainzArtistId;
+        if (!string.IsNullOrWhiteSpace(artistMbid))
+        {
+            parts.Add($"arid:{artistMbid.Trim()}");
+        }
+        else if (!string.IsNullOrEmpty(identification.ArtistName))
+        {
+            parts.Add($"artist:\"{EscapeLucene(identification.ArtistName)}\"");
+        }
+
+        // Year is intentionally omitted from the Lucene query: a wrong tag year zeros all hits.
+        // FindPreferredYearIndex re-ranks locally when a year hint is available.
+        return string.Join(" AND ", parts);
+    }
+
+    /// <summary>
+    /// Escapes Lucene special characters inside MusicBrainz advanced search terms.
+    /// </summary>
+    internal static string EscapeLucene(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return value;
+
+        Span<char> buffer = stackalloc char[value.Length * 2];
+        var written = 0;
+        foreach (var c in value)
+        {
+            if (c is '+' or '-' or '&' or '|' or '!' or '(' or ')' or '{' or '}' or '[' or ']'
+                or '^' or '"' or '~' or '*' or '?' or ':' or '\\' or '/')
+            {
+                buffer[written++] = '\\';
+            }
+
+            buffer[written++] = c;
+        }
+
+        return new string(buffer[..written]);
+    }
+
+    internal static string? NormalizeArtistSearchName(string? artistName)
+    {
+        if (string.IsNullOrWhiteSpace(artistName))
+            return null;
+
+        var trimmed = artistName.Trim();
+        // Strip leading decorative punctuation (*NSYNC, 'N Sync, ★NSYNC).
+        while (trimmed.Length > 0 && !char.IsLetterOrDigit(trimmed[0]))
+            trimmed = trimmed[1..].TrimStart();
+
+        return string.IsNullOrWhiteSpace(trimmed) ? artistName.Trim() : trimmed;
+    }
+
+    /// <summary>
+    /// Soft year ranking: pick the first candidate whose date year matches the local hint.
+    /// Returns null when no hint or no match so callers can fall back to score order.
+    /// </summary>
+    internal static int? FindPreferredYearIndex(IReadOnlyList<string?> candidateDates, int? preferredYear)
+    {
+        if (preferredYear is null || candidateDates.Count == 0)
+            return null;
+
+        for (var i = 0; i < candidateDates.Count; i++)
+        {
+            if (ParseYear(candidateDates[i]) == preferredYear)
+                return i;
+        }
+
+        return null;
+    }
+
+    private async Task<MbReleaseGroup?> GetReleaseGroupAsync(string releaseGroupId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var url = $"{BaseUrl}/release-group/{releaseGroupId}?inc=genres+tags+url-rels+artist-credits+aliases&fmt=json";
+            await _rateLimiter.WaitAsync(Host, cancellationToken);
+            return await _httpClient.GetFromJsonAsync<MbReleaseGroup>(url, JsonOptions, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch MusicBrainz release-group {Id}", releaseGroupId);
+            return null;
+        }
+    }
+
+    private async Task<string?> FindBestReleaseIdAsync(
+        string releaseGroupId,
+        MusicAlbumReleaseHints? hints,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(hints?.PreferredReleaseId))
+                return hints.PreferredReleaseId;
+
+            var url = $"{BaseUrl}/release?release-group={releaseGroupId}&inc=media&fmt=json&limit=25";
+            await _rateLimiter.WaitAsync(Host, cancellationToken);
+            var result = await _httpClient.GetFromJsonAsync<MbReleaseList>(url, JsonOptions, cancellationToken);
+            var releases = result?.Releases;
+            if (releases is null || releases.Count == 0)
+                return null;
+
+            return releases
+                .OrderByDescending(r => ScoreRelease(r, hints))
+                .ThenByDescending(r => r.Media?.Sum(m => m.TrackCount) ?? 0)
+                .FirstOrDefault()?.Id;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to find best release for release-group {Id}", releaseGroupId);
+            return null;
+        }
+    }
+
+    private static int ScoreRelease(MbReleaseSummary release, MusicAlbumReleaseHints? hints)
+    {
+        var score = 0;
+        if (string.Equals(release.Status, "Official", StringComparison.OrdinalIgnoreCase))
+            score += 100;
+
+        var formats = release.Media?
+            .Select(m => m.Format)
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .Select(f => f!)
+            .ToList() ?? [];
+
+        if (formats.Any(f => f.Contains("Digital", StringComparison.OrdinalIgnoreCase)
+                             || f.Contains("File", StringComparison.OrdinalIgnoreCase)))
+            score += 25;
+        else if (formats.Any(f => f.Equals("CD", StringComparison.OrdinalIgnoreCase)))
+            score += 10;
+
+        var trackCount = release.Media?.Sum(m => m.TrackCount) ?? 0;
+        if (hints?.ExpectedTrackCount is int expected && expected > 0 && trackCount > 0)
+        {
+            var delta = Math.Abs(trackCount - expected);
+            score += Math.Max(0, 120 - delta * 15);
+        }
+        else
+        {
+            // Without on-disk hints, prefer richer tracklists moderately
+            score += Math.Min(trackCount, 40);
+        }
+
+        if (hints?.ExpectedTrackTitles is { Count: > 0 } titles && trackCount > 0)
+        {
+            // Title overlap needs full release payloads; approximate with count proximity only.
+            // Bonus when track counts align closely with expected title count.
+            var titleDelta = Math.Abs(trackCount - titles.Count);
+            if (titleDelta == 0)
+                score += 40;
+            else if (titleDelta <= 2)
+                score += 15;
+        }
+
+        return score;
+    }
+
+    private async Task<MbRelease?> GetReleaseAsync(string releaseId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var url = $"{BaseUrl}/release/{releaseId}?inc=recordings+artist-credits+isrcs+aliases&fmt=json";
+            await _rateLimiter.WaitAsync(Host, cancellationToken);
+            return await _httpClient.GetFromJsonAsync<MbRelease>(url, JsonOptions, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch MusicBrainz release {Id}", releaseId);
+            return null;
+        }
+    }
+
+    private async Task<List<MetadataPicture>> FetchCoverArtAsync(string releaseGroupId, string? releaseId, CancellationToken cancellationToken)
+    {
+        var pictures = new List<MetadataPicture>();
+
+        // Try release-group cover first, then individual release
+        var coverUrl = await TryGetCoverArtUrl($"{CoverArtBaseUrl}/release-group/{releaseGroupId}", cancellationToken)
+                    ?? (releaseId != null ? await TryGetCoverArtUrl($"{CoverArtBaseUrl}/release/{releaseId}", cancellationToken) : null);
+
+        if (coverUrl != null)
+        {
+            var picture = new MetadataPicture
+            {
+                Type = MetadataPictureType.Cover,
+                OriginalRemoteUri = new Uri(coverUrl)
+            };
+            picture.AddDomainEvent(new MetadataPictureCreatedEvent(picture));
+            pictures.Add(picture);
+        }
+
+        return pictures;
+    }
+
+    private async Task<string?> TryGetCoverArtUrl(string baseUrl, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _rateLimiter.WaitAsync(CoverArtHost, cancellationToken);
+            var response = await _httpClient.GetAsync($"{baseUrl}/front-500", cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return MetadataImageUrlHelper.PreferHttps(response.RequestMessage?.RequestUri?.ToString());
+            }
+        }
+        catch
+        {
+            // Cover art not available - not an error
+        }
+        return null;
+    }
+
+    private static IList<string> ExtractGenreTags(List<MbGenre>? genres, List<MbGenre>? tags)
+    {
+        if (genres is { Count: > 0 })
+            return OrderGenreLikeValues(genres);
+
+        if (tags is { Count: > 0 })
+        {
+            return tags
+                .Where(t => !string.IsNullOrWhiteSpace(t.Name))
+                .OrderByDescending(t => t.Count)
+                .Take(8)
+                .Select(t => t.Name!)
+                .ToList();
+        }
+
+        return [];
+    }
+
+    private static IList<string> OrderGenreLikeValues(List<MbGenre> values) =>
+        values
+            .Where(g => !string.IsNullOrWhiteSpace(g.Name))
+            .OrderByDescending(g => g.Count)
+            .Select(g => g.Name!)
+            .ToList();
+
+    private static IList<ExternalMusicTrackMetadata> ExtractTracks(MbRelease? release, string language)
+    {
+        if (release?.Media == null) return [];
+
+        // Collect album-level artist IDs to determine guest status
+        var albumArtistIds = (release.ArtistCredit ?? [])
+            .Where(ac => ac.Artist is not null)
+            .Select(ac => ac.Artist!.Id)
+            .ToHashSet();
+
+        var tracks = new List<ExternalMusicTrackMetadata>();
+        foreach (var medium in release.Media.OrderBy(m => m.Position))
+        {
+            if (medium.Tracks == null) continue;
+            foreach (var track in medium.Tracks.OrderBy(t => t.Position))
+            {
+                var credits = (track.ArtistCredit ?? [])
+                    .Where(ac => ac.Artist is not null && !string.IsNullOrEmpty(ac.Artist.Id))
+                    .Select(ac =>
+                    {
+                        var artist = ac.Artist!;
+                        return new ExternalMusicTrackArtistCredit
+                        {
+                            Name = LocalizeArtistCredit(ac, language),
+                            MusicBrainzArtistId = artist.Id,
+                            IsGuest = !albumArtistIds.Contains(artist.Id)
+                        };
+                    })
+                    .ToList();
+
+                var trackTitle = track.Title ?? track.Recording?.Title ?? "Unknown";
+                tracks.Add(new ExternalMusicTrackMetadata
+                {
+                    Title = trackTitle,
+                    SortTitle = track.Recording?.SortName ?? track.SortName ?? MediaSortTitleHelper.Compute(trackTitle),
+                    TrackNumber = track.Position,
+                    DiscNumber = medium.Position,
+                    Duration = track.Length.HasValue ? TimeSpan.FromMilliseconds(track.Length.Value) : null,
+                    MusicBrainzRecordingId = track.Recording?.Id,
+                    Isrc = track.Recording?.Isrcs?.FirstOrDefault(),
+                    ArtistCredits = credits
+                });
+            }
+        }
+        return tracks;
+    }
+
+    private static IList<ExternalMusicArtistMetadata> ExtractArtists(MbRelease? release, string language)
+    {
+        if (release?.ArtistCredit == null) return [];
+
+        return release.ArtistCredit
+            .Where(ac => ac.Artist != null && !string.IsNullOrEmpty(ac.Artist.Id))
+            .Select(ac =>
+            {
+                var localized = LocalizeArtist(ac.Artist!, ac.Name, language);
+                return new ExternalMusicArtistMetadata
+                {
+                    Name = localized.Name,
+                    OriginalName = localized.OriginalName,
+                    SortName = localized.SortName ?? ac.Artist!.SortName ?? MediaSortTitleHelper.Compute(localized.Name),
+                    MusicBrainzArtistId = ac.Artist!.Id
+                };
+            })
+            .DistinctBy(a => a.MusicBrainzArtistId)
+            .ToList();
+    }
+
+    private static string LocalizeArtistCredit(MbArtistCredit credit, string language)
+    {
+        if (credit.Artist is null)
+            return credit.Name ?? "Unknown";
+
+        var localized = LocalizeArtist(credit.Artist, credit.Name, language);
+        return string.IsNullOrWhiteSpace(localized.Name) ? credit.Name ?? "Unknown" : localized.Name;
+    }
+
+    private static LocalizedName LocalizeArtist(MbArtist artist, string? creditName, string language)
+        => MusicBrainzLocalizedName.Resolve(
+            artist.Name ?? creditName,
+            artist.SortName,
+            MapAliases(artist.Aliases),
+            language,
+            unfoldPersonSortName: true);
+
+    private static IReadOnlyList<MusicBrainzNameAlias> MapAliases(IEnumerable<MbAlias>? aliases)
+        => (aliases ?? [])
+            .Where(static a => !string.IsNullOrWhiteSpace(a.Name))
+            .Select(static a => new MusicBrainzNameAlias(
+                a.Name!,
+                a.Locale,
+                a.Primary == true,
+                a.Type,
+                a.SortName))
+            .ToList();
+
+    private static IEnumerable<MusicBrainzNameAlias> ConcatAliases(
+        IEnumerable<MbAlias>? first,
+        IEnumerable<MbAlias>? second)
+        => MapAliases(first).Concat(MapAliases(second));
+
+    internal static DateOnly? ParseDate(string? date)
+    {
+        if (string.IsNullOrEmpty(date)) return null;
+
+        // MusicBrainz dates can be "2001", "2001-03", or "2001-03-12"
+        if (DateOnly.TryParse(date, out var full)) return full;
+        if (date.Length == 4 && int.TryParse(date, out var year)) return new DateOnly(year, 1, 1);
+        if (date.Length == 7 && int.TryParse(date[..4], out var y) && int.TryParse(date[5..7], out var m))
+            return new DateOnly(y, m, 1);
+
+        return null;
+    }
+
+    public async Task<ExternalMusicArtistDetails?> FetchByProviderIdAsync(
+        string providerId, string language, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var artist = await FetchArtistAsync(providerId, cancellationToken);
+            if (artist == null) return null;
+
+            var localized = MusicBrainzLocalizedName.Resolve(
+                artist.Name,
+                artist.SortName,
+                MapAliases(artist.Aliases),
+                language,
+                unfoldPersonSortName: true);
+
+            var country = artist.Area?.Name;
+            var wikidataUrl = artist.Relations?
+                .FirstOrDefault(r => r.Type == "wikidata")?.Url?.Resource;
+            var wikidataId = !string.IsNullOrEmpty(wikidataUrl) ? ExtractQid(wikidataUrl) : null;
+
+            var spotifyUrl = artist.Relations?
+                .FirstOrDefault(r => r.Type == "streaming music" && r.Url?.Resource?.Contains("spotify.com") == true)?.Url?.Resource;
+            var spotifyId = !string.IsNullOrEmpty(spotifyUrl) ? ExtractSpotifyId(spotifyUrl) : null;
+
+            var imdbUrl = artist.Relations?
+                .FirstOrDefault(r => r.Type == "IMDb")?.Url?.Resource;
+            var imdbId = !string.IsNullOrEmpty(imdbUrl) ? ExtractImdbId(imdbUrl) : null;
+
+            var imageUrl = await TryGetArtistImageUrlAsync(providerId, cancellationToken);
+
+            var members = artist.Relations?
+                .Where(r => r.Type == "member of band" && r.Direction == "backward" && r.Artist is not null)
+                .Select(r => new ExternalMusicArtistMember
+                {
+                    Name = r.Artist!.Name ?? "Unknown",
+                    MusicBrainzArtistId = r.Artist.Id,
+                    Role = r.Attributes is { Count: > 0 } ? string.Join(", ", r.Attributes) : null,
+                    IsActive = r.Ended is not true
+                })
+                .ToList();
+
+            // Solo artist: link the artist itself as a member
+            if (artist.Type == "Person" && members is not { Count: > 0 })
+            {
+                members =
+                [
+                    new ExternalMusicArtistMember
+                    {
+                        Name = string.IsNullOrWhiteSpace(localized.Name) ? artist.Name ?? "Unknown" : localized.Name,
+                        MusicBrainzArtistId = providerId,
+                        IsActive = true
+                    }
+                ];
+            }
+
+            return new ExternalMusicArtistDetails
+            {
+                Name = string.IsNullOrWhiteSpace(localized.Name) ? artist.Name : localized.Name,
+                OriginalName = localized.OriginalName,
+                SortName = localized.SortName ?? artist.SortName,
+                Country = country,
+                MusicBrainzArtistId = providerId,
+                WikidataId = wikidataId,
+                SpotifyId = spotifyId,
+                ImdbId = imdbId,
+                ImageUrl = imageUrl,
+                Members = members
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "MusicBrainz artist fetch failed for {Id}", providerId);
+            return null;
+        }
+    }
+
+    public async Task<ExternalMusicArtistDetails?> SearchByNameAsync(
+        string artistName, string language, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var namesToTry = new List<string>();
+            if (!string.IsNullOrWhiteSpace(artistName))
+                namesToTry.Add(artistName.Trim());
+
+            var normalized = NormalizeArtistSearchName(artistName);
+            if (!string.IsNullOrWhiteSpace(normalized)
+                && !namesToTry.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                namesToTry.Add(normalized);
+            }
+
+            foreach (var name in namesToTry)
+            {
+                await _rateLimiter.WaitAsync(Host, cancellationToken);
+                var lucene = EscapeLucene(name);
+                var url = $"{BaseUrl}/artist/?query=artist:\"{Uri.EscapeDataString(lucene)}\"&limit=5&fmt=json";
+                var result = await _httpClient.GetFromJsonAsync<MbArtistSearchResult>(url, JsonOptions, cancellationToken);
+                var best = result?.Artists?
+                    .Where(a => a.Score >= 90)
+                    .OrderByDescending(a => a.Score)
+                    .FirstOrDefault();
+                if (best is null)
+                    continue;
+
+                return await FetchByProviderIdAsync(best.Id, language, cancellationToken);
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "MusicBrainz artist search failed for {Name}", artistName);
+            return null;
+        }
+    }
+
+    private async Task<MbArtistDetail?> FetchArtistAsync(string mbid, CancellationToken ct)
+    {
+        await _rateLimiter.WaitAsync(Host, ct);
+        var url = $"{BaseUrl}/artist/{Uri.EscapeDataString(mbid)}?inc=url-rels+artist-rels+aliases&fmt=json";
+        return await _httpClient.GetFromJsonAsync<MbArtistDetail>(url, JsonOptions, ct);
+    }
+
+    private async Task<string?> TryGetArtistImageUrlAsync(string artistMbid, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _rateLimiter.WaitAsync(Host, cancellationToken);
+            var url = $"{BaseUrl}/release-group?artist={Uri.EscapeDataString(artistMbid)}&type=album&limit=1&fmt=json";
+            var result = await _httpClient.GetFromJsonAsync<MbReleaseGroupSearchResult>(url, JsonOptions, cancellationToken);
+            var releaseGroupId = result?.ReleaseGroups?.FirstOrDefault()?.Id;
+
+            if (string.IsNullOrEmpty(releaseGroupId)) return null;
+
+            return await TryGetCoverArtUrl($"{CoverArtBaseUrl}/release-group/{releaseGroupId}", cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    internal static string? ExtractQid(string wikidataUrl)
+    {
+        var idx = wikidataUrl.LastIndexOf('/');
+        if (idx < 0 || idx == wikidataUrl.Length - 1) return null;
+        var qid = wikidataUrl[(idx + 1)..];
+        return qid.StartsWith('Q') ? qid : null;
+    }
+
+    internal static string? ExtractSpotifyId(string spotifyUrl)
+    {
+        // e.g. https://open.spotify.com/artist/4Z8W4fKeB5YxbusRsdQVPb
+        var segments = new Uri(spotifyUrl).AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length >= 2 ? segments[^1] : null;
+    }
+
+    internal static string? ExtractImdbId(string imdbUrl)
+    {
+        // e.g. https://www.imdb.com/name/nm0000093/
+        var segments = new Uri(imdbUrl).AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length >= 2 ? segments[^1] : null;
+    }
+
+    public bool SupportsMediaType(MediaType mediaType) => mediaType is MediaType.MusicAlbum or MediaType.MusicArtist;
+
+    public async Task<IReadOnlyList<ProviderImageDto>> GetImagesAsync(ImageProviderContext context, CancellationToken cancellationToken = default)
+    {
+        return context.MediaType switch
+        {
+            MediaType.MusicAlbum => await FetchReleaseGroupImagesAsync(context.ProviderId, cancellationToken),
+            MediaType.MusicArtist => await FetchArtistImagesAsync(context.ProviderId, cancellationToken),
+            _ => []
+        };
+    }
+
+    private async Task<IReadOnlyList<ProviderImageDto>> FetchReleaseGroupImagesAsync(string releaseGroupId, CancellationToken cancellationToken)
+    {
+        var results = new List<ProviderImageDto>();
+
+        try
+        {
+            await TryAddCoverArtFromUrlAsync($"{CoverArtBaseUrl}/release-group/{releaseGroupId}", results, cancellationToken);
+            if (results.Count > 0)
+                return results;
+
+            await TryAddCoverArtFromUrlAsync($"{CoverArtBaseUrl}/release/{releaseGroupId}", results, cancellationToken);
+        }
+        catch
+        {
+            // Cover Art Archive unavailable
+        }
+
+        return results;
+    }
+
+    private async Task TryAddCoverArtFromUrlAsync(
+        string coverArtUrl,
+        List<ProviderImageDto> results,
+        CancellationToken cancellationToken)
+    {
+        await _rateLimiter.WaitAsync(Host, cancellationToken);
+        var response = await _httpClient.GetAsync(coverArtUrl, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+            return;
+
+        var coverArt = await response.Content.ReadFromJsonAsync<CoverArtResponse>(JsonOptions, cancellationToken);
+        if (coverArt?.Images is null)
+            return;
+
+        AddCoverArtImages(results, coverArt.Images);
+    }
+
+    private async Task<IReadOnlyList<ProviderImageDto>> FetchArtistImagesAsync(string artistMbid, CancellationToken cancellationToken)
+    {
+        var results = new List<ProviderImageDto>();
+
+        try
+        {
+            await _rateLimiter.WaitAsync(Host, cancellationToken);
+            var url = $"{BaseUrl}/release-group?artist={Uri.EscapeDataString(artistMbid)}&type=album&limit=10&fmt=json";
+            var searchResult = await _httpClient.GetFromJsonAsync<MbReleaseGroupSearchResult>(url, JsonOptions, cancellationToken);
+
+            if (searchResult?.ReleaseGroups is null)
+                return results;
+
+            foreach (var rg in searchResult.ReleaseGroups)
+            {
+                if (string.IsNullOrEmpty(rg.Id)) continue;
+
+                try
+                {
+                    var coverArtUrl = $"{CoverArtBaseUrl}/release-group/{rg.Id}";
+                    await _rateLimiter.WaitAsync(Host, cancellationToken);
+                    var response = await _httpClient.GetAsync(coverArtUrl, cancellationToken);
+
+                    if (!response.IsSuccessStatusCode)
+                        continue;
+
+                    var coverArt = await response.Content.ReadFromJsonAsync<CoverArtResponse>(JsonOptions, cancellationToken);
+                    if (coverArt?.Images is null)
+                        continue;
+
+                    AddCoverArtImages(results, coverArt.Images);
+                }
+                catch
+                {
+                    // Skip unavailable cover art
+                }
+            }
+        }
+        catch
+        {
+            // MusicBrainz or Cover Art Archive unavailable
+        }
+
+        return results;
+    }
+
+    private static void AddCoverArtImages(List<ProviderImageDto> results, List<CoverArtImage> images)
+    {
+        foreach (var img in images)
+        {
+            if (string.IsNullOrEmpty(img.Image)) continue;
+
+            var isFront = img.Front == true;
+            var thumbUrl = img.Thumbnails?.Large ?? img.Thumbnails?.Small ?? img.Image;
+            var (width, height) = ResolveCoverArtDimensions(img);
+
+            results.Add(new ProviderImageDto
+            {
+                Url = img.Image,
+                ThumbnailUrl = thumbUrl,
+                Type = MetadataPictureType.Cover,
+                Width = width,
+                Height = height,
+                VoteAverage = isFront ? 10 : 0,
+                Language = null
+            });
+        }
+    }
+
+    private static (int Width, int Height) ResolveCoverArtDimensions(CoverArtImage image)
+    {
+        if (image.Thumbnails?.Large is not null)
+            return (500, 500);
+
+        if (image.Thumbnails?.Small is not null)
+            return (250, 250);
+
+        return (0, 0);
+    }
+
+    private record CoverArtResponse
+    {
+        public List<CoverArtImage>? Images { get; init; }
+    }
+
+    private record CoverArtImage
+    {
+        public string? Image { get; init; }
+        public bool? Front { get; init; }
+        public bool? Back { get; init; }
+        public CoverArtThumbnails? Thumbnails { get; init; }
+    }
+
+    private record CoverArtThumbnails
+    {
+        public string? Small { get; init; }
+        public string? Large { get; init; }
+        [JsonPropertyName("1200")]
+        public string? ExtraLarge { get; init; }
+    }
+
+    #region MusicBrainz API DTOs
+
+    private record MbReleaseSearchResult
+    {
+        public List<MbReleaseSearchEntry>? Releases { get; init; }
+    }
+
+    private record MbReleaseSearchEntry
+    {
+        public string Id { get; init; } = "";
+        public int Score { get; init; }
+        public string? Title { get; init; }
+        public string? Date { get; init; }
+        [JsonPropertyName("artist-credit")]
+        public List<MbArtistCredit>? ArtistCredit { get; init; }
+        [JsonPropertyName("release-group")]
+        public MbReleaseGroupRef? ReleaseGroup { get; init; }
+    }
+
+    private record MbReleaseGroupRef
+    {
+        public string Id { get; init; } = "";
+    }
+
+    private record MbReleaseGroup
+    {
+        public string Id { get; init; } = "";
+        public string? Title { get; init; }
+        public string? SortName { get; init; }
+        [JsonPropertyName("first-release-date")]
+        public string? FirstReleaseDate { get; init; }
+        public List<MbGenre>? Genres { get; init; }
+        public List<MbGenre>? Tags { get; init; }
+        public List<MbRelation>? Relations { get; init; }
+        public List<MbAlias>? Aliases { get; init; }
+        [JsonPropertyName("artist-credit")]
+        public List<MbArtistCredit>? ArtistCredit { get; init; }
+    }
+
+    private record MbGenre
+    {
+        public string? Name { get; init; }
+        public int Count { get; init; }
+    }
+
+    private record MbReleaseList
+    {
+        public List<MbReleaseSummary>? Releases { get; init; }
+    }
+
+    private record MbReleaseSummary
+    {
+        public string Id { get; init; } = "";
+        public string? Status { get; init; }
+        public List<MbMedium>? Media { get; init; }
+    }
+
+    private record MbRelease
+    {
+        public string Id { get; init; } = "";
+        public string? Title { get; init; }
+        public string? SortName { get; init; }
+        public string? Date { get; init; }
+        public List<MbMedium>? Media { get; init; }
+        public List<MbAlias>? Aliases { get; init; }
+        [JsonPropertyName("artist-credit")]
+        public List<MbArtistCredit>? ArtistCredit { get; init; }
+        [JsonPropertyName("release-group")]
+        public MbReleaseGroupRef? ReleaseGroup { get; init; }
+    }
+
+    private record MbArtistCredit
+    {
+        public string? Name { get; init; }
+        public MbArtist? Artist { get; init; }
+    }
+
+    private record MbArtist
+    {
+        public string Id { get; init; } = "";
+        public string? Name { get; init; }
+        public string? SortName { get; init; }
+        public string? Type { get; init; }
+        public List<MbAlias>? Aliases { get; init; }
+    }
+
+    private record MbMedium
+    {
+        public int Position { get; init; }
+        public string? Format { get; init; }
+        [JsonPropertyName("track-count")]
+        public int TrackCount { get; init; }
+        public List<MbTrack>? Tracks { get; init; }
+    }
+
+    private record MbTrack
+    {
+        public string? Title { get; init; }
+        public string? SortName { get; init; }
+        public int Position { get; init; }
+        public long? Length { get; init; }
+        public MbRecording? Recording { get; init; }
+        [JsonPropertyName("artist-credit")]
+        public List<MbArtistCredit>? ArtistCredit { get; init; }
+    }
+
+    private record MbRecording
+    {
+        public string Id { get; init; } = "";
+        public string? Title { get; init; }
+        public string? SortName { get; init; }
+        public List<string>? Isrcs { get; init; }
+    }
+
+    private record MbArtistSearchResult
+    {
+        public List<MbArtistSearchEntry>? Artists { get; init; }
+    }
+
+    private record MbArtistSearchEntry
+    {
+        public string Id { get; init; } = "";
+        public int Score { get; init; }
+    }
+
+    private record MbArtistDetail
+    {
+        public string? Name { get; init; }
+        public string? SortName { get; init; }
+        public string? Type { get; init; }
+        public MbArea? Area { get; init; }
+        public List<MbRelation>? Relations { get; init; }
+        public List<MbAlias>? Aliases { get; init; }
+    }
+
+    private record MbAlias
+    {
+        public string? Name { get; init; }
+        public string? Locale { get; init; }
+        public bool? Primary { get; init; }
+        public string? Type { get; init; }
+        public string? SortName { get; init; }
+    }
+
+    private record MbReleaseGroupSearchResult
+    {
+        [JsonPropertyName("release-groups")]
+        public List<MbReleaseGroupEntry>? ReleaseGroups { get; init; }
+    }
+
+    private record MbReleaseGroupEntry
+    {
+        public string Id { get; init; } = "";
+        public string? Title { get; init; }
+        [JsonPropertyName("first-release-date")]
+        public string? FirstReleaseDate { get; init; }
+        [JsonPropertyName("artist-credit")]
+        public List<MbArtistCredit>? ArtistCredit { get; init; }
+    }
+
+    private record MbArea
+    {
+        public string? Name { get; init; }
+    }
+
+    private record MbRelation
+    {
+        public string? Type { get; init; }
+        public string? Direction { get; init; }
+        public bool? Ended { get; init; }
+        public List<string>? Attributes { get; init; }
+        public MbUrl? Url { get; init; }
+        public MbArtist? Artist { get; init; }
+    }
+
+    private record MbUrl
+    {
+        public string? Resource { get; init; }
+    }
+
+    #endregion
+}

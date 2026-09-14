@@ -1,0 +1,58 @@
+@namespace K7.Clients.Shared.UI.Components
+
+<div class="@WrapCssClass" style="@WrapStyle" role="@(ShowFallback && !HasCustomFallback && !string.IsNullOrEmpty(Alt) ? "img" : null)" aria-label="@(ShowFallback && !HasCustomFallback ? Alt : null)">
+    @if (ShowFallback)
+    {
+        @if (HasCustomFallback)
+        {
+            @FallbackContent
+        }
+        else
+        {
+            <div class="k7-img-fallback" aria-hidden="@(!string.IsNullOrEmpty(Alt))">
+                <K7Icon Icon="@FallbackIcon" Class="k7-img-fallback-icon" />
+            </div>
+        }
+    }
+    else
+    {
+        @if (ShowInteractiveSpinner)
+        {
+            <div class="k7-img-loading" aria-hidden="true">
+                <K7Spinner Size="sm" />
+            </div>
+        }
+        else if (ShowCssSpinner)
+        {
+            <div class="k7-img-loading k7-img-loading--css" aria-hidden="true">
+                <span class="k7-spinner k7-spinner--sm"></span>
+            </div>
+        }
+
+        @if (UseInteractiveLoading)
+        {
+            <img @ref="_imgRef"
+                 @key="ResolvedSrc"
+                 class="@ImageCssClass"
+                 src="@ResolvedSrc"
+                 alt="@Alt"
+                 loading="@Loading"
+                 decoding="async"
+                 @onload="OnLoad"
+                 @onerror="OnError"
+                 @attributes="ImageAttributes" />
+        }
+        else
+        {
+            <img @ref="_imgRef"
+                 @key="ResolvedSrc"
+                 class="@ImageCssClass"
+                 src="@ResolvedSrc"
+                 alt="@Alt"
+                 loading="@Loading"
+                 decoding="async"
+                 @onerror="OnError"
+                 @attributes="ImageAttributes" />
+        }
+    }
+</div>

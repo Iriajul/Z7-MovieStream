@@ -1,0 +1,710 @@
+using K7.Clients.Shared.Helpers;
+using K7.Clients.Shared.Interfaces;
+using K7.Clients.Shared.Mappings;
+using K7.Clients.Shared.Models;
+using K7.Clients.Shared.Services;
+using K7.Clients.Shared.UI.Components;
+using K7.Clients.Shared.UI.Components.Dialogs;
+using K7.Clients.Shared.UI.Helpers;
+using K7.Server.Domain.Enums;
+using K7.Shared.Dtos.Entities;
+using K7.Shared.Dtos.Entities.Medias;
+using K7.Shared.Dtos.Entities.Metadatas.Files;
+using K7.Shared.Dtos.Entities.Metadatas.Files.Tracks;
+using K7.Shared.Enums;
+using K7.Shared.Interfaces;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
+
+namespace K7.Clients.Shared.UI.Pages;
+
+public partial class Movie : IAsyncDisposable
+{
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IK7DialogService DialogService { get; set; } = default!;
+    [Inject] private IK7Snackbar Snackbar { get; set; } = default!;
+    [Inject] private MediaCacheStore CacheStore { get; set; } = default!;
+    [Inject] private ISpatialNavService SpatialNav { get; set; } = default!;
+    [Inject] private IFederationService FederationService { get; set; } = default!;
+    [Inject] private IUserAdminService UserAdminService { get; set; } = default!;
+    [Inject] private ILibraryService LibraryService { get; set; } = default!;
+    [Inject] private K7HubClient K7HubClient { get; set; } = default!;
+
+    [Parameter] public required string Id { get; set; }
+
+    private bool isLoading { get; set; } = true;
+    private static MovieDto? _movie;
+    private static MediaCardViewModel? _mediaCard;
+    private string? _backdropUrl;
+    private string? _backdropHighResUrl;
+    private string? _dominantColor;
+    private string? _logoUrl;
+    private string? _posterSmallUrl;
+    private bool _overviewExpanded;
+    private IndexedFileDto? _selectedFile;
+    private RemoteIndexedFileDto? _selectedRemoteFile;
+    private AudioFileTrackDto? _selectedAudioFileTrack;
+    private SubtitleFileTrackDto? _selectedSubtitleFileTrack;
+    private bool _useExplicitTrackSelection;
+    private List<MediaCardViewModel> _similarMedia = [];
+    private string? _previousId;
+    private bool _canExclude;
+    private bool _canSetWatchState;
+    private bool _canRate;
+    private bool _isAdmin;
+    private bool _isTv;
+    private ElementReference _tvScrollRoot;
+    private bool _tvScrollInitialized;
+    private bool _initialFocusApplied;
+    private Guid? _libraryGroupId;
+    private MediaReviewsSection? _reviewsSection;
+    private int? _movieUserRating;
+    private MediaMetadataRefreshWatcher? _metadataRefreshWatcher;
+    private DebouncedActionRunner? _progressRefreshRunner;
+
+    protected override void OnInitialized()
+    {
+        _metadataRefreshWatcher = new MediaMetadataRefreshWatcher(K7HubClient, InvokeAsync);
+        _progressRefreshRunner = new DebouncedActionRunner(
+            RefreshProgressFromHubAsync,
+            InvokeAsync,
+            delayMs: 800);
+        K7HubClient.MediaIndexedFilesUpdated += OnMediaIndexedFilesUpdated;
+        K7HubClient.ProgressUpdated += OnProgressUpdated;
+    }
+
+    private void OnMediaIndexedFilesUpdated(Guid mediaId, Guid libraryId)
+    {
+        if (_movie is null || mediaId != _movie.Id)
+            return;
+
+        // A file of this movie was just probed: silently refetch so the play button
+        // becomes functional without user action (isPicturesRefresh reuses the silent path).
+        InvokeAsync(() => LoadMovieAsync(isPicturesRefresh: true)).FireAndForget();
+    }
+
+    private void OnProgressUpdated(Guid mediaId, double progressPercentage, bool isCompleted, MediaType mediaType)
+    {
+        if (_movie is null || mediaId != _movie.Id)
+            return;
+
+        // Ignore self-echo while this client is reporting progress (avoids a brief "watched"
+        // flash when the player emits a bogus short duration on start).
+        if (PlaybackProgressTracker.CurrentMediaId == mediaId)
+            return;
+
+        _progressRefreshRunner?.Schedule();
+    }
+
+    private async Task RefreshProgressFromHubAsync()
+    {
+        await RefreshMovieUserStateAsync();
+        StateHasChanged();
+    }
+
+    private bool HasTvBelowContent =>
+        (_movie?.PersonRoles?.Count ?? 0) > 0 || _similarMedia.Count > 0;
+
+    private string? GetLogoUrl() => _logoUrl;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_previousId is null)
+        {
+            CanResumePlayback = await FeatureAccess.HasCapabilityAsync(Capability.CanResumePlayback);
+            (_canExclude, _isAdmin) = await MediaCardExcludeActions.LoadPermissionsAsync(FeatureAccess);
+            _canSetWatchState = await WatchStateActions.CanSetWatchStateAsync(FeatureAccess);
+            _canRate = await FeatureAccess.HasCapabilityAsync(Capability.CanRate);
+        }
+
+        if (_previousId == Id) return;
+        _previousId = Id;
+
+        if (Guid.TryParse(Id, out var mediaId))
+        {
+            _metadataRefreshWatcher?.Watch(
+                mediaId,
+                () => LoadMovieAsync(isBackgroundRefresh: true),
+                () => LoadMovieAsync(isPicturesRefresh: true));
+        }
+
+        await LoadMovieAsync();
+    }
+
+    private async Task LoadMovieAsync(bool isBackgroundRefresh = false, bool isPicturesRefresh = false)
+    {
+        if (!isBackgroundRefresh && !isPicturesRefresh)
+        {
+            _tvScrollInitialized = false;
+            _initialFocusApplied = false;
+            _isTv = await DeviceService.GetDeviceTypeAsync() == DeviceType.TV;
+            isLoading = true;
+            _similarMedia = [];
+        }
+
+        var movie = await k7ServerService.GetMovieAsync(
+            Guid.Parse(Id),
+            bypassCache: isBackgroundRefresh || isPicturesRefresh);
+        if (movie != null)
+        {
+            _movie = movie;
+            _movieUserRating = GetUserRating(_movie.Ratings);
+
+            var cacheVersion = isPicturesRefresh
+                ? DateTimeOffset.UtcNow
+                : _movie.LastMetadataRefreshedAt;
+
+            var backdropPicture = _movie.Pictures?.FirstOrDefault(x => x.Type == MetadataPictureType.Backdrop);
+            // Omit the cache buster on first paint so TV reuses the Medium URL already
+            // decoded on Home / Explore.
+            (_backdropUrl, _backdropHighResUrl) = MetadataPictureDisplayHelper.ResolveAdaptiveBackdropUrls(
+                backdropPicture,
+                apiClient,
+                isPicturesRefresh ? cacheVersion : null);
+            _dominantColor = backdropPicture?.DominantColor;
+
+            var logoUri = apiClient.GetAbsoluteUri(
+                _movie.Pictures?.FirstOrDefault(x => x.Type == MetadataPictureType.Logo)?
+                    .GetUri(MetadataPictureSize.Medium)?.OriginalString)?.AbsoluteUri;
+            _logoUrl = MediaPictureUrlHelper.WithCacheBuster(logoUri, cacheVersion);
+
+            var posterUri = apiClient.GetAbsoluteUri(
+                _movie.Pictures?.FirstOrDefault(x => x.Type == MetadataPictureType.Poster)?
+                    .GetUri(MetadataPictureSize.Medium)?.OriginalString)?.AbsoluteUri;
+            _posterSmallUrl = MediaPictureUrlHelper.WithCacheBuster(posterUri, cacheVersion);
+
+            _mediaCard = new MediaCardViewModel()
+            {
+                Id = _movie.Id.ToString(),
+                Title = _movie.Title,
+                PictureUrl = _posterSmallUrl
+            };
+
+            _selectedFile = _movie.IndexedFiles?.FirstOrDefault();
+            _selectedRemoteFile = _selectedFile is null
+                ? _movie.RemoteIndexedFiles?.FirstOrDefault()
+                : null;
+            if (_selectedFile?.FileMetadata is VideoFileMetadataDto vMeta)
+            {
+                _selectedAudioFileTrack = vMeta.AudioTracks?.FirstOrDefault(x => x.IsDefault) ?? vMeta.AudioTracks?.FirstOrDefault();
+                _selectedSubtitleFileTrack = vMeta.SubtitleTracks?.FirstOrDefault(x => x.IsDefault);
+                _useExplicitTrackSelection = false;
+            }
+
+            await ResolveLibraryGroupIdAsync();
+
+            if (!isBackgroundRefresh && !isPicturesRefresh)
+            {
+                await ThemeSongPlaybackHelper.TryStartAsync(
+                    movie.Id,
+                    movie.HasThemeSong,
+                    k7ServerService,
+                    UserPreferencesService,
+                    AmbientThemeService,
+                    AudioPlayerService,
+                    PlayerService,
+                    DeviceStorageService);
+            }
+        }
+        else
+        {
+            _libraryGroupId = null;
+            await ThemeSongPlaybackHelper.StopAsync(AmbientThemeService);
+        }
+
+        if (!isBackgroundRefresh && !isPicturesRefresh)
+            isLoading = false;
+
+        if (!isPicturesRefresh)
+            LoadSimilarMediaAsync().FireAndForget();
+
+        if (isBackgroundRefresh && movie is not null)
+            Snackbar.Add(S["RefreshMetadataCompleted"], K7Severity.Success);
+
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!isLoading && _movie is not null && HasTvBelowContent)
+        {
+            if (!_tvScrollInitialized)
+            {
+                _tvScrollInitialized = await TvDetailScrollJs.TryInitAsync(JSRuntime, _tvScrollRoot);
+            }
+            else
+            {
+                await TvDetailScrollJs.TrySyncAsync(JSRuntime, _tvScrollRoot);
+            }
+        }
+
+        if (!_initialFocusApplied && !isLoading && _movie is not null)
+        {
+            _initialFocusApplied = true;
+            try
+            {
+                await SpatialNav.FocusFirstAsync(".movie-actions-play[data-initial-focus], [data-tv-scroll-zone='actions'] [data-initial-focus]");
+            }
+            catch (InvalidOperationException) { }
+        }
+    }
+
+    private void ToggleOverview()
+    {
+        _overviewExpanded = !_overviewExpanded;
+    }
+
+    private async Task PlayAsync(bool fromBeginning = false)
+    {
+        if (_movie is null || (!HasPlayableFiles()))
+        {
+            return;
+        }
+
+        await ThemeSongPlaybackHelper.InterruptAsync(AmbientThemeService, _movie.Id);
+
+        // Remote file playback (federation)
+        if (_selectedRemoteFile is not null)
+        {
+            await PlayRemoteFileAsync(_selectedRemoteFile, fromBeginning);
+            return;
+        }
+
+        if (_selectedFile is null)
+        {
+            return;
+        }
+
+        var indexedFileId = _selectedFile.Id;
+        if (_selectedFile.FileMetadata is not VideoFileMetadataDto videoMetadata)
+        {
+            // The file is indexed but not probed yet: tell the user instead of ignoring the click.
+            Snackbar.Add(S["MediaPreparingPlayback"], K7Severity.Info);
+            return;
+        }
+
+        var audioTracks = videoMetadata.AudioTracks;
+        var subtitleTracks = videoMetadata.SubtitleTracks;
+        var audioTrackIndex = _useExplicitTrackSelection ? _selectedAudioFileTrack?.Index : null;
+        var subtitleTrackIndex = _useExplicitTrackSelection ? _selectedSubtitleFileTrack?.Index : null;
+        var videoResolution = videoMetadata.VideoResolution;
+        var thumbnailsUrl = videoMetadata.Thumbnails?.Uri?.ToString();
+
+        await RefreshMovieUserStateAsync();
+
+        PlaybackProgressTracker.StartTracking(_movie.Id, await FeatureAccess.HasCapabilityAsync(Capability.CanReportPlaybackProgress), indexedFileId: indexedFileId);
+
+        var coverUrl = apiClient.GetAbsoluteUri(_movie.Pictures?.FirstOrDefault(x => x.Type == MetadataPictureType.Poster)?.GetUri(MetadataPictureSize.Small)?.OriginalString)?.AbsoluteUri;
+
+        var startPosition = ResolveStartPosition(fromBeginning);
+
+        try
+        {
+            await PlayerService.PlayIndexedFileAsync(indexedFileId, audioTracks ?? [], subtitleTracks, audioTrackIndex, subtitleTrackIndex, videoResolution, thumbnailsUrl, _movie.Id, VideoPlayerTitleHelper.FormatMovie(_movie), coverUrl, startPosition, videoMetadata.Chapters, videoMetadata.Duration.TotalSeconds);
+        }
+        catch (Exception ex) when (PlaybackErrorHelper.IsMediaNotReady(ex))
+        {
+            // Cached metadata said the file was playable, but the server has not probed it yet.
+            Snackbar.Add(S["MediaPreparingPlayback"], K7Severity.Info);
+        }
+    }
+
+    private bool CanResumePlayback
+    {
+        get =>
+        field
+        && _movie?.UserState is { LastPlaybackPosition: >= 1, IsCompleted: false }; set;
+    }
+
+    private string PrimaryPlayLabel
+    {
+        get
+        {
+            if (!CanResumePlayback)
+                return S["Play"];
+
+            var position = PlaybackPositionFormatter.TryFormat(_movie?.UserState?.LastPlaybackPosition ?? 0);
+            if (position is not null)
+                return string.Format(S["ResumeAtTime"], position);
+
+            return S["Resume"];
+        }
+    }
+
+    private double? ResolveStartPosition(bool fromBeginning)
+    {
+        if (fromBeginning || !CanResumePlayback)
+            return fromBeginning ? 0 : null;
+
+        return _movie!.UserState!.LastPlaybackPosition;
+    }
+
+    private async Task RefreshMovieUserStateAsync()
+    {
+        if (_movie is null) return;
+
+        var fresh = await k7ServerService.GetMovieAsync(_movie.Id, bypassCache: true);
+        if (fresh is not null)
+            _movie = _movie with { UserState = fresh.UserState };
+    }
+
+    private bool HasPlayableFiles()
+    {
+        if (_movie is null) return false;
+        return (_movie.IndexedFiles is { Count: > 0 }) || (_movie.RemoteIndexedFiles is { Count: > 0 });
+    }
+
+    private async Task PlayRemoteFileAsync(RemoteIndexedFileDto remoteFile, bool fromBeginning = false)
+    {
+        if (_movie is null) return;
+
+        await RefreshMovieUserStateAsync();
+
+        PlaybackProgressTracker.StartTracking(_movie.Id, await FeatureAccess.HasCapabilityAsync(Capability.CanReportPlaybackProgress));
+
+        var coverUrl = apiClient.GetAbsoluteUri(_movie.Pictures?.FirstOrDefault(x => x.Type == MetadataPictureType.Poster)?.GetUri(MetadataPictureSize.Small)?.OriginalString)?.AbsoluteUri;
+
+        var details = await FederationService.GetRemoteFileDetailsAsync(remoteFile.Id);
+        var videoMetadata = details?.FileMetadata as VideoFileMetadataDto;
+
+        var startPosition = ResolveStartPosition(fromBeginning);
+
+        await PlayerService.PlayRemoteIndexedFileAsync(
+            remoteFile.Id,
+            videoMetadata?.AudioTracks ?? [],
+            videoMetadata?.SubtitleTracks,
+            _useExplicitTrackSelection
+                ? _selectedAudioFileTrack?.Index ?? videoMetadata?.AudioTracks?.FirstOrDefault(t => t.IsDefault)?.Index
+                : null,
+            _useExplicitTrackSelection
+                ? _selectedSubtitleFileTrack?.Index
+                : null,
+            videoMetadata?.VideoResolution,
+            videoMetadata?.Thumbnails?.Uri?.ToString(),
+            _movie.Id,
+            VideoPlayerTitleHelper.FormatMovie(_movie),
+            coverUrl,
+            startPosition);
+    }
+
+    private async Task OpenPlaybackOptionsAsync()
+    {
+        if (_movie is null) return;
+
+        if (!HasPlayableFiles())
+            return;
+
+        var parameters = new K7DialogParameters<PlaybackOptionsDialog>
+        {
+            { x => x.Movie, _movie },
+            { x => x.InitialFileId, _selectedFile?.Id },
+            { x => x.InitialRemoteFileId, _selectedRemoteFile?.Id }
+        };
+
+        var options = new K7DialogOptions { CloseOnEscapeKey = true, MaxWidth = K7DialogMaxWidth.Small, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<PlaybackOptionsDialog>(L["TracksSelection"], parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is PlaybackOptionsResult optionsResult)
+        {
+            _selectedFile = optionsResult.SelectedFile;
+            _selectedRemoteFile = optionsResult.RemoteFile;
+            _selectedAudioFileTrack = optionsResult.AudioTrack;
+            _selectedSubtitleFileTrack = optionsResult.SubtitleTrack;
+            _useExplicitTrackSelection = true;
+
+            try
+            {
+                await PlayAsync();
+            }
+            finally
+            {
+                _useExplicitTrackSelection = false;
+            }
+        }
+    }
+
+    private async Task OpenMediaReIdentifyDialogAsync()
+    {
+        if (_movie == null) return;
+
+        var (searchQuery, searchYear) = ReIdentifySearchDefaultsHelper.FromIndexedFiles(
+            _movie.IndexedFiles,
+            MediaType.Movie,
+            fallbackQuery: _movie.Title,
+            fallbackYear: _movie.ReleaseDate?.Year);
+
+        var parameters = new K7DialogParameters<ReIdentifyDialog>
+        {
+            { x => x.MediaId, _movie.Id },
+            { x => x.InitialSearchQuery, searchQuery },
+            { x => x.InitialSearchYear, searchYear },
+            { x => x.MediaType, MediaType.Movie },
+            { x => x.LibraryId, GetLibraryIdForReIdentify() },
+            { x => x.SourcePath, ReIdentifySearchDefaultsHelper.ResolveSourcePath(_movie.IndexedFiles, MediaType.Movie) }
+        };
+
+        var options = new K7DialogOptions { CloseOnEscapeKey = true, MaxWidth = K7DialogMaxWidth.Medium, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<ReIdentifyDialog>(L["ReIdentifyMediaDialogTitle"], parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add(L["ReIdentifyMediaSent"], K7Severity.Success);
+            await NavigationHistoryHelper.NavigateBackOrHomeAsync(JSRuntime, NavigationManager);
+        }
+    }
+
+    private async Task OpenFileReIdentifyDialogAsync(Guid indexedFileId)
+    {
+        var (searchQuery, searchYear) = ReIdentifySearchDefaultsHelper.FromIndexedFiles(
+            _movie?.IndexedFiles,
+            MediaType.Movie,
+            preferredIndexedFileId: indexedFileId,
+            fallbackQuery: _movie?.Title,
+            fallbackYear: _movie?.ReleaseDate?.Year);
+
+        var parameters = new K7DialogParameters<ReIdentifyDialog>
+        {
+            { x => x.IndexedFileId, indexedFileId },
+            { x => x.InitialSearchQuery, searchQuery },
+            { x => x.InitialSearchYear, searchYear },
+            { x => x.MediaType, MediaType.Movie },
+            { x => x.LibraryId, GetLibraryIdForReIdentify(indexedFileId) },
+            {
+                x => x.SourcePath,
+                ReIdentifySearchDefaultsHelper.ResolveSourcePath(
+                    _movie?.IndexedFiles,
+                    MediaType.Movie,
+                    preferredIndexedFileId: indexedFileId)
+            }
+        };
+
+        var options = new K7DialogOptions { CloseOnEscapeKey = true, MaxWidth = K7DialogMaxWidth.Medium, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<ReIdentifyDialog>(L["ReIdentifyFileDialogTitle"], parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add(L["ReIdentifyFileSent"], K7Severity.Success);
+            await NavigationHistoryHelper.NavigateBackOrHomeAsync(JSRuntime, NavigationManager);
+        }
+    }
+
+    private async Task OpenIndexedFilesDialogAsync()
+    {
+        if (_movie == null) return;
+
+        var parameters = new K7DialogParameters<IndexedFilesDialog>
+        {
+            { x => x.Media, _movie },
+            { x => x.OnReIdentifyFile, EventCallback.Factory.Create<Guid>(this, OpenFileReIdentifyDialogAsync) }
+        };
+
+        var options = new K7DialogOptions { CloseOnEscapeKey = true, MaxWidth = K7DialogMaxWidth.Medium, FullWidth = true };
+        await DialogService.ShowAsync<IndexedFilesDialog>(L["IndexedVersions"], parameters, options);
+    }
+
+    private Task OpenSynopsisDialogAsync()
+    {
+        if (_movie == null || string.IsNullOrWhiteSpace(_movie.Overview)) return Task.CompletedTask;
+
+        var options = new K7DialogOptions { CloseOnEscapeKey = true, MaxWidth = K7DialogMaxWidth.Small, FullWidth = true };
+        var parameters = new K7DialogParameters
+        {
+            { "ContentText", _movie.Overview },
+            { "ButtonText", S["Cancel"].Value }
+        };
+        return DialogService.ShowAsync<OverviewDialog>(L["Overview"], parameters, options);
+    }
+
+    private async Task RefreshMetadataAsync()
+    {
+        if (_movie is null) return;
+
+        try
+        {
+            await k7ServerService.RefreshMediaMetadataAsync(_movie.Id);
+            Snackbar.Add(L["RefreshMetadataSent"], K7Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(string.Format(S["ErrorWithDetails"], ex.Message), K7Severity.Error);
+        }
+    }
+
+    private Task OpenTrailerAsync()
+    {
+        if (_movie is null) return Task.CompletedTask;
+
+        return TrailerDialogHelper.OpenAsync(
+            _movie.Trailers,
+            _movie.Id,
+            L["Trailer"],
+            DeviceService,
+            ExternalLinkService,
+            DialogService,
+            AmbientThemeService,
+            UserPreferencesService,
+            Snackbar,
+            S);
+    }
+
+    private async Task LoadSimilarMediaAsync()
+    {
+        if (_movie is null) return;
+
+        try
+        {
+            var similar = await k7ServerService.GetSimilarMediaAsync(_movie.Id);
+            _similarMedia = [];
+            var seenIds = new HashSet<string>();
+            foreach (var media in similar)
+            {
+                if (media.ToCardViewModel(apiClient, FormatSeasonNumber) is { } vm && seenIds.Add(vm.Id))
+                    _similarMedia.Add(vm);
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // Non-critical - silently ignore if similar media fails
+        }
+    }
+
+    private async Task OpenEditMetadataDialogAsync()
+    {
+        if (_movie is null) return;
+
+        var parameters = new K7DialogParameters<EditMetadataDialog>
+        {
+            { x => x.Media, _movie }
+        };
+
+        var options = new K7DialogOptions { CloseOnEscapeKey = true, MaxWidth = K7DialogMaxWidth.Medium, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<EditMetadataDialog>(L["EditMetadata"], parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false })
+        {
+            _movie = await k7ServerService.GetMovieAsync(Guid.Parse(Id));
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleWatchStateAsync()
+    {
+        if (_movie is null)
+            return;
+
+        var watched = _movie.UserState?.IsCompleted != true;
+        var success = await WatchStateActions.ApplyAsync(
+            k7ServerService,
+            CacheStore,
+            DialogService,
+            Snackbar,
+            S,
+            _movie.Id,
+            watched,
+            WatchStateScope.Item);
+
+        if (!success)
+            return;
+
+        _movie = await k7ServerService.GetMovieAsync(_movie.Id);
+        StateHasChanged();
+    }
+
+    private string FormatSeasonNumber(int seasonNumber) => string.Format(S["SeasonNumber"], seasonNumber);
+
+    private static string GetSimilarMediaHref(MediaCardViewModel item) => item.Kind switch
+    {
+        MediaCardKind.Serie => $"/series/{item.Id}",
+        _ => $"/movies/{item.Id}"
+    };
+
+    private async Task ExcludeSimilarForSelf(MediaCardViewModel item)
+    {
+        if (await MediaCardExcludeActions.ExcludeForSelfAsync(item, UserAdminService, Snackbar, S))
+            _similarMedia.RemoveAll(m => m.Id == item.Id || m.ParentId == item.Id);
+    }
+
+    private Task ExcludeSimilarForOthers(MediaCardViewModel item) =>
+        MediaCardExcludeActions.ExcludeForOthersAsync(item, DialogService, Snackbar, S);
+
+    private Guid? GetLibraryIdForReIdentify(Guid? indexedFileId = null)
+    {
+        if (_movie?.LibraryId is { } libraryId)
+            return libraryId;
+
+        if (_movie?.IndexedFiles is not { Count: > 0 })
+            return null;
+
+        if (indexedFileId.HasValue)
+            return _movie.IndexedFiles.FirstOrDefault(f => f.Id == indexedFileId)?.LibraryId;
+
+        return _movie.IndexedFiles.First().LibraryId;
+    }
+
+    private async Task ResolveLibraryGroupIdAsync()
+    {
+        var libraryId = GetLibraryIdForReIdentify();
+        var groups = await LibraryService.GetLibraryGroupsAsync();
+        _libraryGroupId = LibraryGroupBrowseNavigationHelper.ResolveGroupId(
+            groups,
+            libraryId,
+            LibraryMediaType.Movie);
+    }
+
+    private void NavigateToGenre(string genre)
+    {
+        if (!_libraryGroupId.HasValue)
+            return;
+
+        NavigationManager.NavigateTo(
+            LibraryGroupBrowseNavigationHelper.BuildBrowseUrl(_libraryGroupId.Value, genre: genre));
+    }
+
+    private void NavigateToStudio(string studio)
+    {
+        if (!_libraryGroupId.HasValue)
+            return;
+
+        NavigationManager.NavigateTo(
+            LibraryGroupBrowseNavigationHelper.BuildBrowseUrl(_libraryGroupId.Value, studio: studio));
+    }
+
+    private async Task OpenReviewDialogAsync()
+    {
+        if (_movie is null)
+            return;
+
+        var changed = await MediaReviewDialogHelper.OpenAsync(DialogService, ReviewDialogL, _movie.Id, _movie.Title);
+        if (!changed)
+            return;
+
+        _movie = await k7ServerService.GetMovieAsync(_movie.Id);
+        if (_movie is not null)
+            _movieUserRating = GetUserRating(_movie.Ratings);
+
+        if (_reviewsSection is not null)
+            await _reviewsSection.RefreshAsync();
+    }
+
+    private static int? GetUserRating(IReadOnlyList<RatingDto>? ratings) =>
+        ratings?.FirstOrDefault(r => r.Source == RatingSource.LocalUser)?.Value is double value
+            ? (int)Math.Round(value)
+            : null;
+
+    public async ValueTask DisposeAsync()
+    {
+        K7HubClient.MediaIndexedFilesUpdated -= OnMediaIndexedFilesUpdated;
+        K7HubClient.ProgressUpdated -= OnProgressUpdated;
+        _progressRefreshRunner?.Dispose();
+        _metadataRefreshWatcher?.Dispose();
+
+        if (_tvScrollInitialized)
+            await TvDetailScrollJs.TryDisposeAsync(JSRuntime, _tvScrollRoot);
+    }
+}

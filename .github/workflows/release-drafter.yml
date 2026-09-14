@@ -1,0 +1,24 @@
+name: Release drafter
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - branding/**
+      - screenshots/**
+      - LICENSE
+      - .github/FUNDING.yml
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  update-draft:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update draft release
+        uses: release-drafter/release-drafter@34d80673e067bdc0c24568d3af899c216adcfaa9 # v7.7.0

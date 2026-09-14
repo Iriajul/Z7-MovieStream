@@ -1,0 +1,112 @@
+@using K7.Clients.Shared.Interfaces
+@using K7.Clients.Shared.Models
+@using K7.Server.Domain.Enums
+@using K7.Shared.Dtos.Entities
+@using K7.Shared.Dtos.Requests
+@using K7.Shared.Interfaces
+@inject IStringLocalizer<PeerSettingsDialog> L
+@inject IStringLocalizer<SharedResource> S
+@inject ILibraryService LibraryService
+@inject IFederationService FederationService
+
+<div class="k7-dialog-content">
+    <div class="peer-settings__field">
+        <K7TextField @bind-Value="_baseUrl"
+                     Label="@L["BaseUrlLabel"]"
+                     Variant="outlined"
+                     Placeholder="http://server:7080" />
+    </div>
+
+    <div class="peer-settings__field">
+        <K7Switch @bind-Value="_autoAdd" Label="@L["AutoAddNewLibraries"]" />
+    </div>
+
+    @if (Peer?.IsProvider == true)
+    {
+    <div class="peer-settings__section">
+        <span class="peer-settings__label">@L["SharedLibrariesLabel"]</span>
+        @if (_isLoading)
+        {
+            <span>@S["Loading"]</span>
+        }
+        else if (_libraries.Count == 0)
+        {
+            <span class="peer-settings__empty">@L["NoLibraries"]</span>
+        }
+        else
+        {
+            <K7CheckboxList TItem="LibraryDto"
+                            Items="_libraries"
+                            IsChecked="@(l => _selectedIds.Contains(l.Id))"
+                            CheckedChanged="@(e => ToggleLibrary(e.Item.Id))"
+                            ItemLabel="@(l => l.Title)"
+                            Class="peer-settings__list" />
+        }
+    </div>
+    }
+    else if (Peer is not null)
+    {
+    <div class="peer-settings__section">
+        <span class="peer-settings__label">@L["IntegratedLibrariesLabel"]</span>
+        @if (_isLoading)
+        {
+            <span>@S["Loading"]</span>
+        }
+        else if (_inboundAgreements.Count == 0)
+        {
+            <span class="peer-settings__empty">@L["NoLibraries"]</span>
+        }
+        else
+        {
+            <K7CheckboxList TItem="PeerShareAgreementDto"
+                            Items="_inboundAgreements"
+                            IsChecked="@(a => _enabledInboundIds.Contains(a.Id))"
+                            CheckedChanged="@(e => ToggleInbound(e.Item.Id))"
+                            ItemLabel="@(a => a.LibraryTitle ?? a.LibraryId.ToString())"
+                            Class="peer-settings__list" />
+        }
+    </div>
+    }
+
+    @if (Peer is not null)
+    {
+    <div class="peer-settings__section">
+        <span class="peer-settings__label">@L["SocialAgreementsLabel"]</span>
+        @if (!_socialPolicy.Enabled)
+        {
+            <span class="peer-settings__hint">@L["SocialDisabledGlobally"]</span>
+        }
+        else
+        {
+            <span class="peer-settings__hint">@L["SocialUserPrivacyHint"]</span>
+        }
+        <div class="federation-social-policy @(!_socialPolicy.Enabled ? "federation-social-policy--disabled" : null)">
+            <div class="federation-social-policy__header">
+                <span class="federation-social-policy__label-col"></span>
+                <span class="federation-social-policy__check-col">@L["Outbound"]</span>
+                <span class="federation-social-policy__check-col">@L["Inbound"]</span>
+            </div>
+            @foreach (var contentType in _socialContentTypes)
+            {
+                <div class="federation-social-policy__row">
+                    <span class="federation-social-policy__label-col">@GetContentTypeLabel(contentType)</span>
+                    <div class="federation-social-policy__check">
+                        <K7Switch Value="IsOutboundEffectivelyOn(contentType)"
+                                  ValueChanged="v => SetSocialOutbound(contentType, v)"
+                                  Disabled="@(!IsGlobalOutboundAllowed(contentType))" />
+                    </div>
+                    <div class="federation-social-policy__check">
+                        <K7Switch Value="IsInboundEffectivelyOn(contentType)"
+                                  ValueChanged="v => SetSocialInbound(contentType, v)"
+                                  Disabled="@(!IsGlobalInboundAllowed(contentType))" />
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+    }
+</div>
+<div class="k7-dialog-actions">
+    <K7Button OnClick="Cancel">@S["Cancel"]</K7Button>
+    <K7Button Variant="filled" Color="primary" OnClick="Submit">@S["Save"]</K7Button>
+</div>

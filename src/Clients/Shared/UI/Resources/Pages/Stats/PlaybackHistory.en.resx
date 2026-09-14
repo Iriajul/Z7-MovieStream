@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="PageTitle" xml:space="preserve"><value>Playback History</value></data>
+  <data name="All" xml:space="preserve"><value>All</value></data>
+  <data name="Music" xml:space="preserve"><value>Music</value></data>
+  <data name="Movies" xml:space="preserve"><value>Movies</value></data>
+  <data name="TVShows" xml:space="preserve"><value>TV Shows</value></data>
+  <data name="NoHistory" xml:space="preserve"><value>No history</value></data>
+  <data name="Title" xml:space="preserve"><value>Title</value></data>
+  <data name="Type" xml:space="preserve"><value>Type</value></data>
+  <data name="Date" xml:space="preserve"><value>Date</value></data>
+  <data name="Duration" xml:space="preserve"><value>Duration</value></data>
+  <data name="Device" xml:space="preserve"><value>Device</value></data>
+  <data name="SharedProfile" xml:space="preserve"><value>Watched with</value></data>
+  <data name="Status" xml:space="preserve"><value>Status</value></data>
+  <data name="Completed" xml:space="preserve"><value>Completed</value></data>
+  <data name="Incomplete" xml:space="preserve"><value>Incomplete</value></data>
+  <data name="Skipped" xml:space="preserve"><value>Skipped</value></data>
+  <data name="Period" xml:space="preserve"><value>Period</value></data>
+  <data name="MediaType" xml:space="preserve"><value>Media type</value></data>
+  <data name="WeekShort" xml:space="preserve"><value>Wk</value></data>
+  <data name="MonthShort" xml:space="preserve"><value>Mo</value></data>
+  <data name="YearShort" xml:space="preserve"><value>Yr</value></data>
+  <data name="AllTime" xml:space="preserve"><value>All</value></data>
+  <data name="CustomShort" xml:space="preserve"><value>Custom</value></data>
+  <data name="PickDates" xml:space="preserve"><value>Pick dates</value></data>
+  <data name="SelectEndDate" xml:space="preserve"><value>Select end date</value></data>
+  <data name="Reassign" xml:space="preserve"><value>Reassign</value></data>
+  <data name="ReassignTitle" xml:space="preserve"><value>Reassign playback</value></data>
+  <data name="ReassignAria" xml:space="preserve"><value>Reassign this playback</value></data>
+  <data name="Reassigned" xml:space="preserve"><value>Playback reassigned</value></data>
+  <data name="Actions" xml:space="preserve"><value>Actions</value></data>
+  <data name="DeleteTitle" xml:space="preserve"><value>Remove from history</value></data>
+  <data name="DeleteConfirm" xml:space="preserve"><value>Remove "{0}" from history? Play and skip counts will be updated.</value></data>
+  <data name="DeleteSharedConfirm" xml:space="preserve"><value>Remove "{0}" from your history? Other members and the profile history keep this playback.</value></data>
+  <data name="DeleteAria" xml:space="preserve"><value>Remove this playback</value></data>
+  <data name="Deleted" xml:space="preserve"><value>Playback removed</value></data>
+  <data name="DeletedShared" xml:space="preserve"><value>Removed from your history</value></data>
+  <data name="Select" xml:space="preserve"><value>Select</value></data>
+  <data name="SelectAll" xml:space="preserve"><value>Select all</value></data>
+  <data name="DeselectAll" xml:space="preserve"><value>Deselect all</value></data>
+  <data name="SelectedCount" xml:space="preserve"><value>{0} selected</value></data>
+  <data name="ReassignSelected" xml:space="preserve"><value>Reassign</value></data>
+  <data name="ReassignSelectedTitle" xml:space="preserve"><value>Reassign playbacks</value></data>
+  <data name="ReassignSelectedSuccess" xml:space="preserve"><value>{0} playback(s) reassigned</value></data>
+  <data name="DeleteSelected" xml:space="preserve"><value>Delete</value></data>
+  <data name="DeleteSelectedTitle" xml:space="preserve"><value>Remove from history</value></data>
+  <data name="DeleteSelectedConfirm" xml:space="preserve"><value>Remove {0} playback(s) from your history? Personal plays are deleted. Shared-profile plays only drop you as a participant.</value></data>
+  <data name="DeleteSelectedSuccess" xml:space="preserve"><value>{0} playback(s) removed</value></data>
+  <data name="DeleteSelectedError" xml:space="preserve"><value>Could not remove the selected playbacks</value></data>
+  <data name="DeleteSelectedPartial" xml:space="preserve"><value>{0} removed, {1} failed</value></data>
+</root>

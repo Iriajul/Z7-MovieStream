@@ -1,0 +1,145 @@
+@typeparam TItem
+@inject IStringLocalizer<SharedResource> S
+
+<CascadingValue Value="this" IsFixed="true">
+    @ChildContent
+</CascadingValue>
+
+<div class="k7-data-table @(Surface ? "k7-data-table--surface" : "")">
+    @if (ShowToolbar)
+    {
+        <div class="k7-data-table-toolbar">
+            <K7Menu Open="_columnPickerOpen"
+                    OpenChanged="v => _columnPickerOpen = v"
+                    Title="@S["ToggleColumns"]">
+                <ActivatorContent>
+                    <K7IconButton AriaLabel="@S["ToggleColumns"]"
+                                  Icon="@Phosphor.Columns" />
+                </ActivatorContent>
+                <ChildContent>
+                    <div class="k7-data-table-column-picker">
+                        @foreach (var col in _hideableColumns)
+                        {
+                            var c = col;
+                            <K7Switch Value="c.IsVisible"
+                                      ValueChanged="_ => ToggleColumnVisibility(c)"
+                                      Label="@c.Title" />
+                        }
+                    </div>
+                </ChildContent>
+            </K7Menu>
+        </div>
+    }
+    else if (_columnPickerOpen)
+    {
+        <div class="k7-backdrop"
+             @onpointerdown="OnColumnPickerBackdropClick"
+             @onpointerdown:preventDefault="true"
+             @onpointerdown:stopPropagation="true"
+             @onclick="OnColumnPickerBackdropClick"
+             @onclick:stopPropagation="true"></div>
+        <div class="k7-data-table-column-picker-floating"
+             role="menu"
+             @ref="_columnPickerDropdown"
+             data-sn-layer="popover"
+             @onclick:stopPropagation="true">
+            <div class="k7-menu-header">
+                <span class="k7-menu-header-title">@S["ToggleColumns"]</span>
+                <button type="button"
+                        class="k7-menu-close focusable"
+                        aria-label="@S["Close"]"
+                        @onclick="OnColumnPickerCloseClick">
+                    <K7Icon Icon="@Phosphor.X"  IconSize="@K7IconSize.Sm" />
+                </button>
+            </div>
+            <div class="k7-data-table-column-picker">
+                @foreach (var col in _hideableColumns)
+                {
+                    var c = col;
+                    <K7Switch Value="c.IsVisible"
+                              ValueChanged="_ => ToggleColumnVisibility(c)"
+                              Label="@c.Title" />
+                }
+            </div>
+        </div>
+    }
+
+    <div class="k7-data-table-scroll" style="@ScrollContainerStyle" @ref="_scrollRef">
+        <table class="k7-data-table-el" role="grid">
+            <thead>
+                <tr>
+                    @foreach (var col in _visibleColumns)
+                    {
+                        var c = col;
+                        <th @key="c" style="@(c.Width is not null ? $"width: {c.Width}" : "")"
+                            data-mobile-hide="@(!c.VisibleOnMobile)">
+                            @if (c.SortKey is not null)
+                            {
+                                <button class="k7-data-table-sort-btn focusable"
+                                        @onclick="() => OnHeaderClick(c)">
+                                    <span>@c.Title</span>
+                                    <K7Icon Icon="@GetSortIcon(c)"  IconSize="@K7IconSize.Sm" />
+                                </button>
+                            }
+                            else
+                            {
+                                <span>@c.Title</span>
+                            }
+
+                            @if (c.FilterTemplate is not null)
+                            {
+                                @c.FilterTemplate
+                            }
+                        </th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (_indexedItems is not null)
+                {
+                    <Virtualize TItem="IndexedRow" Items="_indexedItems" Context="row" ItemSize="RowHeight"
+                                OverscanCount="OverscanCount" SpacerElement="tr" @ref="_virtualizeRef">
+                        <tr @key="GetRowKey(row)" id="@(RowId?.Invoke(row.Item))" class="k7-data-table-row focusable @GetRowClass(row)" style="@RowStyle" tabindex="0" role="row"
+                            @onclick="() => OnRowClicked(row.Item)"
+                            @onkeydown="e => OnRowKeyDown(e, row.Item)">
+                            @foreach (var col in _visibleColumns)
+                            {
+                                <td @key="col" data-mobile-hide="@(!col.VisibleOnMobile)">
+                                    @{ var cell = col.RenderCell(row.Item); }
+                                    @if (cell is not null) { @cell }
+                                </td>
+                            }
+                        </tr>
+                    </Virtualize>
+                }
+                else if (ServerData is not null)
+                {
+                    <Virtualize TItem="IndexedRow" ItemsProvider="ProvideItemsAsync" Context="row" ItemSize="RowHeight"
+                                OverscanCount="OverscanCount" SpacerElement="tr" @ref="_virtualizeRef">
+                        <ItemContent>
+                            <tr @key="GetRowKey(row)" id="@(RowId?.Invoke(row.Item))" class="k7-data-table-row focusable @GetRowClass(row)" style="@RowStyle" tabindex="0" role="row"
+                                @onclick="() => OnRowClicked(row.Item)"
+                                @onkeydown="e => OnRowKeyDown(e, row.Item)">
+                                @foreach (var col in _visibleColumns)
+                                {
+                                    <td @key="col" data-mobile-hide="@(!col.VisibleOnMobile)">
+                                        @{ var cell = col.RenderCell(row.Item); }
+                                        @if (cell is not null) { @cell }
+                                    </td>
+                                }
+                            </tr>
+                        </ItemContent>
+                        <Placeholder>
+                            <tr class="k7-data-table-placeholder focusable" style="@RowStyle" tabindex="0" role="row" aria-hidden="true">
+                                @foreach (var col in _visibleColumns)
+                                {
+                                    <td @key="col" data-mobile-hide="@(!col.VisibleOnMobile)"></td>
+                                }
+                            </tr>
+                        </Placeholder>
+                    </Virtualize>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,94 @@
+@namespace K7.Clients.Shared.UI.Components.Dialogs
+@using K7.Shared.Dtos
+@using K7.Shared.Dtos.Entities.Playlists
+@using K7.Shared.Dtos.Restrictions
+@using K7.Shared.Dtos.SharedProfiles
+@inject IStringLocalizer<SharedProfileHostSettingsDialog> L
+@inject IStringLocalizer<SharedResource> S
+
+@if (_loading)
+{
+    <div class="k7-dialog-content">
+        <K7Spinner />
+    </div>
+}
+else
+{
+    <div class="k7-dialog-content">
+        <p class="text-secondary mb-0">@string.Format(L["Description"], Group.Name)</p>
+
+        <h6>@L["AvatarTitle"]</h6>
+        <div class="d-flex align-center gap-3">
+            @if (!string.IsNullOrEmpty(_avatarUrl))
+            {
+                <K7Avatar Image="@_avatarUrl" Letter="@_avatarLetter" Size="lg" Alt="@Group.Name" />
+            }
+            else
+            {
+                <K7AvatarGroup Size="lg" Members="@_memberAvatarItems" />
+            }
+            <div class="d-flex gap-2">
+                <K7Button Variant="outlined" OnClick="UploadAvatar" Disabled="_saving"
+                          @attributes="_initialFocusAttributes">@L["UploadAvatar"]</K7Button>
+                @if (!string.IsNullOrEmpty(_avatarUrl))
+                {
+                    <K7Button Variant="text" Color="error" OnClick="RemoveAvatar" Disabled="_saving">@L["RemoveAvatar"]</K7Button>
+                }
+            </div>
+        </div>
+        <InputFile id="@_avatarFileInputId" OnChange="OnAvatarFileSelected" accept="image/*" style="display:none" />
+        @if (_avatarError is not null)
+        {
+            <K7Alert Severity="K7Severity.Error">@_avatarError</K7Alert>
+        }
+
+        <h6>@L["RestrictionTitle"]</h6>
+        <h6>@L["AgeFilterTitle"]</h6>
+        <K7Switch Label="@L["AgeRestrictionEnabled"]" @bind-Value="_ageRestrictionEnabled" />
+        <K7Alert Severity="K7Severity.Info" Icon="@Phosphor.Info">@L["AgeRestrictionHelp"]</K7Alert>
+        <K7TextField TValue="string" Type="date" Label="@L["DateOfBirth"]"
+                     @bind-Value="_dateOfBirthText"
+                     Required="_ageRestrictionEnabled"
+                     HelperText="@L["DateOfBirthHelp"]" />
+        <K7Switch Label="@L["HideUnratedTitles"]"
+                  @bind-Value="_hideUnratedTitles"
+                  Disabled="@(!_ageRestrictionEnabled)" />
+        @if (_restrictionError is not null)
+        {
+            <K7Alert Severity="K7Severity.Error">@_restrictionError</K7Alert>
+        }
+
+        <hr class="k7-divider my-2" />
+
+        <h6>@L["CustomProfilesTitle"]</h6>
+        <K7Select TValue="Guid?" Label="@L["RestrictionProfile"]" @bind-Value="_restrictionProfileId" Clearable="true">
+            @foreach (var profile in _restrictionProfiles)
+            {
+                <K7SelectItem Value="@((Guid?)profile.Id)" Text="@profile.Name" />
+            }
+        </K7Select>
+
+        <h6>@L["PlaylistsTitle"]</h6>
+        <p class="text-secondary mb-0">@L["PlaylistsDescription"]</p>
+        @if (_playlists.Count == 0)
+        {
+            <p class="text-secondary mb-0">@L["NoPlaylists"]</p>
+        }
+        else
+        {
+            @foreach (var playlist in _playlists)
+            {
+                var shared = _sharedPlaylistIds.Contains(playlist.Id);
+                <K7Switch Label="@playlist.Title"
+                          Value="shared"
+                          ValueChanged="(v) => OnPlaylistShareChanged(playlist.Id, v)"
+                          Disabled="_saving" />
+            }
+        }
+    </div>
+
+    <div class="k7-dialog-actions">
+        <K7Button Variant="text" OnClick="Cancel" Disabled="_saving">@S["Cancel"]</K7Button>
+        <K7Button OnClick="SaveAsync" Disabled="_saving">@S["Save"]</K7Button>
+    </div>
+}

@@ -1,0 +1,155 @@
+@using K7.Clients.Shared.UI.Helpers
+@inject IServerInfoService K7ServerService
+@inject IStringLocalizer<PlaybackHistory> L
+@inject IStringLocalizer<SharedResource> S
+@implements IAsyncDisposable
+
+<div class="full-bleed-page playback-history-page">
+    <div class="data-page-toolbar">
+        @if (_selectionMode)
+        {
+            <h5 class="data-page-toolbar__title">@string.Format(L["SelectedCount"], SelectedCount)</h5>
+            <div class="data-page-toolbar__end">
+                <K7Button Variant="text" OnClick="ToggleSelectAllAsync" Disabled="@(!HasSelectableItems || _busy)">
+                    @(AllSelected ? L["DeselectAll"] : L["SelectAll"])
+                </K7Button>
+                <K7Button Variant="filled"
+                          StartIcon="@Phosphor.UserSwitch"
+                          OnClick="ReassignSelectedAsync"
+                          Disabled="@(SelectedReassignableCount == 0 || _busy)"
+                          AriaLabel="@L["ReassignSelected"]">
+                    @L["ReassignSelected"]
+                </K7Button>
+                <K7Button Variant="filled"
+                          Color="error"
+                          StartIcon="@Phosphor.Trash"
+                          OnClick="DeleteSelectedAsync"
+                          Disabled="@(SelectedDeletableCount == 0 || _busy)"
+                          AriaLabel="@L["DeleteSelected"]">
+                    @L["DeleteSelected"]
+                </K7Button>
+                <K7Button Variant="text" OnClick="ExitSelectionMode" Disabled="@_busy" AriaLabel="@S["Cancel"]">
+                    @S["Cancel"]
+                </K7Button>
+            </div>
+        }
+        else
+        {
+            <h5 class="data-page-toolbar__title">@L["PageTitle"]</h5>
+            <K7ButtonGroup TValue="string" Options="_periodOptions" Value="_selectedPeriod" ValueChanged="OnPeriodChanged" AriaLabel="@L["Period"]" />
+            @if (_selectedPeriod == "custom")
+            {
+                <K7DateRangePicker From="_fromDate" To="_toDate" RangeChanged="OnDateRangeChanged"
+                                   Label="@L["PickDates"]" HintSelectEnd="@L["SelectEndDate"]" />
+            }
+            <K7ButtonGroup TValue="string" Options="_mediaTypeOptions" Value="_selectedMediaType" ValueChanged="OnMediaTypeChanged" AriaLabel="@L["MediaType"]" />
+            <div class="data-page-toolbar__end">
+                <K7ResultCount Count="_totalCount" />
+                <K7IconButton Icon="@Phosphor.Columns" OnClick="OnColumnPickerClick" AriaLabel="@S["ToggleColumns"]" />
+                <K7IconButton Icon="@Phosphor.ListChecks"
+                              OnClick="EnterSelectionMode"
+                              Disabled="@(_totalCount == 0)"
+                              AriaLabel="@L["Select"]" />
+            </div>
+        }
+    </div>
+
+    <div class="data-page-body">
+        <K7DataTable @key="_tableKey" TItem="PlaybackHistoryItemDto" ServerData="LoadServerDataAsync" @ref="_tableRef"
+                     RowHeight="48" ShowToolbar="false" Surface="false" Height="100%"
+                     RowClass="@(item => GetRowClass(item))"
+                     OnRowClick="OnRowClick">
+            <K7DataColumn TItem="PlaybackHistoryItemDto" Title="" Width="48px" Visible="@_selectionMode" Hideable="false" VisibleOnMobile="true">
+                <CellTemplate>
+                    @if (CanSelect(context))
+                    {
+                        var selected = IsSelected(context.ReferenceId);
+                        <span class="k7-select-check @(selected ? "is-selected" : null)" aria-hidden="true">
+                            <K7Icon Icon="@(selected ? Phosphor.Fill.CheckCircle : Phosphor.Circle)" IconSize="@K7IconSize.Md" />
+                        </span>
+                    }
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="PlaybackHistoryItemDto" Title="@L["Date"]" Width="140px">
+                <CellTemplate>
+                    <div class="playback-history-date-cell">
+                        <span>@context.StartedAt.ToLocalTime().ToString("dd/MM/yyyy")</span>
+                        <span class="text-muted">@context.StartedAt.ToLocalTime().ToString("HH:mm")</span>
+                    </div>
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="PlaybackHistoryItemDto" Title="@L["Title"]" Hideable="false">
+                <CellTemplate>
+                    <LibraryTableMediaTitle ImageUrl="@context.ImageUrl"
+                                            MediaType="@context.MediaType"
+                                            Title="@(context.MediaTitle ?? S["Untitled"])"
+                                            Href="@(_selectionMode ? null : context.MediaUrl)" />
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="PlaybackHistoryItemDto" Title="@L["Type"]" Width="110px" VisibleOnMobile="false">
+                <CellTemplate>
+                    <span class="text-sm">@MediaTypeLabelHelper.Format(context.MediaType, S)</span>
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="PlaybackHistoryItemDto" Title="@L["SharedProfile"]" VisibleOnMobile="false">
+                <CellTemplate>
+                    @if (!string.IsNullOrEmpty(context.SharedProfileName))
+                    {
+                        <K7Chip Size="sm" Color="secondary" Variant="outlined">@context.SharedProfileName</K7Chip>
+                    }
+                    else
+                    {
+                        <span class="text-muted">-</span>
+                    }
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="PlaybackHistoryItemDto" Title="@L["Duration"]" Width="90px">
+                <CellTemplate>@FormatDuration(context.TotalWatchedSeconds)</CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="PlaybackHistoryItemDto" Title="@L["Device"]" Property="@(i => i.DeviceName ?? "-")" VisibleOnMobile="false" />
+            <K7DataColumn TItem="PlaybackHistoryItemDto" Title="@L["Status"]" Width="80px" VisibleOnMobile="false">
+                <CellTemplate>
+                    @if (context.IsCompleted)
+                    {
+                        <span title="@L["Completed"]">
+                            <K7Icon Icon="@Phosphor.CheckCircle" Style="color: var(--color-success);" IconSize="@K7IconSize.Sm" />
+                        </span>
+                    }
+                    else if (context.IsSkipped)
+                    {
+                        <span title="@L["Skipped"]">
+                            <K7Icon Icon="@Phosphor.SkipForward" Style="color: var(--color-text-muted);" IconSize="@K7IconSize.Sm" />
+                        </span>
+                    }
+                    else
+                    {
+                        <span title="@L["Incomplete"]">
+                            <K7Icon Icon="@Phosphor.PauseCircle" Style="color: var(--color-warning);" IconSize="@K7IconSize.Sm" />
+                        </span>
+                    }
+                </CellTemplate>
+            </K7DataColumn>
+            <K7DataColumn TItem="PlaybackHistoryItemDto" Title="@L["Actions"]" Width="96px" Hideable="false" Visible="@(!_selectionMode)">
+                <CellTemplate>
+                    <div class="playback-history-actions" @onclick:stopPropagation="true">
+                        @if (context.CanReassign)
+                        {
+                            <K7IconButton Icon="@Phosphor.UserSwitch"
+                                          Size="sm"
+                                          AriaLabel="@L["ReassignAria"]"
+                                          OnClick="@(() => ReassignAsync(context))" />
+                        }
+                        @if (context.CanDelete)
+                        {
+                            <K7IconButton Icon="@Phosphor.Trash"
+                                          Size="sm"
+                                          Color="error"
+                                          AriaLabel="@L["DeleteAria"]"
+                                          OnClick="@(() => DeleteAsync(context))" />
+                        }
+                    </div>
+                </CellTemplate>
+            </K7DataColumn>
+        </K7DataTable>
+    </div>
+</div>

@@ -1,0 +1,55 @@
+@typeparam TItem
+
+<div class="k7-virtual-grid"
+     style="@GridCssVars"
+     @ref="_gridRef">
+    @if (Items is not null)
+    {
+        @if (Items.Count == 0 && EmptyContent is not null)
+        {
+            @EmptyContent
+        }
+        else
+        {
+            <Virtualize Items="_rows" Context="row" ItemSize="_estimatedRowHeight"
+                        OverscanCount="OverscanCount" @ref="_virtualizeRef">
+                <div class="k7-virtual-grid-row @(IsCompactGrid ? "k7-virtual-grid-row--compact" : "")"
+                     data-grid-row="@GetRowIndex(row)"
+                     style="@GetRowGridStyle()">
+                    @for (var i = 0; i < row.Count; i++)
+                    {
+                        var item = row[i];
+                        @if (ItemTemplate is not null)
+                        {
+                            <div @key="GetCellSlotKey(row, i)">
+                                @ItemTemplate(item)
+                            </div>
+                        }
+                    }
+                </div>
+            </Virtualize>
+        }
+    }
+    else if (ItemsProvider is not null && _containerWidth > 0)
+    {
+        <Virtualize ItemsProvider="ProvideRowsAsync" Context="row" ItemSize="_estimatedRowHeight"
+                    OverscanCount="OverscanCount" @ref="_virtualizeRef">
+            <ItemContent>
+                <div class="k7-virtual-grid-row @(IsCompactGrid ? "k7-virtual-grid-row--compact" : "")"
+                     data-grid-row="@GetRowIndex(row)"
+                     style="@GetRowGridStyle()">
+                    @for (var i = 0; i < row.Count; i++)
+                    {
+                        var item = row[i];
+                        @if (ItemTemplate is not null)
+                        {
+                            <div @key="GetCellSlotKey(row, i)">
+                                @ItemTemplate(item)
+                            </div>
+                        }
+                    }
+                </div>
+            </ItemContent>
+        </Virtualize>
+    }
+</div>

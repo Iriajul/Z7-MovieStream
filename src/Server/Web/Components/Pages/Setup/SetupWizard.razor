@@ -1,0 +1,102 @@
+@page "/setup"
+@attribute [ExcludeFromInteractiveRouting]
+@layout SetupLayout
+@using K7.Server.Application.Common.Interfaces
+@using K7.Server.Infrastructure.Configuration
+@using K7.Server.Infrastructure.Database.Context.Identity
+@using K7.Server.Web.Components.Account.Shared
+@using K7.Shared.Dtos
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Options
+@inject ISetupService SetupService
+@inject IPasswordPolicyService PasswordPolicyService
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+@inject K7.Server.Web.Components.Account.IdentityRedirectManager RedirectManager
+@inject IOptions<AuthenticationConfiguration> AuthConfig
+@inject IStringLocalizer<SetupWizard> L
+
+<PageTitle>@L["PageTitle"] - Z7</PageTitle>
+
+<div class="auth-card">
+    <div class="auth-card-header">
+        <h1 class="auth-title">@L["WelcomeTitle"]</h1>
+        <p class="auth-subtitle">@L["CreateAdmin"]</p>
+    </div>
+    <div class="auth-card-body">
+        <hr class="auth-divider" />
+
+        @if (!string.IsNullOrEmpty(_statusMessage))
+        {
+            <div class="auth-alert auth-alert--error" style="margin-bottom:1rem;">@_statusMessage</div>
+        }
+
+        <EditForm Model="Input" method="post" OnValidSubmit="OnSubmitAsync" FormName="setup" novalidate>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="auth-alert auth-alert--error" role="alert" />
+            <div class="auth-form-stack">
+                <div class="auth-form-field">
+                    <label>@L["Username"]</label>
+                    <InputText @bind-Value="Input!.Username" type="text" class="auth-input focusable" placeholder="@L["UsernamePlaceholder"]" autocomplete="username" aria-required="true" autofocus />
+                    <ValidationMessage For="@(() => Input!.Username)" class="auth-validation" />
+                </div>
+
+                <div class="auth-form-field">
+                    <label>@L["EmailOptional"]</label>
+                    <AuthEmailField Name="Input.Email"
+                                    Placeholder="@L["EmailPlaceholder"]"
+                                    Value="@(Input?.Email)"
+                                    @rendermode="InteractiveServer" />
+                </div>
+
+                <div class="auth-form-field">
+                    <label>@L["Password"]</label>
+                    <AuthPasswordField Name="Input.Password"
+                                       Id="pw-setup"
+                                       Placeholder="@L["PasswordPlaceholder"]"
+                                       Policy="@_policy"
+                                       Value="@(Input?.Password)"
+                                       ShowVisibilityToggle="true"
+                                       ToggleLabel="@L["ShowPassword"]"
+                                       ShowConfirm="true"
+                                       ConfirmId="pw-confirm-setup"
+                                       ConfirmLabel="@L["ConfirmPassword"]"
+                                       ConfirmPlaceholder="@L["PasswordPlaceholder"]"
+                                       ConfirmValue="@(Input?.ConfirmPassword)"
+                                       @rendermode="InteractiveServer" />
+                    <ValidationMessage For="@(() => Input!.Password)" class="auth-validation" />
+                </div>
+
+                @if (_requiresSetupToken)
+                {
+                    <div class="auth-form-field">
+                        <label>@L["SetupToken"]</label>
+                        <InputText @bind-Value="Input!.SetupToken" class="auth-input focusable" autocomplete="off" aria-required="true" />
+                        <ValidationMessage For="@(() => Input!.SetupToken)" class="auth-validation" />
+                    </div>
+                }
+
+                <button type="submit" class="k7-btn k7-btn--filled focusable" style="width:100%;">@L["CompleteSetup"]</button>
+            </div>
+        </EditForm>
+
+        @if (_externalProviders.Length > 0)
+        {
+            <p class="auth-or">@L["Or"]</p>
+            <form action="/account/performsetupexternallogin" method="post" style="width: 100%;">
+                <AntiforgeryToken />
+                <div class="auth-form-stack">
+                    @foreach (var provider in _externalProviders)
+                    {
+                        <button class="k7-btn k7-btn--outlined focusable" style="width:100%;" name="provider" value="@provider.Name" type="submit">
+                            @L["CreateAdminWith", provider.DisplayName ?? provider.Name]
+                        </button>
+                    }
+                </div>
+            </form>
+        }
+    </div>
+</div>
+

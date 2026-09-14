@@ -1,0 +1,59 @@
+@inject IStringLocalizer<AdminHomeRowDialog> L
+@inject IStringLocalizer<SharedResource> S
+
+<div class="k7-dialog-content">
+    <div class="d-flex flex-col gap-3 mt-2">
+        <K7TextField @bind-Value="_title" Label="@L["Title"]" Required="true" Variant="outlined" />
+        <K7Switch @bind-Value="_continueWatching" Label="@L["ContinueWatching"]" />
+
+        @if (!_continueWatching)
+        {
+            @if (Libraries.Count > 0)
+            {
+                <div>
+                    <p class="text-sm mb-1">@L["Libraries"]</p>
+                    <K7CheckboxList TItem="LibraryDto"
+                                      Items="Libraries"
+                                      IsChecked="@(lib => _libraryIds.Contains(lib.Id))"
+                                      CheckedChanged="@(e => ToggleLibrary(e.Item.Id, e.Checked))"
+                                      ItemLabel="@(lib => lib.Title)" />
+                </div>
+            }
+
+            <div>
+                <p class="text-sm mb-1">@L["MediaTypes"]</p>
+                <K7CheckboxList TItem="MediaType"
+                                  Items="_availableMediaTypes"
+                                  IsChecked="@(type => _mediaTypes.Contains(type))"
+                                  CheckedChanged="@(e => ToggleMediaType(e.Item, e.Checked))"
+                                  ItemLabel="@GetMediaTypeLabel" />
+                <p class="text-xs mt-1 field-hint">@L["MediaTypesHint"]</p>
+            </div>
+
+            <K7Select TValue="MediaOrderingOption" @bind-Value="_orderBy" Label="@L["Sort"]" Variant="outlined">
+                @foreach (var option in _orderOptions)
+                {
+                    <K7SelectItem Value="@option" Text="@GetOrderLabel(option)">@GetOrderLabel(option)</K7SelectItem>
+                }
+            </K7Select>
+        }
+
+        <K7Select TValue="HomeRowDisplayType" @bind-Value="_displayType" Label="@L["Display"]" Variant="outlined">
+            <K7SelectItem Value="@HomeRowDisplayType.Carousel" Text="@L["DisplayCarousel"]">@L["DisplayCarousel"]</K7SelectItem>
+        </K7Select>
+
+        <K7Select TValue="int" @bind-Value="_pageSize" Label="@L["ItemCount"]" Variant="outlined">
+            @foreach (var size in _pageSizeOptions)
+            {
+                <K7SelectItem Value="@size" Text="@size.ToString()">@size</K7SelectItem>
+            }
+        </K7Select>
+    </div>
+</div>
+<div class="k7-dialog-actions">
+    <K7Button OnClick="Cancel">@S["Cancel"]</K7Button>
+    <K7Button Color="primary" Variant="filled" OnClick="Submit"
+              Disabled="@(string.IsNullOrWhiteSpace(_title))">
+        @S["Save"]
+    </K7Button>
+</div>

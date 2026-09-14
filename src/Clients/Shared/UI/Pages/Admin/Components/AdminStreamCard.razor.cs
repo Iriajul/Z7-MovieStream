@@ -1,0 +1,193 @@
+using K7.Server.Domain.Enums;
+using K7.Shared.Dtos;
+using K7.Shared.Enums;
+using Microsoft.AspNetCore.Components;
+
+namespace K7.Clients.Shared.UI.Pages.Admin.Components;
+
+public partial class AdminStreamCard
+{
+    [Parameter, EditorRequired]
+    public ActiveStreamDto Stream { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<ActiveStreamDto> OnClick { get; set; }
+
+    private bool IsMusic => Stream.MediaType is "MusicTrack" or "MusicAlbum";
+
+    private string CardVariantClass => IsMusic ? "stream-card--music" : "stream-card--video";
+
+    private string PlaceholderIcon => IsMusic ? Phosphor.MusicNote : Phosphor.FilmSlate;
+
+    private bool IsSubtitleBurnIn => Stream.StreamDecision is { IsSubtitleBurnIn: true }
+        || Stream.StreamDecision?.Reason.HasFlag(TranscodeReason.SubtitlesBurnIn) == true;
+
+    private bool HasSubtitleTrack => Stream.StreamDecision is { } d
+        && (IsSubtitleBurnIn
+            || d.SubtitleTrackLanguage is not null
+            || d.SubtitleTrackTitle is not null
+            || d.SubtitleCodec is not null);
+
+    private bool IsVideoTranscoded => Stream.StreamDecision is { } d
+        && (d.Mode == PlaybackMode.Transcode
+            || IsSubtitleBurnIn
+            || d.Reason.HasFlag(TranscodeReason.ResolutionNotSupported)
+            || d.Reason.HasFlag(TranscodeReason.QualityDownscale)
+            || HasResolutionDownscale(d)
+            || (d.SourceVideoCodec is not null
+                && d.StreamVideoCodec is not null
+                && !string.Equals(d.SourceVideoCodec, d.StreamVideoCodec, StringComparison.OrdinalIgnoreCase)));
+
+    private static bool HasResolutionDownscale(StreamDecisionDto decision) =>
+        decision.SourceResolution is not null
+        && decision.StreamResolution is not null
+        && !string.Equals(decision.SourceResolution, decision.StreamResolution, StringComparison.OrdinalIgnoreCase);
+
+    private bool ShowEncoderBadge => IsVideoTranscoded && HasVideoEncoderInfo;
+
+    private bool ShowAudioEncoderBadge => IsAudioTranscoded && !IsVideoTranscoded && HasAudioEncoderInfo;
+
+    private bool HasVideoEncoderInfo => Stream.StreamDecision?.VideoEncoder is not null
+        || Stream.StreamDecision?.IsHardwareAccelerated is not null;
+
+    private bool HasAudioEncoderInfo => Stream.StreamDecision?.AudioEncoder is not null;
+
+    private bool IsHardwareEncoder => Stream.StreamDecision?.IsHardwareAccelerated == true;
+
+    private bool IsAudioTranscoded => Stream.StreamDecision is { } d
+        && d.SourceAudioCodec is not null
+        && d.StreamAudioCodec is not null
+        && !string.Equals(d.SourceAudioCodec, d.StreamAudioCodec, StringComparison.OrdinalIgnoreCase);
+
+    private string OverallModeLabel
+    {
+        get
+        {
+            if (IsVideoTranscoded || IsAudioTranscoded) return "Transcode";
+            return Stream.StreamDecision?.Mode switch
+            {
+                PlaybackMode.Direct => "Direct",
+                PlaybackMode.Transmux => "Transmux",
+                _ => ""
+            };
+        }
+    }
+
+    private string OverallModeBadgeClass
+    {
+        get
+        {
+            if (IsVideoTranscoded || IsAudioTranscoded) return "stream-card__mode-badge--transcode";
+            return Stream.StreamDecision?.Mode switch
+            {
+                PlaybackMode.Direct => "stream-card__mode-badge--direct",
+                PlaybackMode.Transmux => "stream-card__mode-badge--transmux",
+                _ => ""
+            };
+        }
+    }
+
+    private bool ShowProgress =>
+        !string.Equals(Stream.DeviceClient, "External", StringComparison.OrdinalIgnoreCase)
+        || Stream.HasPlaybackProgress;
+
+    private double ProgressPercent => Stream.Duration > 0
+        ? Stream.Position / Stream.Duration * 100
+        : 0;
+
+    private string UserInitial => Stream.UserName?.Length > 0
+        ? Stream.UserName[0].ToString().ToUpperInvariant()
+        : "?";
+
+    private string DeviceLabel
+    {
+        get
+        {
+            var name = Stream.DeviceName ?? "-";
+            var client = FormatDeviceClient(Stream.DeviceClient);
+            var parts = new List<string> { name };
+
+            if (!string.IsNullOrWhiteSpace(client)
+                && !name.Contains(client, StringComparison.OrdinalIgnoreCase))
+            {
+                parts.Add(client);
+            }
+            else if (!string.IsNullOrEmpty(Stream.DeviceType)
+                     && Stream.DeviceType != "Unknown"
+                     && !name.Contains(Stream.DeviceType, StringComparison.OrdinalIgnoreCase))
+            {
+                parts.Add(Stream.DeviceType);
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
+    private string? FormatDeviceClient(string? client) => client switch
+    {
+        "External" => L["ClientExternal"],
+        "Native" => L["ClientNative"],
+        "Web" => L["ClientWeb"],
+        _ => client
+    };
+
+    private static string FormatTime(double totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.TotalHours >= 1
+            ? ts.ToString(@"h\:mm\:ss")
+            : ts.ToString(@"m\:ss");
+    }
+
+    private string FormatRemainingTime()
+    {
+        var remaining = Stream.Duration - Stream.Position;
+        if (remaining <= 0) return FormatTime(Stream.Duration);
+        return $"-{FormatTime(remaining)}";
+    }
+
+    private static string FormatResolution(string resolution)
+    {
+        var parts = resolution.Split('x');
+        if (parts.Length == 2 && int.TryParse(parts[1], out var height))
+        {
+            return $"{height}p";
+        }
+        return resolution;
+    }
+
+    private static string FormatBitrate(int bitrate)
+    {
+        return bitrate >= 1000
+            ? $"{bitrate / 1000.0:0.#} Mbps"
+            : $"{bitrate} Kbps";
+    }
+
+    private string FormatReason(TranscodeReason reason)
+    {
+        var parts = new List<string>();
+
+        if (reason.HasFlag(TranscodeReason.VideoCodecNotSupported))
+            parts.Add(L["ReasonVideoCodec"]);
+        if (reason.HasFlag(TranscodeReason.AudioCodecNotSupported))
+            parts.Add(L["ReasonAudioCodec"]);
+        if (reason.HasFlag(TranscodeReason.ContainerNotSupported))
+            parts.Add(L["ReasonContainer"]);
+        if (reason.HasFlag(TranscodeReason.HlsSegmentsUnavailable))
+            parts.Add(L["ReasonHlsSegments"]);
+        if (reason.HasFlag(TranscodeReason.SubtitlesBurnIn))
+            parts.Add(L["ReasonSubtitles"]);
+        if (reason.HasFlag(TranscodeReason.ResolutionNotSupported))
+            parts.Add(L["ReasonResolution"]);
+        if (reason.HasFlag(TranscodeReason.QualityDownscale))
+            parts.Add(L["ReasonQualityDownscale"]);
+
+        return string.Join(", ", parts);
+    }
+
+    private async Task OnCardClicked()
+    {
+        if (OnClick.HasDelegate)
+            await OnClick.InvokeAsync(Stream);
+    }
+}

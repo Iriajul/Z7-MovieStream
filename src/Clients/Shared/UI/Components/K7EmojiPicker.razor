@@ -1,0 +1,23 @@
+@inject IStringLocalizer<SharedResource> S
+
+<div class="k7-emoji-picker-wrapper">
+    @if (ShowToggle)
+    {
+        <K7IconButton Icon="@Phosphor.Smiley" OnClick="@(() => _open = !_open)" />
+    }
+    @if (_open || !ShowToggle)
+    {
+        <div class="k7-emoji-picker">
+            @if (AllowClear)
+            {
+                <button type="button" class="k7-emoji-picker-btn focusable" @onclick="ClearEmoji">@S["None"]</button>
+            }
+            @foreach (var emoji in K7EmojiPalette.All)
+            {
+                <button type="button" class="k7-emoji-picker-btn focusable @(emoji == SelectedEmoji ? "is-selected" : null)" @onclick="() => SelectEmoji(emoji)">
+                    @emoji
+                </button>
+            }
+        </div>
+    }
+</div>
