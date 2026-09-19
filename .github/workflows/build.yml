@@ -42,7 +42,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/kaybi-gh/k7
+  IMAGE_NAME: ghcr.io/iriajul/z7-moviestream
 
 jobs:
   # build-and-test is the gate. Heavier jobs start only if it succeeds.

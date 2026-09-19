@@ -16,8 +16,8 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  # Chart lands at oci://ghcr.io/kaybi-gh/charts/k7
-  OCI_REPO: oci://ghcr.io/kaybi-gh/charts
+  # Chart lands at oci://ghcr.io/iriajul/charts/z7
+  OCI_REPO: oci://ghcr.io/iriajul/charts
 
 jobs:
   publish-chart:
