@@ -90,6 +90,7 @@ try
 
     app.UseSecurityHeaders();
     app.UseRateLimiter();
+    app.UseMiddleware<SignInRateLimitingMiddleware>();
     app.UseHealthChecks(HealthProbePaths.Readiness);
     app.UseHealthChecks(HealthProbePaths.Liveness, new HealthCheckOptions
     {
